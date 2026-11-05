@@ -74,6 +74,13 @@ public sealed class ProjectRepository
     /// </summary>
     public string OwnerUserId { get; set; } = string.Empty;
 
+    /// <summary>
+    /// <see cref="CloudProject.Name"/> ve <see cref="CloudProject.DbType"/> kopyaları: Explore'un q ve
+    /// motor filtresi tek SQL'de, modüller arası join olmadan çalışsın. Proje yazımıyla aynı işlemde güncellenir.
+    /// </summary>
+    public string ProjectName { get; set; } = string.Empty;
+    public string ProjectDbType { get; set; } = string.Empty;
+
     /// <summary>URL-dostu kısa ad (ör: "multi-tenant-saas").</summary>
     public string? Slug { get; set; }
 

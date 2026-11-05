@@ -131,6 +131,8 @@ public sealed class HubApplicationService : IHubApplicationService
     public async Task<ProjectRepository> EnsureRepositoryAsync(
         string projectId,
         string ownerUserId,
+        string projectName,
+        string projectDbType,
         string? slugIfMissing,
         CancellationToken ct = default)
     {
@@ -138,13 +140,24 @@ public sealed class HubApplicationService : IHubApplicationService
         var repo = await _dbContext.Repositories.FirstOrDefaultAsync(r => r.ProjectId == projectId, ct);
         if (repo is null)
         {
-            repo = new ProjectRepository { ProjectId = projectId, OwnerUserId = ownerUserId, Slug = slugIfMissing };
+            repo = new ProjectRepository
+            {
+                ProjectId = projectId,
+                OwnerUserId = ownerUserId,
+                ProjectName = projectName,
+                ProjectDbType = projectDbType,
+                Slug = slugIfMissing,
+            };
             _dbContext.Repositories.Add(repo);
         }
-        else if (string.IsNullOrWhiteSpace(repo.Slug) && !string.IsNullOrWhiteSpace(slugIfMissing))
+        else
         {
-            repo.Slug = slugIfMissing;
-            repo.UpdatedAt = DateTime.UtcNow;
+            repo.ProjectName = projectName;
+            repo.ProjectDbType = projectDbType;
+            if (string.IsNullOrWhiteSpace(repo.Slug) && !string.IsNullOrWhiteSpace(slugIfMissing))
+                repo.Slug = slugIfMissing;
+            if (_dbContext.Entry(repo).State == EntityState.Modified)
+                repo.UpdatedAt = DateTime.UtcNow;
         }
 
         await _dbContext.SaveChangesAsync(ct);
@@ -155,6 +168,8 @@ public sealed class HubApplicationService : IHubApplicationService
     public async Task<ProjectRepository> ApplySettingsAsync(
         string projectId,
         string ownerUserId,
+        string projectName,
+        string projectDbType,
         RepositorySettingsChange change,
         CancellationToken ct = default)
     {
@@ -168,6 +183,8 @@ public sealed class HubApplicationService : IHubApplicationService
             _dbContext.Repositories.Add(repo);
         }
 
+        repo.ProjectName = projectName;
+        repo.ProjectDbType = projectDbType;
         if (change.Slug != null) repo.Slug = change.Slug;
         if (change.Description != null) repo.Description = change.Description;
         if (change.Visibility.HasValue) repo.Visibility = change.Visibility.Value;
@@ -268,7 +285,6 @@ public sealed class HubApplicationService : IHubApplicationService
 
     public async Task<IReadOnlyList<ProjectRepository>> GetExploreCandidatesAsync(
         ExploreCriteria criteria,
-        int skip,
         int take,
         CancellationToken ct = default)
     {
@@ -285,6 +301,12 @@ public sealed class HubApplicationService : IHubApplicationService
             q = q.Where(r => r.Category.ToLower() == cat);
         }
 
+        if (!string.IsNullOrWhiteSpace(criteria.DbType))
+        {
+            var engine = criteria.DbType.Trim().ToLower();
+            q = q.Where(r => r.ProjectDbType.ToLower() == engine);
+        }
+
         if (!string.IsNullOrWhiteSpace(criteria.Tag))
         {
             // Kanonik anahtarla tam eşleşme: CSV üzerinde LIKE yok, IX_project_tags_Tag_ProjectId.
@@ -292,11 +314,22 @@ public sealed class HubApplicationService : IHubApplicationService
             q = q.Where(r => _dbContext.ProjectTags.Any(t => t.Tag == key && t.ProjectId == r.ProjectId));
         }
 
+        if (!string.IsNullOrWhiteSpace(criteria.Query))
+        {
+            // Ad ve açıklamada alt dizge; etikette tam eşleşme (sahibin kuralı: etikette LIKE yok).
+            var term = criteria.Query.Trim().ToLowerInvariant();
+            var tagKey = ProjectTagRules.Key(criteria.Query);
+            q = q.Where(r =>
+                r.ProjectName.ToLower().Contains(term) ||
+                r.Description!.ToLower().Contains(term) ||
+                _dbContext.ProjectTags.Any(t => t.Tag == tagKey && t.ProjectId == r.ProjectId));
+        }
+
         q = criteria.RecentFirst
             ? q.OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.ProjectId)
             : q.OrderByDescending(r => r.StarCount).ThenByDescending(r => r.CreatedAt).ThenByDescending(r => r.ProjectId);
 
-        return await q.Skip(skip).Take(take).ToListAsync(ct);
+        return await q.Take(take).ToListAsync(ct);
     }
 
     public Task IncrementForkCountAsync(string sourceProjectId, CancellationToken ct = default) =>
@@ -304,12 +337,32 @@ public sealed class HubApplicationService : IHubApplicationService
             .Where(r => r.ProjectId == sourceProjectId)
             .ExecuteUpdateAsync(s => s.SetProperty(r => r.ForkCount, r => r.ForkCount + 1), ct);
 
-    public Task ReassignOwnerAsync(string projectId, string newOwnerUserId, CancellationToken ct = default) =>
-        _dbContext.Repositories
+    public async Task<string?> ReassignOwnerAsync(string projectId, string newOwnerUserId, CancellationToken ct = default)
+    {
+        var slug = await _dbContext.Repositories
+            .AsNoTracking()
+            .Where(r => r.ProjectId == projectId)
+            .Select(r => r.Slug)
+            .FirstOrDefaultAsync(ct);
+
+        // Slug yalnızca sahip içinde benzersiz, aynı adlı projeler olağan: varis tarafında çakışırsa
+        // (sahip, slug) UNIQUE hesap silmeyi kalıcı olarak düşürürdü.
+        var finalSlug = slug;
+        if (!string.IsNullOrWhiteSpace(slug))
+        {
+            for (var suffix = 2; await IsSlugTakenByOwnerAsync(newOwnerUserId, finalSlug!, projectId, ct); suffix++)
+                finalSlug = $"{slug}-{suffix}";
+        }
+
+        await _dbContext.Repositories
             .Where(r => r.ProjectId == projectId)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(r => r.OwnerUserId, newOwnerUserId)
+                .SetProperty(r => r.Slug, finalSlug)
                 .SetProperty(r => r.UpdatedAt, DateTime.UtcNow), ct);
+
+        return finalSlug == slug ? null : finalSlug;
+    }
 
     public async Task DetachFromForkSourceAsync(string projectId, CancellationToken ct = default)
     {

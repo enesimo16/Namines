@@ -131,6 +131,11 @@ public sealed class StudioApplicationService : IStudioApplicationService
             .ExecuteUpdateAsync(u => u.SetProperty(s => s.RevokedAt, (DateTime?)now), ct);
     }
 
+    public Task<int> PurgeRevokedSharesAsync(DateTime revokedBefore, CancellationToken ct = default) =>
+        _dbContext.ProjectShares
+            .Where(s => s.RevokedAt != null && s.RevokedAt < revokedBefore)
+            .ExecuteDeleteAsync(ct);
+
     public async Task<SharedProjectView?> GetSharedProjectByTokenHashAsync(string tokenHash, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(tokenHash))

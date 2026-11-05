@@ -75,6 +75,17 @@ public class DataRetentionService : BackgroundService
                               ?? scope.ServiceProvider.GetService<IDeskModule>()?.Application;
                 await PurgeAsync(db, RetentionOptions.From(_configuration), _logger, DateTime.UtcNow,
                     TimeSpan.FromMilliseconds(200), stoppingToken, deskApp);
+
+                // İptal edilmiş paylaşım satırı yalnızca "ne zaman kapatıldı" izi: sınırsız birikmesin.
+                var shareDays = _configuration.GetValue("Retention:RevokedShareDays", DefaultRevokedShareDays);
+                if (shareDays > 0)
+                {
+                    var removed = await scope.ServiceProvider
+                        .GetRequiredService<Namines.BuildingBlocks.Application.IStudioApplicationService>()
+                        .PurgeRevokedSharesAsync(DateTime.UtcNow.AddDays(-shareDays), stoppingToken);
+                    if (removed > 0)
+                        _logger.LogInformation("Veri saklama: {Count} iptal edilmis paylasim satiri silindi.", removed);
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -90,6 +101,8 @@ public class DataRetentionService : BackgroundService
             catch (OperationCanceledException) { break; }
         }
     }
+
+    public const int DefaultRevokedShareDays = 90;
 
     public sealed record RetentionOptions(
         int GatewayAuditDays, int SqlExecutionAuditDays, int UsageEventDays,

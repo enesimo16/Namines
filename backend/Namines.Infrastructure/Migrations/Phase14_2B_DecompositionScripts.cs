@@ -8,15 +8,16 @@ namespace Namines.Infrastructure.Migrations;
 /// karşılaştırılır, kaynak kolonlar fiziksel olarak düşer, tablo <c>studio.projects</c> olur.
 /// Hepsi EF'in açtığı tek işlemde; doğrulama patlarsa hiçbir şey değişmemiş olur.
 /// </summary>
-internal static class Phase14_2BDecompositionScripts
+public static class Phase14_2BDecompositionScripts
 {
     // C# string.Trim() ile aynı boşluk kümesi: ProjectTagRules ile aynı sonucu vermek zorunda.
     private const string Space = @"[\s \u0085  -     　]";
 
     /// <summary>
     /// ProjectTagRules.Key'in SQL karşılığı. ICU varsa onunla (veritabanı C yerelinde olsa bile
-    /// Türkçe harfler küçülür). 'İ' korunur çünkü .NET ToLowerInvariant onu değiştirmiyor; PG/ICU
-    /// iki karaktere açardı ve arama eşleşmezdi.
+    /// Türkçe harfler küçülür). .NET ToLowerInvariant harf harf eşler, ICU ise bağlam kullanır: harf
+    /// harf küçültülmezse sondaki Yunanca Σ 'ς' olurdu, C#'ta 'σ'. 'İ' korunur çünkü .NET onu
+    /// değiştirmiyor, ICU iki karaktere açardı.
     /// </summary>
     private static string TagKeyFunctionSql => $$"""
         DO $fn$
@@ -28,13 +29,18 @@ internal static class Phase14_2BDecompositionScripts
                     SELECT regexp_replace(t, '^{{Space}}+|{{Space}}+$', '', 'g')
                 $b$;
                 CREATE FUNCTION pg_temp.namines_tag_key(t text) RETURNS text LANGUAGE sql IMMUTABLE AS $b$
-                    SELECT replace(lower(replace(t, 'İ', chr(57344)) COLLATE %s), chr(57344), 'İ')
+                    SELECT string_agg(CASE WHEN c = 'İ' THEN c ELSE lower(c COLLATE %s) END, '' ORDER BY o)
+                    FROM regexp_split_to_table(t, '') WITH ORDINALITY AS x(c, o)
                 $b$;
             $f$, coll);
         END $fn$;
         """;
 
-    public static string Up => $$"""
+    public static string Up => string.Join("\n", UpPrepare, UpVerify, UpContract);
+
+    public static string Down => string.Join("\n", DownRestore, DownVerify, DownContract);
+
+    public static string UpPrepare => $$"""
         -- Kaynak, doğrulama ile DROP arasında değişmesin (READ COMMITTED'da aksi hâlde kaybolur).
         LOCK TABLE "CloudProjects" IN ACCESS EXCLUSIVE MODE;
 
@@ -154,8 +160,10 @@ internal static class Phase14_2BDecompositionScripts
             WHERE display <> ''
         ) keyed
         WHERE first_seen = 1;
+        """;
 
-        -- ── Doğrulama: satır sayısı değil, alan alan ────────────────────────────
+    /// <summary>Satır sayısı değil, alan alan. Patlarsa işlem geri alınır, kaynak yerinde kalır.</summary>
+    public const string UpVerify = """
         DO $verify$
         DECLARE missing bigint; dup bigint; orphan bigint; diff bigint;
         BEGIN
@@ -231,7 +239,9 @@ internal static class Phase14_2BDecompositionScripts
                 RAISE EXCEPTION 'Phase14_2B verify tags: count_diff=%, position_gaps=%, bad_key=%', diff, dup, orphan;
             END IF;
         END $verify$;
+        """;
 
+    public const string UpContract = """
         DROP FUNCTION pg_temp.namines_tag_key(text);
         DROP FUNCTION pg_temp.namines_tag_trim(text);
 
@@ -314,7 +324,7 @@ internal static class Phase14_2BDecompositionScripts
         END $validate$;
         """;
 
-    public static string Down => """
+    public const string DownRestore = """
         LOCK TABLE studio.projects, studio.project_connections, studio.project_shares,
                    hub.repositories, hub.project_tags IN ACCESS EXCLUSIVE MODE;
 
@@ -396,7 +406,9 @@ internal static class Phase14_2BDecompositionScripts
             ORDER BY "ProjectId", "CreatedAt" DESC, "Id" DESC
         ) s
         WHERE s."ProjectId" = p."Id";
+        """;
 
+    public const string DownVerify = """
         DO $verify$
         DECLARE diff bigint;
         BEGIN
@@ -416,14 +428,35 @@ internal static class Phase14_2BDecompositionScripts
             IF diff > 0 THEN
                 RAISE EXCEPTION 'Phase14_2B down verify connections: field_diff=%', diff;
             END IF;
+            SELECT count(*) INTO diff FROM "CloudProjects" p
+            LEFT JOIN (
+                SELECT "ProjectId", string_agg("DisplayTag", ',' ORDER BY "Position") AS csv
+                FROM hub.project_tags GROUP BY 1
+            ) t ON t."ProjectId" = p."Id"
+            WHERE p."Tags" IS DISTINCT FROM t.csv;
+            IF diff > 0 THEN
+                RAISE EXCEPTION 'Phase14_2B down verify tags: field_diff=%', diff;
+            END IF;
+            SELECT count(*) INTO diff FROM "CloudProjects" p
+            LEFT JOIN (
+                SELECT DISTINCT ON ("ProjectId") "ProjectId", "ShareTokenHash"
+                FROM studio.project_shares WHERE "RevokedAt" IS NULL
+                ORDER BY "ProjectId", "CreatedAt" DESC, "Id" DESC
+            ) s ON s."ProjectId" = p."Id"
+            WHERE p."ShareTokenHash" IS DISTINCT FROM s."ShareTokenHash";
+            IF diff > 0 THEN
+                RAISE EXCEPTION 'Phase14_2B down verify shares: field_diff=%', diff;
+            END IF;
         END $verify$;
+        """;
 
+    public const string DownContract = """
         DROP TABLE hub.project_tags;
         DROP TABLE hub.repositories;
         DROP TABLE studio.project_shares;
         DROP TABLE studio.project_connections;
-        DROP SCHEMA hub;
-        DROP SCHEMA studio;
+        -- Şemalar kalır: düşerse roles.sql'in şemaya bağlı DEFAULT PRIVILEGES kaydı da gider ve yeniden
+        -- yükseltmede namines_app yeni tablolara erişemez. Boş şema zararsız, Up onu kullanır.
 
         ALTER TABLE "CloudProjects"
             ADD CONSTRAINT "FK_CloudProjects_CloudProjects_ForkedFromProjectId" FOREIGN KEY ("ForkedFromProjectId")
@@ -444,5 +477,19 @@ internal static class Phase14_2BDecompositionScripts
             ADD CONSTRAINT "CK_CloudProjects_Category_Length" CHECK (char_length("Category") <= 64) NOT VALID,
             ADD CONSTRAINT "CK_CloudProjects_Tags_Length" CHECK (char_length("Tags") <= 256) NOT VALID,
             ADD CONSTRAINT "CK_CloudProjects_LinkedGithubRepo_Length" CHECK (char_length("LinkedGithubRepo") <= 140) NOT VALID;
+        DO $validate$
+        DECLARE c record;
+        BEGIN
+            FOR c IN
+                SELECT conname FROM pg_constraint
+                WHERE contype = 'c' AND NOT convalidated AND conrelid = '"CloudProjects"'::regclass
+            LOOP
+                BEGIN
+                    EXECUTE format('ALTER TABLE "CloudProjects" VALIDATE CONSTRAINT %I', c.conname);
+                EXCEPTION WHEN check_violation THEN
+                    RAISE NOTICE 'CHECK %: existing rows violate it; left NOT VALID (enforced for new writes only).', c.conname;
+                END;
+            END LOOP;
+        END $validate$;
         """;
 }

@@ -127,6 +127,7 @@ public class HubController : ControllerBase
     /// </summary>
     [HttpGet("explore")]
     [AllowAnonymous]
+    [EnableRateLimiting("explore-public")]
     public async Task<IActionResult> Explore(
         [FromQuery] string? q,
         [FromQuery] string? category,
@@ -224,57 +225,25 @@ public class HubController : ControllerBase
     private const int ExploreCandidateLimit = 200;
 
     /// <summary>
-    /// İki modüllü süzme, SQL join'i olmadan: Hub sıralı adayları toplu sayfalarla verir, her sayfa
-    /// için Studio'dan yalnızca ad/motor okunur (şema yok). q ve dbType Studio alanlarına baktığı
-    /// için bellekte süzülür; tavan dolunca durulur. Filtresiz istekte tek tur, yani sabit sorgu sayısı.
+    /// Filtrelerin hepsi Hub'daki tek sorguda; Studio'dan yalnızca bulunan adayların özeti okunur.
+    /// Sorgu sayısı public repo sayısından bağımsız.
     /// </summary>
     private async Task<List<ExploreCandidate>> CollectExploreCandidatesAsync(
         string? q, string? category, string? dbType, string? tag, string? sort, CancellationToken ct)
     {
         var criteria = new ExploreCriteria(
-            category, tag, sort?.Equals("recent", StringComparison.OrdinalIgnoreCase) == true);
+            category, tag, q, dbType, sort?.Equals("recent", StringComparison.OrdinalIgnoreCase) == true);
 
-        var term = string.IsNullOrWhiteSpace(q) ? null : q.Trim().ToLowerInvariant();
-        var tagKey = string.IsNullOrWhiteSpace(q) ? null : ProjectTagRules.Key(q);
-        var engine = string.IsNullOrWhiteSpace(dbType) ? null : dbType.Trim().ToLowerInvariant();
+        var repositories = await _hub.GetExploreCandidatesAsync(criteria, ExploreCandidateLimit, ct);
+        var ids = repositories.Select(r => r.ProjectId).ToList();
+        var projects = await _studio.GetProjectSummariesAsync(ids, ct);
+        var tags = await _hub.GetTagsCsvAsync(ids, ct);
 
-        var result = new List<ExploreCandidate>(ExploreCandidateLimit);
-        for (var skip = 0; result.Count < ExploreCandidateLimit; skip += ExploreCandidateLimit)
-        {
-            var batch = await _hub.GetExploreCandidatesAsync(criteria, skip, ExploreCandidateLimit, ct);
-            if (batch.Count == 0) break;
-
-            var ids = batch.Select(r => r.ProjectId).ToList();
-            var projects = await _studio.GetProjectSummariesAsync(ids, ct);
-            var tags = await _hub.GetTagsCsvAsync(ids, ct);
-
-            foreach (var repo in batch)
-            {
-                if (!projects.TryGetValue(repo.ProjectId, out var project)) continue;
-                if (engine != null && project.DbType.ToLowerInvariant() != engine) continue;
-
-                var csv = tags.GetValueOrDefault(repo.ProjectId);
-                if (term != null &&
-                    !project.Name.ToLowerInvariant().Contains(term, StringComparison.Ordinal) &&
-                    !(repo.Description ?? string.Empty).ToLowerInvariant().Contains(term, StringComparison.Ordinal) &&
-                    !HasTag(csv, tagKey!))
-                {
-                    continue;
-                }
-
-                result.Add(new ExploreCandidate(repo, project, csv));
-                if (result.Count == ExploreCandidateLimit) break;
-            }
-
-            if (batch.Count < ExploreCandidateLimit) break;
-        }
-
-        return result;
+        return repositories
+            .Where(r => projects.ContainsKey(r.ProjectId))
+            .Select(r => new ExploreCandidate(r, projects[r.ProjectId], tags.GetValueOrDefault(r.ProjectId)))
+            .ToList();
     }
-
-    // Serbest aramada etiket yalnızca TAM (büyük/küçük harf duyarsız) eşleşir; CSV'de alt dizge yok.
-    private static bool HasTag(string? csv, string key) =>
-        csv != null && csv.Split(',').Any(t => ProjectTagRules.Key(t) == key);
 
     /// <summary>
     /// Repo detayları, şema AST, branch'ler, issue sayıları, PR sayıları ve caller yetkisi.
@@ -543,7 +512,7 @@ public class HubController : ControllerBase
             await _transaction.ExecuteAsync(async c =>
             {
                 await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, c);
-                updated = await _hub.ApplySettingsAsync(projectId, project.UserId, change, c);
+                updated = await _hub.ApplySettingsAsync(projectId, project.UserId, project.Name, project.DbType, change, c);
             }, ct);
             _context.ChangeTracker.AcceptAllChanges();
         }
@@ -697,6 +666,8 @@ public class HubController : ControllerBase
         {
             ProjectId = forkedProject.Id,
             OwnerUserId = userId,
+            ProjectName = forkedProject.Name,
+            ProjectDbType = forkedProject.DbType,
             Slug = forkSlug,
             Description = $"Forked from {project.User?.UserName ?? "unknown"}/{project.Name}",
             Visibility = ProjectVisibility.Private,
@@ -713,7 +684,7 @@ public class HubController : ControllerBase
             await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, c);
             // Self-FK kaynak repo satırını ister; satırsız eski proje burada tamamlanır.
             if (sourceRepository is null)
-                await _hub.EnsureRepositoryAsync(project.Id, project.UserId, null, c);
+                await _hub.EnsureRepositoryAsync(project.Id, project.UserId, project.Name, project.DbType, null, c);
             await _hub.CreateRepositoryAsync(forkedRepository, sourceTags, c);
             await _hub.IncrementForkCountAsync(project.Id, c);
         }, ct);

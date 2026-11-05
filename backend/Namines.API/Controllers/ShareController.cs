@@ -43,7 +43,7 @@ public class ShareController : ControllerBase
     /// </summary>
     [Authorize]
     [HttpPost("{projectId}")]
-    [EnableRateLimiting("sensitive")]
+    [EnableRateLimiting("share-create")]
     public async Task<IActionResult> CreateShareLink(string projectId, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(CurrentUserId)) return Unauthorized();

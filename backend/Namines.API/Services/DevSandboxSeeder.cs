@@ -212,7 +212,7 @@ public static class DevSandboxSeeder
         project.UpdatedAt = DateTime.UtcNow;
 
         await context.SaveChangesAsync(ct);
-        await hub.EnsureRepositoryAsync(ProjectId, project.UserId, null, ct);
+        await hub.EnsureRepositoryAsync(ProjectId, project.UserId, project.Name, project.DbType, null, ct);
 
         // Bağlantı HER AÇILIŞTA yeniden şifreleniyor: şifreleme anahtarı
         // değiştiğinde eski şifreli metin çözülemez hâle gelir ve proje

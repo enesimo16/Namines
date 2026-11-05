@@ -67,6 +67,11 @@ public interface IStudioApplicationService
         string projectId,
         CancellationToken ct = default);
 
+    /// <summary>Eşikten önce iptal edilmiş satırları siler (saklama işi); silinen sayısını döner.</summary>
+    Task<int> PurgeRevokedSharesAsync(
+        DateTime revokedBefore,
+        CancellationToken ct = default);
+
     /// <summary>Ham token değil özet alır; iptal edilmiş bağlantı için null.</summary>
     Task<SharedProjectView?> GetSharedProjectByTokenHashAsync(
         string tokenHash,

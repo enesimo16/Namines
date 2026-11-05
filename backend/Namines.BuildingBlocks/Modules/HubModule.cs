@@ -47,6 +47,8 @@ public static class HubModelConfiguration
             });
             entity.HasKey(r => r.ProjectId);
             entity.Property(r => r.OwnerUserId).IsRequired();
+            entity.Property(r => r.ProjectName).IsRequired();
+            entity.Property(r => r.ProjectDbType).IsRequired();
             entity.Property(r => r.Category).IsRequired();
 
             // Slug boş olabilir: benzersizlik yalnızca dolu slug'larda ve sahip bazında (taşınan

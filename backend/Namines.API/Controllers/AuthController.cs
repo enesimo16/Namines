@@ -437,7 +437,7 @@ namespace Namines.API.Controllers
 
             int savedCount = 0;
             var pendingDiffs = new List<(string ProjectId, string DbType, string? OldJson, string NewJson)>();
-            var pendingRepositories = new List<(string ProjectId, string OwnerUserId, string? Slug)>();
+            var pendingRepositories = new List<(string ProjectId, string OwnerUserId, string Name, string DbType, string? Slug)>();
             var reservedSlugs = new HashSet<(string Owner, string Slug)>();
             foreach (var projDto in projects)
             {
@@ -477,11 +477,11 @@ namespace Namines.API.Controllers
                     existing.NodePositionsJson = projDto.NodePositionsJson;
                     existing.UpdatedAt = DateTime.UtcNow;
                     var existingRepository = await _hub.GetRepositoryAsync(existing.Id);
-                    if (existingRepository is null || string.IsNullOrWhiteSpace(existingRepository.Slug))
-                    {
-                        pendingRepositories.Add((existing.Id, existing.UserId,
-                            await BuildUniqueSlugAsync(existing.Name, existing.Id, existing.UserId, reservedSlugs)));
-                    }
+                    var missingSlug = existingRepository is null || string.IsNullOrWhiteSpace(existingRepository.Slug)
+                        ? await BuildUniqueSlugAsync(existing.Name, existing.Id, existing.UserId, reservedSlugs)
+                        : null;
+                    // Slug dolu olsa da satır yazılır: ad/motor okuma modeli projeyle aynı işlemde güncel kalsın.
+                    pendingRepositories.Add((existing.Id, existing.UserId, existing.Name, existing.DbType, missingSlug));
                     existing.OrganizationId ??= personalOrg.Id;
                     _context.CloudProjects.Update(existing);
 
@@ -510,7 +510,7 @@ namespace Namines.API.Controllers
                         UpdatedAt = DateTime.UtcNow
                     };
                     await _context.CloudProjects.AddAsync(newCloudProj);
-                    pendingRepositories.Add((newId, userId, await BuildUniqueSlugAsync(projDto.Name, newId, userId, reservedSlugs)));
+                    pendingRepositories.Add((newId, userId, projDto.Name, projDto.DbType, await BuildUniqueSlugAsync(projDto.Name, newId, userId, reservedSlugs)));
                 }
                 savedCount++;
             }
@@ -521,8 +521,8 @@ namespace Namines.API.Controllers
                 await _transaction.ExecuteAsync(async c =>
                 {
                     await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, c);
-                    foreach (var (projectId, ownerUserId, slug) in pendingRepositories)
-                        await _hub.EnsureRepositoryAsync(projectId, ownerUserId, slug, c);
+                    foreach (var (projectId, ownerUserId, name, dbType, slug) in pendingRepositories)
+                        await _hub.EnsureRepositoryAsync(projectId, ownerUserId, name, dbType, slug, c);
                 });
                 _context.ChangeTracker.AcceptAllChanges();
             }

@@ -176,7 +176,7 @@ export default function HubExplorePage() {
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
             <input
               type="text"
-              placeholder="Search architectures, tables, or tags..."
+              placeholder="Search by name or description, or an exact tag..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full pl-9 pr-8 py-1.5 text-xs font-sans rounded-[var(--radius-control)] bg-surface-900 border border-line text-ink-primary placeholder:text-ink-muted focus:outline-hidden focus:border-accent"

@@ -5,8 +5,8 @@ using Namines.Core.Models.Auth;
 
 namespace Namines.BuildingBlocks.Application;
 
-/// <summary>Keşif adaylarının Hub tarafında süzülebilen kısmı. İsim ve motor Studio'da.</summary>
-public sealed record ExploreCriteria(string? Category, string? Tag, bool RecentFirst);
+/// <summary>Keşif filtreleri; hepsi tek SQL'de uygulanır (ad ve motor Hub'daki okuma modelinden).</summary>
+public sealed record ExploreCriteria(string? Category, string? Tag, string? Query, string? DbType, bool RecentFirst);
 
 /// <summary>PATCH ayarları. null = dokunma; boş dizge alanın anlamına göre (temizle) işlenir.</summary>
 public sealed record RepositorySettingsChange(
@@ -75,16 +75,23 @@ public interface IHubApplicationService
         string? tagsCsv,
         CancellationToken ct = default);
 
-    /// <summary>Satır yoksa varsayılanlarla açar; boş slug'ı verilen değerle doldurur, dolu olana dokunmaz.</summary>
+    /// <summary>
+    /// Satır yoksa varsayılanlarla açar; ad/motor kopyasını günceller; boş slug'ı verilen değerle
+    /// doldurur, dolu olana dokunmaz.
+    /// </summary>
     Task<ProjectRepository> EnsureRepositoryAsync(
         string projectId,
         string ownerUserId,
+        string projectName,
+        string projectDbType,
         string? slugIfMissing,
         CancellationToken ct = default);
 
     Task<ProjectRepository> ApplySettingsAsync(
         string projectId,
         string ownerUserId,
+        string projectName,
+        string projectDbType,
         RepositorySettingsChange change,
         CancellationToken ct = default);
 
@@ -99,10 +106,9 @@ public interface IHubApplicationService
         string userId,
         CancellationToken ct = default);
 
-    /// <summary>Public + açıklamalı repolar, istenen sırada. Toplu sayfalama çağıranda.</summary>
+    /// <summary>Public + açıklamalı repolar, istenen sırada: tek sorgu, en fazla <paramref name="take"/> satır.</summary>
     Task<IReadOnlyList<ProjectRepository>> GetExploreCandidatesAsync(
         ExploreCriteria criteria,
-        int skip,
         int take,
         CancellationToken ct = default);
 
@@ -110,8 +116,11 @@ public interface IHubApplicationService
         string sourceProjectId,
         CancellationToken ct = default);
 
-    /// <summary>Hesap silmede kurucu devri: (sahip, slug) benzersizliği yeni sahibe taşınır.</summary>
-    Task ReassignOwnerAsync(
+    /// <summary>
+    /// Hesap silmede kurucu devri. Yeni sahipte aynı slug varsa <c>slug-2</c>, <c>slug-3</c>... seçilir;
+    /// slug değiştiyse yenisini döndürür (URL değiştiği için çağıran loglar), değilse null.
+    /// </summary>
+    Task<string?> ReassignOwnerAsync(
         string projectId,
         string newOwnerUserId,
         CancellationToken ct = default);

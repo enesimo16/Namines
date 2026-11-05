@@ -326,9 +326,6 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
             });
         });
 
-        // Hub'ın sık ama ucuz yazmaları (yıldız, issue, yorum). "sensitive"in dakikada
-        // 5'i bir issue tartışmasını bile tıkardı; spam'i durdurmak için kullanıcı
-        // başına 30 yeterli. Pahalı/yıkıcı olanlar (fork, ayar, silme) "sensitive"te kalır.
         // Anonim paylaşım uçları (view/meta/badge/og): token 192-bit, kaba kuvvet zaten umutsuz; bu
         // sınır tarama ve özet sorgusu yükü içindir. Rozet ve önizleme başka sitelerden (README,
         // sosyal ağ proxy'leri) tek IP'den gelebildiği için "sensitive"ten bilerek geniş.
@@ -343,6 +340,37 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
             });
         });
 
+        // Explore anonim ve her istekte en fazla 200 adayın şemasını ayrıştırıyor.
+        options.AddPolicy("explore-public", httpContext =>
+        {
+            var partitionKey = httpContext.Connection.RemoteIpAddress?.ToString() ?? "anon";
+            return RateLimitPartition.GetFixedWindowLimiter("explore:" + partitionKey, _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            });
+        });
+
+        // Paylaşım POST'u kendi kovasında: arayüz tıklama başına çağırıyor ve fork/ayar/silmenin dakikada
+        // 5'lik kovasını tüketmemeli. Her çağrı satır yazdığı için yine de sınırlı.
+        options.AddPolicy("share-create", httpContext =>
+        {
+            var partitionKey =
+                httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                ?? "anonymous";
+            return RateLimitPartition.GetFixedWindowLimiter("share-create:" + partitionKey, _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            });
+        });
+
+        // Hub'ın sık ama ucuz yazmaları (yıldız, issue, yorum). "sensitive"in dakikada
+        // 5'i bir issue tartışmasını bile tıkardı; spam'i durdurmak için kullanıcı
+        // başına 30 yeterli. Pahalı/yıkıcı olanlar (fork, ayar, silme) "sensitive"te kalır.
         options.AddPolicy("hub-write", httpContext =>
         {
             var partitionKey =

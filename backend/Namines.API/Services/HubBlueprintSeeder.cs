@@ -118,6 +118,8 @@ public static class HubBlueprintSeeder
             {
                 ProjectId = project.Id,
                 OwnerUserId = architect.Id,
+                ProjectName = project.Name,
+                ProjectDbType = project.DbType,
                 Slug = bp.Slug,
                 Description = bp.Description,
                 Category = bp.Category,
