@@ -194,7 +194,6 @@ public sealed class Phase14_2A_SecurityAndMigrationTests : IAsyncLifetime
                 UserId = "owner-1",
                 OrganizationId = "org-1",});
             await db.SaveChangesAsync();
-            await TestModules.For(db).SeedConnectionAsync("p-sec", "k.active:ciphertext-payload-hidden", "PostgreSQL", false);
             await TestModules.For(db).SeedConnectionAsync("proj-tenant", _protector.Protect(rawConn, associatedData: "proj-tenant"), "PostgreSQL", true);
         }
 
@@ -273,6 +272,7 @@ public sealed class Phase14_2A_SecurityAndMigrationTests : IAsyncLifetime
                 UserId = "u-tok",
                 OrganizationId = "org-tok",});
             await db.SaveChangesAsync();
+            await TestModules.For(db).SeedShareAsync("p-migrated-tok", rawLegacyToken);
         }
 
         await using var readDb = new AuthDbContext(_authOptions);

@@ -92,7 +92,7 @@ public sealed class HubHardeningTests : IAsyncLifetime
 
     private async Task SaveSeedAsync(AuthDbContext db)
     {
-        await SaveSeedAsync(db);
+        await db.SaveChangesAsync();
         foreach (var (id, slug, ownerId, visibility) in _pendingRepositories)
             await TestModules.For(db).SeedRepositoryAsync(id, ownerId, slug: slug, visibility: visibility);
         _pendingRepositories.Clear();

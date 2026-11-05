@@ -53,7 +53,17 @@ public class MigrationCompatibilityTests
     /// artık mümkün OLMADIĞINI kabul etmek demek — o yüzden gerekçesi
     /// "kolaydı" olamaz.
     /// </summary>
-    private static readonly Dictionary<string, string> DeliberateExceptions = new();
+    private static readonly Dictionary<string, string> DeliberateExceptions = new()
+    {
+        ["20261105055013_Phase14_2B_ReconcileModelDrift"] =
+            "ShareToken kolonu: bir önceki sürümün kodu onu zaten [NotMapped] tutuyordu, yani hiçbir sorgu " +
+            "okumuyor. Düz metin token'ın DB'de kalması bu kuraldan daha büyük risk (sahibin kararı).",
+        ["20261105060611_Phase14_2B_DecomposeCloudProjects"] =
+            "Tek adımda yerinde taşıma (sahibin kararı: kolonlar fiziksel düşecek). Ham SQL olduğu için kural " +
+            "zaten yakalamıyor ama kayıt burada dursun: eski kod yeni şemada ÇALIŞMAZ. Dağıtım: eski sürümü " +
+            "durdur, --migrate, yeni sürümü aç. Kod geri alınacaksa önce Down çalıştırılır " +
+            "(bkz. PHASE_14_2B_REPORT.md §3).",
+    };
 
     private static readonly Regex UpMethod =
         new(@"protected\s+override\s+void\s+Up\s*\(", RegexOptions.Compiled);
