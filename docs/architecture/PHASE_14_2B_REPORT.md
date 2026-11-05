@@ -222,13 +222,13 @@ ama tek SQL ve `LIMIT 200`. Çok büyürse trigram indeksi gerekir; şu ölçekt
 | Komut | Proje | Toplam | Geçen | Kalan | Atlanan | Süre |
 |---|---|---|---|---|---|---|
 | Temel (değişiklikten önce, `5565811`) | Namines.Tests | 2785 | 2776 | 9 | 0 | 42 m 36 s |
-| Son (`be11e15`) `dotnet test backend/Namines.Tests -c Release --no-build` | Namines.Tests | 2812 | 2812 | 0 | 0 | 11 m 27 s |
-| Son `dotnet test backend/Namines.Tests.RunTests -c Release --no-build` | Namines.Tests.RunTests (Launch dahil) | 19 | 19 | 0 | 0 | 1 m 4 s |
-| Son `npx tsc --noEmit`, `npx vitest run` | frontend | 280 | 280 | 0 | 0 | 11 s (39 dosya, tsc 0 hata) |
+| Son (`613ceab`, B-3 dahil) `dotnet test backend/Namines.Tests -c Release --no-build` | Namines.Tests | 2818 | 2818 | 0 | 0 | 11 m 53 s |
+| Son `dotnet test backend/Namines.Tests.RunTests -c Release --no-build` | Namines.Tests.RunTests (Launch dahil) | 19 | 19 | 0 | 0 | 1 m 3 s |
+| `npx tsc --noEmit`, `npx vitest run` (B-3 frontend'e dokunmadı, yeniden koşulmadı) | frontend | 280 | 280 | 0 | 0 | 11 s (39 dosya, tsc 0 hata) |
 | Önceki (`815d76e`) `dotnet test backend/Namines.Tests -c Release --no-build` | Namines.Tests | 2804 | 2804 | 0 | 0 | 20 m 15 s |
 | Önceki `dotnet test backend/Namines.Tests.RunTests -c Release --no-build` | Namines.Tests.RunTests (Launch dahil) | 19 | 19 | 0 | 0 | 1 m 7 s |
 
-2812'nin 206'sı `Namines.Tests.Integration` ad alanında (8 `Phase14_2BMigrationTests`, 17 `Phase14_2BFlowTests`), 19'u
+2818 içinde: B-3 turundan önceki sayımla 206'sı `Namines.Tests.Integration` ad alanında (8 `Phase14_2BMigrationTests`, 17 `Phase14_2BFlowTests`), 19'u
 `ModularMonolithArchitectureTests`, gerçek PostgreSQL'de. Atlanan yok. Sıralı koşu
 (`xunit.parallelizeAssembly=false`, `parallelizeTestCollections=false`), Docker gerçek. Süre makine yüküne çok
 bağlı: aynı suite 39-59 dk da sürdü.
