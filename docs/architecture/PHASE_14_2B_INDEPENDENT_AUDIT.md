@@ -1,54 +1,77 @@
 # Faz 14.2B Bağımsız Kabul Denetimi
 
-> Denetlenen: `arch/phase-14-2`, ikinci tur `f741b8b..9f59c07` (birinci tur `5565811..68c9fec`). Tarih: 2026-11-05.
+> Denetlenen: `arch/phase-14-2`, üçüncü tur `0171b83..f595bfb` (ikinci tur `f741b8b..9f59c07`, birinci tur `5565811..68c9fec`). Tarih: 2026-11-05.
 > Ortam: Windows 11, .NET 8.0.427, Docker 29.9; kendi `postgres:16-alpine` container'ım, testlerde Testcontainers (`postgres:17-alpine`). Uygulayıcının rapor ve test çıktılarına güvenilmedi; aşağıdaki her sayı bu denetimde üretildi.
 
-## Nihai karar (ikinci tur): CONDITIONALLY ACCEPTED
+## Nihai karar (üçüncü tur): ACCEPTED
 
-Birinci turun bütün bulguları (B-1, B-2, M-1, M-2, L-1..L-5) gerçek koşularla kapandı. Ancak B-2 düzeltmesi **yeni bir bloklayıcı getirdi: B-3**. Abonelik iptali artık commit'ten sonra çalışıyor ve kaybolabiliyor. ACCEPTED verilemez; B-3 kapanmadan 14.2C'ye geçilemez. Yeniden denetim yalnızca B-3 ve tam test koşusudur.
+B-1, B-2, B-3, M-1, M-2 ve L-1..L-5 kapandı; kabul kriterlerinin hepsi sağlanıyor. Faz 14.2B bu denetim açısından tamam, 14.2C başlayabilir. Kalan maddeler bloklamıyor ve aşağıdaki backlog'da adı geçen fazlara atandı.
 
-## Kabul tablosu (ikinci tur, `9f59c07`)
+**Tek sınır:** Stripe'ın gerçek API'si çalıştırılmadı (anahtar yok); iptal akışı sahte canceller ve anahtarsız gerçek uygulamayla sınandı (backlog BL-1).
+
+## Kabul tablosu (üçüncü tur, `f595bfb`)
 
 | Alan | Sonuç | Kanıt |
 |---|---|---|
 | Build | PASS | `dotnet build backend/Namines.sln -c Release --no-incremental`: 0 uyarı, 0 hata |
-| Unit | PASS | `Namines.Tests`: 2812 toplam, 2812 geçti, 0 kaldı, 0 atlandı, 11 dk 45 sn, sıralı. Docker gerektirmeyenler bu sayının içinde |
-| Integration | PASS, B-3 senaryosu yok | Aynı koşuda gerçek PG; `Namines.Tests.RunTests`: 19/19, 1 dk 28 sn. Bir önceki deneme benim kabuğumda `MSYS_NO_PATHCONV=1` yüzünden .NET çalışma zamanını bulamayıp başlamadı (kod hatası değil); temiz kabukta yeniden koşuldu |
-| Architecture | PASS | `ModularMonolithArchitectureTests` yeşil; yazım noktaları elle de tarandı (§A) |
-| Migration | PASS | Boş DB, seed'li Up, Down, Up, en az yetkili rol (boş ve seed'li): §A. `has-pending-model-changes` Auth, Studio, Hub: temiz |
-| Data integrity | PASS | 52 kötü niyetli satır: alan farkı yok, etiket 52/52 C# ile aynı, Up1 = Up2 |
-| Security | PASS | Gerçek API'ye karşı 38/38 yeniden geçti; log'da bağlantı parolası 0 |
-| API compatibility | PASS, farklar §4 | Rotalar ve DTO alanları aynı; `tsc` 0 hata; vitest 39 dosya, 280/280. Frontend'de tek değişiklik arama kutusu metni |
-| Performans (ek) | PASS | Eşleşmeyen `q` ve motor: 14-54 ms, test yükü altında (önce 570-625 ms boşta) |
-| Billing bütünlüğü (ek) | **FAIL** | B-3 |
-| Documentation | PASS, B-3 hariç | Rapor güncel; `PHASE_14_2B_REPORT.md` §4 "pending" anlatımı B-3 ile düzeltilmeli |
-| Independent audit | CONDITIONALLY ACCEPTED | Bu belge |
+| Unit | PASS | `Namines.Tests`: 2818 toplam, 2818 geçti, 0 kaldı, 0 atlandı, 12 dk, sıralı. Docker gerektirmeyenler bu sayının içinde |
+| Integration | PASS | Aynı koşuda gerçek PG; `Namines.Tests.RunTests`: 19/19, 1 dk 3 sn |
+| Architecture | PASS | `ModularMonolithArchitectureTests` yeşil; yeni kayma koruması mutasyonla sınandı (aşağıda) |
+| Migration | PASS | `--migrate` boş DB: 51 migration. Kötü niyetli seed Up, Down, Up: fark 0. `roles.sql` + migrator: geçti, `namines_app` outbox'ta DML yetkili. `has-pending-model-changes` Auth, Studio, Hub: temiz |
+| Data integrity | PASS | Up1 = Up2 (repo, bağlantı, paylaşım, etiket, proje). Outbox `Down`'da açık satır siliniyor: runbook §5.2 uyarıyor, BL-2 |
+| Security | PASS | Yeni uç: anonim 401, normal kullanıcı 403, admin 200 (gerçek API). 503 yanıtında iç hata metni yok. Log'da bağlantı parolası 0. 38/38 kontrol ikinci turda geçti; bu turda değişen uçlar yeniden sınandı |
+| API compatibility | PASS | Yeni uç eklendi, mevcut rota ve alan değişmedi. Hesap silmede beklenmeyen hata 500 yerine 503; arayüz sunucu mesajını gösteriyor (`DeleteAccountSection.tsx`), genel 503 kolu yalnız `FEATURE_DISABLED` için. Bu turda frontend değişmedi; `tsc` 0 hata, vitest 280/280 ikinci turun sonucu |
+| Performans (ek) | PASS | Explore bu turda değişmedi (ikinci tur: 14-54 ms). İşçi kısmi indeksle arıyor, turda 20 satır |
+| Billing bütünlüğü (ek) | PASS | B-3 aşağıda |
+| Documentation | PASS | Rapor §4 ve §7, runbook §5.2, `MIGRATION_PLAN.md:38` güncel; rapordaki 2818/19 sayıları benimkiyle aynı |
+| Independent audit | **ACCEPTED** | Bu belge |
 
-## Açık bloklayıcı
+## B-3 yeniden denetimi: kapandı
 
-### B-3 (HIGH): Commit'ten sonra Stripe iptali kaybolabiliyor; `pending` satırını kimse işlemiyor
-
-`backend/Namines.Infrastructure/Services/AccountDeletionService.cs:284`, `:296-312`. **Yeni:** birinci turda iptal işlemden önce çalışıyordu.
-
-**"Kim yeniden deniyor?" Hiç kimse.** Üretim kodunda `pending` veya `manual_cancellation_required` okuyan bir yer yok (tam grep; işçi yok, Admin ucu yok). Üç kayıp yolu:
-
-| Yol | Ne olur | İz |
+| Soru | Sonuç | Kanıt |
 |---|---|---|
-| Commit ile Stripe arasında süreç ölür (deploy, OOM) | İptal hiç gönderilmez, hesap yok, **müşteri ödemeye devam eder** | Yalnız `stripe:"pending"`. Abonelik kimliği hiçbir yerde yok: kullanıcı satırı silindi, `Details` kimliği taşımıyor, log yazılmadı. **Sessiz ve kurtarılamaz** |
-| İstemci commit'ten sonra bağlantıyı keser | `ct` = `RequestAborted` (`AuthController.cs:922`). İptal edilmiş token `:301`'de Stripe çağrısını düşürür, `StripeSubscriptionCanceller.cs:42` yutup `false` döner; `:312` de aynı token'la patlar | Satır `pending` kalır; kimlik yalnız log'da. Bu yol kod okumasıyla belirlendi, çalıştırılarak denenmedi |
-| Stripe geçici hatası | `manual_cancellation_required`, yeniden deneme yok | Kimlik yalnız log'da |
+| Outbox atomik mi? | Evet | Satır, kullanıcı silmeyle aynı işlemde. Gerçek API'de trigger ile düşürülen işlem: 503, kullanıcı duruyor, outbox satırı **0**. Trigger kaldırılınca yeniden deneme 200, satır `sub_user_real`, denetim `queued` |
+| Süreç ölümü | Kapandı | Gerçek host'ta elle eklenen `Attempts=0` satırını çalışan işçi 1 dakika içinde aldı (`w-death`: `Attempts=1`, sonraki deneme +120 sn). Vadesi gelmemiş satıra dokunmadı, tamamlanana dokunmadı |
+| İstemci kopması | Kapandı | İlk deneme `CancellationToken.None` + 30 sn. Test, token'ı Stripe çağrısı sırasında iptal ediyor; iptal ve denetim tamamlanıyor |
+| Sahiplenme | Doğru | Kısa işlem + `FOR UPDATE SKIP LOCKED`, Stripe çağrısında kilit yok. Test: 3 işçi, 30 satır, 30 çağrı, hepsi `Attempts=1`. `NextAttemptAt` commit'ten önce ileri alınıyor, ölen işçinin satırı süre dolunca geri geliyor |
+| Geri çekilme | Doğru | 2, 4, 8... dk, tavan 6 saat. 8. denemede 15.360 sn = 256 dk gerçek çalıştırmada görüldü. Vazgeçme yok |
+| İdempotensi | Tasarımda doğru, Stripe'a karşı sınanmadı | İlk deneme ile işçi yarışırsa çift çağrı olabilir (kimlikle sahiplenmede vade kontrolü yok). `resource_missing` tamam sayılıyor. Stripe başka bir hata dönerse iptal kaybolmaz, satır açık kalır ve alarm verir (BL-1) |
+| Alarm | Çalışıyor | `Attempts=8` satırı için gerçek host'ta ERROR logu, abonelik kimliğiyle |
+| Admin ucu | Doğru | `[Authorize]` + `EnsureAdminAsync`, diğer admin uçlarıyla aynı. Anonim 401, kullanıcı 403, admin 200 (`total:4, stuck:1`). Abonelik kimliği yalnız admin'e. Otomatik test yok (BL-3); `total` 200 ile sınırlı (BL-3) |
+| Saklama | Doğru | Yalnız `CompletedAt` dolu ve 90 günden eski satır siliniyor. Test: 3 yıllık açık satır kalıyor |
+| 503 yolu | Doğru | `ACCOUNT_DELETE_INCOMPLETE`, mesaj güvenli, istisna metni sızmıyor. `OperationCanceledException` hariç. Commit sonucu belirsiz nadir durumda mesaj yanlış olabilir, iptal yine işçiyle tamamlanır (BL-4) |
 
-Gerçek API'de kanıt (abonelikli hesap, Stripe anahtarı yok): `DELETE /api/auth/me` 200; denetim satırı `"stripe":"manual_cancellation_required"`; `sub_audit_test_1` denetim tablosunda **0**, log'da 1 satır.
+**Değişen test doğrulamaları meşru:**
+- `manual_cancellation_required` → `queued` + açık outbox satırı: o durum artık üretilmiyor (üretim kodunda 0 eşleşme) ve yeni doğrulama daha güçlü, abonelik kimliğini de sınıyor.
+- `ThrowsAnyAsync` → 503 kodu, mesaj ve outbox yokluğu: daha güçlü.
+- DbSet sayısı 27 → 28: gerçek bir eklenti. Kullanıcı silmeyle aynı işlem gerektiği için bugün doğru yer `AuthDbContext`; ama "yalnız Identity" hedefinden uzaklaştırıyor, D-2'ye atandı (BL-2).
+- Test `Surec_commit...` süreç ölümünü `canceller: null` ile benzetiyor (bir deneme sayılıyor). Gerçek ölüm durumu yukarıda host'ta ayrıca doğrulandı.
 
-Eski sırada süreç ölürse hesap duruyor ve abonelik iptal edilmiş oluyordu; yani ödeme devam etmiyordu. Yeni sıra işlem hatasındaki sorunu doğru çözdü ama ölümcül yolu "silinmiş hesaba sessiz tahsilat"a çevirdi. Üçüncü yol önceden de vardı; ilk ikisi bu düzeltmeyle geldi.
+**Kayma koruması (mutasyon testi, geçici worktree'de, silindi):**
+- `TeamController`'a `p.Name = "x"` eklendi: test **düştü**, sınıf adını gösterdi. Koruma gerçek.
+- Aynı yere `ExecuteUpdateAsync(... SetProperty(p => p.Name, "x"))` eklendi: test **geçti**. IL taraması ifade ağacını görmüyor.
+- Tasarım gereği de görmedikleri: ham SQL ve listedeki sınıfın yeni bir metodu.
+- Bugün böyle bir yazıcı yok (ikinci tur tam grep), bu yüzden bloklamıyor (BL-5).
 
-**Gerekli düzeltme (transactional outbox):**
-1. Tablo: `PendingSubscriptionCancellation` (`Id`, `SubscriptionId`, `CreatedAt`, `Attempts`, `LastAttemptAt`, `CompletedAt`), `AuthDbContext` zincirinde ileri migration. Kullanıcıya FK yok; satır hesaptan uzun yaşamalı. D-2'de Billing'e taşınır.
-2. Satır, kullanıcı silmeyle **aynı işlemde** yazılır (`:284` yanında).
-3. Commit sonrası ilk deneme `ct` ile değil, `CancellationToken.None` + süre sınırıyla yapılır. Başarıda `CompletedAt` ve denetim satırı güncellenir.
-4. Arka plan işçisi tamamlanmamış satırları artan aralıkla yeniden dener. `CancelAsync` `resource_missing` için `true` döndüğünden idempotent; çoklu instance için `FOR UPDATE SKIP LOCKED`. Eşiği aşan satır her turda `LogError` üretir ve Admin'de görünür. Stripe anahtarı yoksa satır bekler, silinmez.
-5. Retention açık satırı silmez.
-6. Gerçek PG testleri: (a) commit sonrası canceller çağrılmadan süreç ölümü benzetimi, işçi tamamlar; (b) iptal edilmiş token, iptal yine gider; (c) Stripe önce hata sonra başarı, tek iptal; (d) işlem düşerse outbox satırı da yok.
+## Backlog (bloklamayan, faza atanmış)
+
+| ID | Sev. | Madde | Faz |
+|---|---|---|---|
+| BL-1 | MEDIUM | İptali Stripe test modunda gerçekten çalıştır; iptal edilmiş abonelikte dönen hata kodunu doğrula, `resource_missing` varsayımını testle sabitle | 14.2D-2 (Billing) |
+| BL-2 | MEDIUM | `PendingSubscriptionCancellations`'ı Billing'e taşı, `AuthDbContext` DbSet'ini çıkar. Taşırken `Down`'a açık satır varsa `RAISE EXCEPTION` ekle (bugün yalnız runbook uyarısı) | 14.2D-2 (Billing) |
+| BL-3 | LOW | Admin ucuna otomatik yetki testi; `total` ve `stuck` gerçek sayıyı versin (bugün ilk 200 içinden); admin arayüzü | 14.2D-2 (Billing) |
+| BL-4 | LOW | İşçi tamamlayınca denetim satırı `queued` kalıyor ve outbox satırı 90 günde siliniyor: denetimden sonuç okunamıyor. Commit sonucu belirsizken 503 mesajı yanlış olabilir | 14.2D-2 (Billing/Identity) |
+| BL-5 | LOW | Kayma korumasına `SetProperty` ve ham SQL taraması ekle ya da yazımı tek Studio servisine topla | 14.2D-1 (Studio) |
+| BL-6 | LOW | `RepoStars`, `RepoIssues`, `RepoIssueComments` fiziksel olarak `public`'te | 14.2D-1 (Hub) |
+| BL-7 | LOW | Explore `q` için büyüme ölçümü (gerekirse `pg_trgm`); 50 aktif link tavanında sessiz kapanma | 14.2D-1 (Hub/Studio) |
+| BL-8 | LOW | Vault/Ground `OrganizationId` kolonları FK'siz duruyor; kod yalnız yazıyor. Düşür ya da gerekçelendir | 14.2D-1 |
+| BL-9 | LOW | Oracle introspection 15 sn sorgu tavanı soğuk hedefte zaman aşımı verebilir (ürün davranışı, testte retry var) | 14.2D-1 (Gateway) |
+
+**Sahibin bilgisine:** Explore `q` etikette artık tam eşleşiyor (brief kuralı), arama kutusu metni buna göre değişti. Hesap silmede beklenmeyen DB hatasında kişisel projeler silinmiş kalabilir, yeniden deneme tamamlar (§B).
+
+## B-3'ün kaydı (ikinci tur bulgusu)
+
+Commit sonrası Stripe iptali, süreç ölümü ve istemci kopmasında kayboluyordu; `pending` satırını kimse işlemiyor, abonelik kimliği hiçbir yerde kalmıyordu. Düzeltme: transactional outbox (`f552a18`).
 
 ## İkinci tur bulguları
 

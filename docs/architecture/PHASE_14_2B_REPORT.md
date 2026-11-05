@@ -19,7 +19,7 @@
 | API compatibility | PASS, farklar §4 tablosunda | Rota ve alan adları aynı; gerçek API'ye karşı 31/31 duman kontrolü; frontend `tsc` 0 hata, vitest 39 dosya 280/280 |
 | Documentation | PASS | Bu rapor, `IMPLEMENTATION_STATUS.md`, `MODULE_OWNERSHIP.md`, `MIGRATION_PLAN.md`, `DATABASE_NORMALIZATION.md` |
 | Performans | PASS | §6: eşleşmeyen `q` ~21 ms (önceden ~1,05 sn), sorgu sayısı public repo sayısından bağımsız |
-| Independent audit | CONDITIONALLY ACCEPTED (ikinci tur, `9f59c07`): birinci tur bulguları kapandı, yeni bloklayıcı B-3 açık (commit sonrası Stripe iptali kaybolabiliyor) | `PHASE_14_2B_INDEPENDENT_AUDIT.md` |
+| Independent audit | **ACCEPTED** (üçüncü tur, `f595bfb`): tüm bulgular kapandı; kalanlar fazlara atanmış backlog'da; Stripe gerçek API ile sınanmadı (BL-1, 14.2D-2) | `PHASE_14_2B_INDEPENDENT_AUDIT.md` |
 
 ## 2. Veri modeli (gerçekte oluşan)
 
