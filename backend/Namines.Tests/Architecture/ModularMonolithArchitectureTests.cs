@@ -596,6 +596,72 @@ public sealed class ModularMonolithArchitectureTests
     }
 
     [Fact]
+    public void Proje_adi_ve_motorunu_yalnizca_okuma_modelini_de_guncelleyen_siniflar_yazar()
+    {
+        // hub.repositories'teki ProjectName/ProjectDbType kopyaları aynı işlemde güncellenmeli. Yeni bir yazıcı
+        // Hub'ı unutursa Explore eski adla arar; bu test onu listeye girmeye ve kopyayı düşünmeye zorlar.
+        var knownWriters = new HashSet<string>
+        {
+            nameof(AuthController), nameof(HubController),
+            nameof(Namines.API.Services.DevSandboxSeeder), nameof(Namines.API.Services.HubBlueprintSeeder),
+        };
+
+        var setters = new[] { "set_Name", "set_DbType" }
+            .Select(n => typeof(CloudProject).GetMethod(n)!.MetadataToken)
+            .ToHashSet();
+        var assemblies = new[]
+        {
+            typeof(AuthController).Assembly, typeof(TenantProjectAuthorityService).Assembly, BuildingBlocksAssembly,
+            VaultAssembly, GroundAssembly, FlowAssembly, DeskAssembly,
+        };
+
+        const BindingFlags all = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+        var writers = new HashSet<string>();
+        foreach (var assembly in assemblies)
+        {
+            // Test ortamında yüklenemeyen sürüm uyuşmazlığı tipleri (Docker.DotNet) proje yazmıyor; atlanır.
+            Type[] types;
+            try { types = assembly.GetTypes(); }
+            catch (ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t is not null).ToArray()!; }
+
+            foreach (var type in types)
+            {
+                var methods = type.GetMethods(all).Cast<MethodBase>().Concat(type.GetConstructors(all));
+                foreach (var method in methods)
+                {
+                    byte[]? il;
+                    try { il = method.GetMethodBody()?.GetILAsByteArray(); }
+                    catch (TypeLoadException) { continue; } // aynı sürüm uyuşmazlığı: Docker.DotNet kullanan metot
+                    if (il is null) continue;
+                    // call (0x28) / callvirt (0x6F) + 4 baytlık metot token'ı. Kaba tarama: yanlış hizalanan
+                    // baytlar çözülemez ya da başka metoda çıkar, yalnız tam bu setter'lar sayılır.
+                    for (var i = 0; i + 4 < il.Length; i++)
+                    {
+                        if (il[i] != 0x28 && il[i] != 0x6F) continue;
+                        try
+                        {
+                            var target = method.Module.ResolveMethod(BitConverter.ToInt32(il, i + 1), type.IsGenericType ? type.GetGenericArguments() : null, method.IsGenericMethod ? method.GetGenericArguments() : null);
+                            if (target?.DeclaringType == typeof(CloudProject) && setters.Contains(target.MetadataToken))
+                            {
+                                var owner = type;
+                                while (owner.DeclaringType is not null) owner = owner.DeclaringType;
+                                writers.Add(owner.Name);
+                            }
+                        }
+                        catch (Exception ex) when (ex is ArgumentException or BadImageFormatException or MissingMethodException or TypeLoadException)
+                        {
+                            // Hizası kaymış bayt: token değil.
+                        }
+                    }
+                }
+            }
+        }
+
+        // Boş sonuç taramanın bozulduğu demek olurdu: dört yazıcı da bulunmalı.
+        Assert.Equal(knownWriters.OrderBy(x => x), writers.OrderBy(x => x));
+    }
+
+    [Fact]
     public void Explore_ve_paylasim_olusturma_kendi_hiz_sinirinda()
     {
         Assert.Equal("explore-public", typeof(HubController).GetMethod(nameof(HubController.Explore))!
@@ -685,7 +751,8 @@ public sealed class ModularMonolithArchitectureTests
         }
 
         // 37 - 10 = 27 DbSets declared directly on AuthDbContext for Phase 14.1
-        Assert.Equal(27, declaredDbSetProperties.Count);
+        // 28: PendingSubscriptionCancellations, kullanıcı silmeyle aynı işlemde yazılmak zorunda (D-2'de Billing'e taşınır).
+        Assert.Equal(28, declaredDbSetProperties.Count);
     }
 
     [Fact]

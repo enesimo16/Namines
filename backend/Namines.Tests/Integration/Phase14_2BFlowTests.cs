@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Namines.API.Controllers;
 using Namines.Core.Enums;
@@ -631,13 +632,188 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
 
     private sealed class RecordingCanceller : ISubscriptionCanceller
     {
+        private readonly object _gate = new();
         public List<string> Canceled { get; } = new();
+        public Action? OnCall { get; init; }
+        public int FailFirst { get; set; }
 
-        public Task<bool> CancelAsync(string subscriptionId, CancellationToken ct)
+        public async Task<bool> CancelAsync(string subscriptionId, CancellationToken ct)
         {
-            Canceled.Add(subscriptionId);
-            return Task.FromResult(true);
+            OnCall?.Invoke();
+            // Gerçek çağrı gibi: token iptal edildiyse burada patlar.
+            await Task.Delay(1, ct);
+            lock (_gate)
+            {
+                if (FailFirst > 0)
+                {
+                    FailFirst--;
+                    return false;
+                }
+                Canceled.Add(subscriptionId);
+            }
+            return true;
         }
+    }
+
+    private sealed class CapturingLogger : ILogger
+    {
+        public List<LogLevel> Levels { get; } = new();
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Levels.Add(logLevel);
+    }
+
+    private static SubscriptionCancellationProcessor Processor(Scope s, ISubscriptionCanceller? canceller, ILogger? logger = null) =>
+        new(s.Db, canceller, logger ?? NullLogger.Instance);
+
+    /// <summary>Aboneliği olan, silinecek bir kullanıcı: "member" ekipte, projesi varise devrolur.</summary>
+    private async Task<string> SubscribedMemberDatabaseAsync(string name)
+    {
+        var cs = await NewDatabaseAsync(name);
+        await using var s = Open(cs);
+        await SeedProjectAsync(s, "team", owner: "member", slug: "teamrepo");
+        await s.Db.Users.Where(u => u.Id == "member").ExecuteUpdateAsync(x => x.SetProperty(u => u.StripeSubscriptionId, "sub_1"));
+        return cs;
+    }
+
+    private static async Task<AccountDeletionResult> DeleteMemberAsync(string cs, ISubscriptionCanceller? canceller, CancellationToken ct = default)
+    {
+        await using var d = Open(cs);
+        return await AccountDeletion(d, canceller).DeleteAsync(await d.Db.Users.SingleAsync(u => u.Id == "member"), ct);
+    }
+
+    [RequiresDockerFact]
+    public async Task Surec_commit_ile_Stripe_arasinda_olse_de_isci_iptali_tamamlar()
+    {
+        var cs = await SubscribedMemberDatabaseAsync("f_outbox_death");
+
+        // canceller yok: commit olduktan sonra hiçbir Stripe çağrısı yapılmamış durum, ölen süreçle aynı.
+        var result = await DeleteMemberAsync(cs, canceller: null);
+        Assert.True(result.Ok, result.Code + " " + result.Error);
+
+        await using var s = Open(cs);
+        Assert.False(await s.Db.Users.AnyAsync(u => u.Id == "member"));
+        var row = await s.Db.PendingSubscriptionCancellations.AsNoTracking().SingleAsync();
+        Assert.Equal("sub_1", row.SubscriptionId);
+        Assert.Null(row.CompletedAt);
+        var audit = await s.Db.ChangeRequestAuditLogs.AsNoTracking().SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
+        Assert.Contains("\"stripe\":\"queued\"", audit.Details);
+
+        var canceller = new RecordingCanceller();
+        // Vadesi gelmeden dokunulmaz (ölen işçinin satırı da böyle kilitli kalmaz, süre dolunca alınır).
+        Assert.Equal(0, await Processor(s, canceller).ProcessDueAsync(row.NextAttemptAt.AddSeconds(-1), 10, default));
+        Assert.Empty(canceller.Canceled);
+
+        Assert.Equal(1, await Processor(s, canceller).ProcessDueAsync(row.NextAttemptAt.AddSeconds(1), 10, default));
+        Assert.Equal(new[] { "sub_1" }, canceller.Canceled);
+        Assert.NotNull((await s.Db.PendingSubscriptionCancellations.AsNoTracking().SingleAsync()).CompletedAt);
+
+        // Tamamlanan bir daha denenmez.
+        Assert.Equal(0, await Processor(s, canceller).ProcessDueAsync(DateTime.UtcNow.AddYears(1), 10, default));
+        Assert.Single(canceller.Canceled);
+    }
+
+    [RequiresDockerFact]
+    public async Task Istemci_kopsa_da_iptal_ve_denetim_kaydi_tamamlanir()
+    {
+        var cs = await SubscribedMemberDatabaseAsync("f_outbox_abort");
+        using var client = new CancellationTokenSource();
+        // İstemci tam Stripe çağrısı sırasında kopuyor. Eski kod bu token'ı geçiriyordu ve çağrı iptal oluyordu.
+        var canceller = new RecordingCanceller { OnCall = client.Cancel };
+
+        var result = await DeleteMemberAsync(cs, canceller, client.Token);
+
+        Assert.True(client.IsCancellationRequested);
+        Assert.True(result.Ok, result.Code + " " + result.Error);
+        Assert.Equal(new[] { "sub_1" }, canceller.Canceled);
+        await using var v = Open(cs);
+        Assert.NotNull((await v.Db.PendingSubscriptionCancellations.AsNoTracking().SingleAsync()).CompletedAt);
+        var audit = await v.Db.ChangeRequestAuditLogs.AsNoTracking().SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
+        Assert.Contains("\"stripe\":\"canceled\"", audit.Details);
+    }
+
+    [RequiresDockerFact]
+    public async Task Stripe_once_basarisiz_sonra_basarili_geri_cekilmeyle_tamamlanir_esik_loglanir()
+    {
+        var cs = await SubscribedMemberDatabaseAsync("f_outbox_retry");
+        var canceller = new RecordingCanceller { FailFirst = SubscriptionCancellationProcessor.AlertAfterAttempts - 1 };
+
+        Assert.True((await DeleteMemberAsync(cs, canceller)).Ok);
+
+        await using var s = Open(cs);
+        var row = await s.Db.PendingSubscriptionCancellations.AsNoTracking().SingleAsync();
+        Assert.Equal(1, row.Attempts);
+        Assert.Null(row.CompletedAt);
+        Assert.NotNull(row.LastAttemptAt);
+        Assert.True(row.NextAttemptAt > row.LastAttemptAt);
+
+        // Eşiğe kadar başarısız: 7. deneme ERROR değil, 8. uyarı eşiği. Sonra başarılı.
+        canceller.FailFirst = SubscriptionCancellationProcessor.AlertAfterAttempts - 1;
+        var logger = new CapturingLogger();
+        for (var i = 0; i < SubscriptionCancellationProcessor.AlertAfterAttempts - 1; i++)
+        {
+            var due = (await s.Db.PendingSubscriptionCancellations.AsNoTracking().SingleAsync()).NextAttemptAt;
+            Assert.Equal(1, await Processor(s, canceller, logger).ProcessDueAsync(due.AddSeconds(1), 10, default));
+        }
+        var stuck = await s.Db.PendingSubscriptionCancellations.AsNoTracking().SingleAsync();
+        Assert.Equal(SubscriptionCancellationProcessor.AlertAfterAttempts, stuck.Attempts);
+        Assert.Null(stuck.CompletedAt);
+        Assert.Contains(LogLevel.Error, logger.Levels);
+        Assert.True(stuck.NextAttemptAt - stuck.LastAttemptAt!.Value <= TimeSpan.FromHours(6));
+
+        Assert.Equal(1, await Processor(s, canceller).ProcessDueAsync(stuck.NextAttemptAt.AddSeconds(1), 10, default));
+        Assert.NotNull((await s.Db.PendingSubscriptionCancellations.AsNoTracking().SingleAsync()).CompletedAt);
+        Assert.Equal(new[] { "sub_1" }, canceller.Canceled);
+    }
+
+    [RequiresDockerFact]
+    public async Task Iki_isci_ayni_satiri_iki_kez_almaz_SKIP_LOCKED()
+    {
+        var cs = await NewDatabaseAsync("f_outbox_skip");
+        await using (var conn = new NpgsqlConnection(cs))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand("""
+                INSERT INTO "PendingSubscriptionCancellations" ("Id","SubscriptionId","CreatedAt","Attempts","NextAttemptAt")
+                SELECT 'r' || i, 'sub_' || i, now(), 0, now() - interval '1 minute' FROM generate_series(1, 30) i;
+                """, conn);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var canceller = new RecordingCanceller();
+        var counts = await Task.WhenAll(Enumerable.Range(0, 3).Select(async _ =>
+        {
+            await using var s = Open(cs);
+            return await Processor(s, canceller).ProcessDueAsync(DateTime.UtcNow, 100, default);
+        }));
+
+        Assert.Equal(30, counts.Sum());
+        Assert.Equal(30, canceller.Canceled.Distinct().Count());
+        Assert.Equal(30, canceller.Canceled.Count);
+        await using var v = Open(cs);
+        Assert.Equal(30, await v.Db.PendingSubscriptionCancellations.CountAsync(c => c.CompletedAt != null && c.Attempts == 1));
+    }
+
+    [RequiresDockerFact]
+    public async Task Saklama_acik_iptali_silmez_tamamlanani_siler()
+    {
+        var cs = await NewDatabaseAsync("f_outbox_retention");
+        await using var s = Open(cs);
+        var old = DateTime.UtcNow.AddYears(-3);
+        s.Db.PendingSubscriptionCancellations.AddRange(
+            new PendingSubscriptionCancellation { Id = "open-old", SubscriptionId = "a", CreatedAt = old, NextAttemptAt = old },
+            new PendingSubscriptionCancellation { Id = "done-old", SubscriptionId = "b", CreatedAt = old, NextAttemptAt = old, CompletedAt = old },
+            new PendingSubscriptionCancellation { Id = "done-new", SubscriptionId = "c", CreatedAt = old, NextAttemptAt = old, CompletedAt = DateTime.UtcNow.AddDays(-1) });
+        await s.Db.SaveChangesAsync();
+
+        var result = await DataRetentionService.PurgeAsync(
+            s.Db, DataRetentionService.RetentionOptions.From(new ConfigurationBuilder().Build()),
+            NullLogger.Instance, DateTime.UtcNow, TimeSpan.Zero, default);
+
+        Assert.Equal(1, result["PendingSubscriptionCancellations"]);
+        var left = await s.Db.PendingSubscriptionCancellations.AsNoTracking().Select(c => c.Id).OrderBy(x => x).ToListAsync();
+        Assert.Equal(new[] { "done-new", "open-old" }, left);
     }
 
     private static AccountDeletionService AccountDeletion(Scope s, ISubscriptionCanceller? canceller = null) =>
@@ -693,8 +869,12 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         var canceller = new RecordingCanceller();
         await using (var d = Open(cs))
         {
-            await Assert.ThrowsAnyAsync<Exception>(() =>
-                AccountDeletion(d, canceller).DeleteAsync(d.Db.Users.Single(u => u.Id == "member"), default));
+            var failed = await AccountDeletion(d, canceller).DeleteAsync(await d.Db.Users.SingleAsync(u => u.Id == "member"), default);
+            // Genel 500 değil: ne olduğunu ve yeniden denemenin güvenli olduğunu söyleyen 503.
+            Assert.False(failed.Ok);
+            Assert.Equal(503, failed.StatusCode);
+            Assert.Equal("ACCOUNT_DELETE_INCOMPLETE", failed.Code);
+            Assert.Contains("safe to try again", failed.Error);
         }
 
         Assert.Empty(canceller.Canceled);
@@ -703,6 +883,8 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
             Assert.True(await v.Db.Users.AnyAsync(u => u.Id == "member"));
             Assert.Equal("member", (await v.Kit.HubService.GetRepositoryAsync("team"))!.OwnerUserId);
             Assert.Equal("member", (await v.Db.CloudProjects.AsNoTracking().SingleAsync(p => p.Id == "team")).UserId);
+            // İşlem düştü: outbox satırı da yok, silinmemiş kullanıcının aboneliği iptal edilmez.
+            Assert.False(await v.Db.PendingSubscriptionCancellations.AnyAsync());
         }
 
         await using (var conn = new NpgsqlConnection(cs))

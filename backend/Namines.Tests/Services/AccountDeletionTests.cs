@@ -244,7 +244,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Stripe_iptal_edilemezse_silme_bloklanmaz_denetim_kaydinda_elle_iptal_yazar()
+    public async Task Stripe_iptal_edilemezse_silme_bloklanmaz_iptal_kuyrukta_acik_kalir()
     {
         var store = new FakeStore();
         await using var db = NewContext();
@@ -256,7 +256,10 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         Assert.True(result.Ok, result.Code + " " + result.Error);
         await using var verify = NewContext();
         var audit = await verify.ChangeRequestAuditLogs.SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
-        Assert.Contains("manual_cancellation_required", audit.Details);
+        Assert.Contains("\"stripe\":\"queued\"", audit.Details);
+        var outbox = await verify.PendingSubscriptionCancellations.SingleAsync();
+        Assert.Equal("sub_123", outbox.SubscriptionId);
+        Assert.Null(outbox.CompletedAt);
     }
 
     [Fact]
