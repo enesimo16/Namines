@@ -8,7 +8,7 @@ namespace Namines.Desk.Infrastructure.Persistence;
 /// Namines Desk modülünün izole EF Core <see cref="DbContext"/>'i
 /// (Kritik Kontrol #5: EF Core Migration Isolation).
 /// </summary>
-public sealed class DeskDbContext : DbContext
+internal sealed class DeskDbContext : DbContext, Namines.Desk.Application.IDeskData
 {
     public const string SchemaName = DeskModelConfiguration.DefaultSchema;
     public const string MigrationsHistoryTableName = "__EFMigrationsHistory";
@@ -32,7 +32,12 @@ public sealed class DeskDbContext : DbContext
             schema: isRelationalSchemasSupported ? SchemaName : null,
             configureCrossModuleForeignKeys: false);
 
-        // Tablolar AuthDbContext zincirinde kuruldu; bu bağlam migration üretmez (bkz. MIGRATION_PLAN.md).
-        Namines.BuildingBlocks.Persistence.NonOwnerContext.ExcludeAllFromMigrations(modelBuilder);
     }
+}
+
+internal sealed class DeskDbContextFactory : Microsoft.EntityFrameworkCore.Design.IDesignTimeDbContextFactory<DeskDbContext>
+{
+    public DeskDbContext CreateDbContext(string[] args) =>
+        new(Namines.BuildingBlocks.Persistence.ModuleDbContextRegistration.MigrationOptions<DeskDbContext>(
+            Namines.BuildingBlocks.Persistence.ModuleDbContextRegistration.DesignTimeConnectionString(), DeskDbContext.SchemaName));
 }

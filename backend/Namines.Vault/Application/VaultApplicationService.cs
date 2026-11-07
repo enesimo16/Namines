@@ -13,7 +13,6 @@ using Namines.BuildingBlocks.Security;
 using Namines.Core.Models.Auth;
 using Namines.Core.Security;
 using Namines.Vault.Abstractions;
-using Namines.Vault.Infrastructure.Persistence;
 using Namines.Vault.Storage;
 
 namespace Namines.Vault.Application;
@@ -73,14 +72,14 @@ public interface IVaultApplicationService
 }
 
 /// <summary>
-/// Vault modülünün kendi <see cref="VaultDbContext"/>'i, <see cref="ITenantProjectAuthority"/>
+/// Vault modülünün kendi <see cref="IVaultData"/>'i, <see cref="ITenantProjectAuthority"/>
 /// ve <see cref="IProjectConnectionSecretProvider"/> üzerinden çalışan izole uygulama servisi.
 /// </summary>
-public sealed class VaultApplicationService : IVaultApplicationService
+internal sealed class VaultApplicationService : IVaultApplicationService
 {
     public static readonly TimeSpan RunningJobStaleAfter = TimeSpan.FromHours(2);
 
-    private readonly VaultDbContext _db;
+    private readonly IVaultData _db;
     private readonly ITenantProjectAuthority _authority;
     private readonly IProjectConnectionSecretProvider _secrets;
     private readonly IEnumerable<IBackupProvider> _providers;
@@ -89,7 +88,7 @@ public sealed class VaultApplicationService : IVaultApplicationService
     private readonly ILogger<VaultApplicationService> _logger;
 
     public VaultApplicationService(
-        VaultDbContext db,
+        IVaultData db,
         ITenantProjectAuthority authority,
         IProjectConnectionSecretProvider secrets,
         IEnumerable<IBackupProvider> providers,

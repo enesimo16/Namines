@@ -9,7 +9,6 @@ using Namines.BuildingBlocks.Security;
 using Namines.Core.Analysis;
 using Namines.Core.Models.Auth;
 using Namines.Ground.Abstractions;
-using Namines.Ground.Infrastructure.Persistence;
 
 namespace Namines.Ground.Application;
 
@@ -50,21 +49,21 @@ public interface IGroundApplicationService
 }
 
 /// <summary>
-/// Namines Ground modülünün kendi <see cref="GroundDbContext"/>'i, <see cref="ITenantProjectAuthority"/>
+/// Namines Ground modülünün kendi <see cref="IGroundData"/>'i, <see cref="ITenantProjectAuthority"/>
 /// ve <see cref="IProjectConnectionSecretProvider"/> üzerinden çalışan izole uygulama servisi.
 /// </summary>
-public sealed class GroundApplicationService : IGroundApplicationService
+internal sealed class GroundApplicationService : IGroundApplicationService
 {
     public static readonly TimeSpan StaleClaimLease = TimeSpan.FromMinutes(30);
 
-    private readonly GroundDbContext _db;
+    private readonly IGroundData _db;
     private readonly ITenantProjectAuthority _authority;
     private readonly IProjectConnectionSecretProvider _secrets;
     private readonly IEnumerable<IDatabaseProvider> _providers;
     private readonly ILogger<GroundApplicationService> _logger;
 
     public GroundApplicationService(
-        GroundDbContext db,
+        IGroundData db,
         ITenantProjectAuthority authority,
         IProjectConnectionSecretProvider secrets,
         IEnumerable<IDatabaseProvider> providers,

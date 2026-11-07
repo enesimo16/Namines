@@ -16,6 +16,16 @@ namespace Namines.Flow.DependencyInjection;
 /// </summary>
 public static class FlowServiceCollectionExtensions
 {
+    public const int MigrationOrder = 140;
+
+    public static Namines.BuildingBlocks.Persistence.ModuleMigrationDescriptor MigrationDescriptor { get; } = new(
+        "Flow",
+        MigrationOrder,
+        FlowDbContext.SchemaName,
+        Namines.BuildingBlocks.Persistence.ModuleMigrationOwnership.OwnsChain,
+        connectionString => new FlowDbContext(
+            Namines.BuildingBlocks.Persistence.ModuleDbContextRegistration.MigrationOptions<FlowDbContext>(connectionString, FlowDbContext.SchemaName)));
+
     private const string FallbackConnectionString =
         "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres";
 
@@ -42,7 +52,10 @@ public static class FlowServiceCollectionExtensions
             });
         }
 
-        services.AddSingleton(Namines.BuildingBlocks.Persistence.NonOwnerContext.Descriptor<Namines.Flow.Infrastructure.Persistence.FlowDbContext>("Flow", "flow", "Tablolar kendi şemasında; DDL AuthDbContext zincirinde kalıyor. Bu fazda tablo taşınmadı, bağlam yalnızca okur/yazar."));
+        services.AddSingleton(MigrationDescriptor);
+        services.AddScoped<Namines.Flow.Application.IFlowData>(sp => sp.GetRequiredService<FlowDbContext>());
+        services.AddScoped<Namines.BuildingBlocks.Persistence.ITransactionParticipant>(sp =>
+            new Namines.BuildingBlocks.Persistence.TransactionParticipant(sp.GetRequiredService<FlowDbContext>()));
 
         services.TryAddSingleton<IFlowRuleMatcher, FlowRuleMatcher>();
         services.TryAddSingleton<IFlowJobQueue, FlowJobQueue>();

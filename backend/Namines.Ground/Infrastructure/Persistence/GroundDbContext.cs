@@ -8,7 +8,7 @@ namespace Namines.Ground.Infrastructure.Persistence;
 /// Namines Ground modülünün izole EF Core <see cref="DbContext"/>'i
 /// (Kritik Kontrol #5: EF Core Migration Isolation).
 /// </summary>
-public sealed class GroundDbContext : DbContext
+internal sealed class GroundDbContext : DbContext, Namines.Ground.Application.IGroundData
 {
     public const string SchemaName = GroundModelConfiguration.DefaultSchema;
     public const string MigrationsHistoryTableName = "__EFMigrationsHistory";
@@ -30,7 +30,12 @@ public sealed class GroundDbContext : DbContext
             schema: isRelationalSchemasSupported ? SchemaName : null,
             configureCrossModuleForeignKeys: false);
 
-        // Tablolar AuthDbContext zincirinde kuruldu; bu bağlam migration üretmez (bkz. MIGRATION_PLAN.md).
-        Namines.BuildingBlocks.Persistence.NonOwnerContext.ExcludeAllFromMigrations(modelBuilder);
     }
+}
+
+internal sealed class GroundDbContextFactory : Microsoft.EntityFrameworkCore.Design.IDesignTimeDbContextFactory<GroundDbContext>
+{
+    public GroundDbContext CreateDbContext(string[] args) =>
+        new(Namines.BuildingBlocks.Persistence.ModuleDbContextRegistration.MigrationOptions<GroundDbContext>(
+            Namines.BuildingBlocks.Persistence.ModuleDbContextRegistration.DesignTimeConnectionString(), GroundDbContext.SchemaName));
 }

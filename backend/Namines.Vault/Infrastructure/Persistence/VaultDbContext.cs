@@ -16,7 +16,7 @@ namespace Namines.Vault.Infrastructure.Persistence;
 /// dahil etmez; şemalar arası FK bütünlüğü PostgreSQL DDL seviyesinde korunur.</item>
 /// </list>
 /// </summary>
-public sealed class VaultDbContext : DbContext
+internal sealed class VaultDbContext : DbContext, Namines.Vault.Application.IVaultData
 {
     public const string SchemaName = VaultModelConfiguration.DefaultSchema;
     public const string MigrationsHistoryTableName = "__EFMigrationsHistory";
@@ -40,7 +40,12 @@ public sealed class VaultDbContext : DbContext
             schema: isRelationalSchemasSupported ? SchemaName : null,
             configureCrossModuleForeignKeys: false);
 
-        // Tablolar AuthDbContext zincirinde kuruldu; bu bağlam migration üretmez (bkz. MIGRATION_PLAN.md).
-        Namines.BuildingBlocks.Persistence.NonOwnerContext.ExcludeAllFromMigrations(modelBuilder);
     }
+}
+
+internal sealed class VaultDbContextFactory : Microsoft.EntityFrameworkCore.Design.IDesignTimeDbContextFactory<VaultDbContext>
+{
+    public VaultDbContext CreateDbContext(string[] args) =>
+        new(Namines.BuildingBlocks.Persistence.ModuleDbContextRegistration.MigrationOptions<VaultDbContext>(
+            Namines.BuildingBlocks.Persistence.ModuleDbContextRegistration.DesignTimeConnectionString(), VaultDbContext.SchemaName));
 }

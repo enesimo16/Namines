@@ -14,7 +14,6 @@ using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Core.Security;
-using Namines.Flow.Infrastructure.Persistence;
 
 namespace Namines.Flow.Application;
 
@@ -77,16 +76,16 @@ public interface IFlowApplicationService
 
 /// <summary>
 /// Namines Flow modülünün uygulama katmanı servisi.
-/// <see cref="FlowDbContext"/> üzerinden kural ve çalışma kayıtlarını yönetir;
+/// <see cref="IFlowData"/> üzerinden kural ve çalışma kayıtlarını yönetir;
 /// proje üst verisine <see cref="ITenantProjectAuthority"/> sözleşmesiyle erişir.
 /// </summary>
-public sealed class FlowApplicationService : IFlowApplicationService
+internal sealed class FlowApplicationService : IFlowApplicationService
 {
     private const int AutomationTokenEstimate = 2500;
     private const string DefaultMessage = "Namines Flow: {{trigger}} on {{tableName}} in {{projectName}}";
     private static readonly JsonSerializerOptions ConfigJsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    private readonly FlowDbContext _db;
+    private readonly IFlowData _db;
     private readonly ITenantProjectAuthority _authority;
     private readonly IFlowAiQuotaGate _quota;
     private readonly IDbaSchemaAnalyzer? _dbaAnalyzer;
@@ -96,7 +95,7 @@ public sealed class FlowApplicationService : IFlowApplicationService
     private readonly ILogger<FlowApplicationService> _logger;
 
     public FlowApplicationService(
-        FlowDbContext db,
+        IFlowData db,
         ITenantProjectAuthority authority,
         IFlowAiQuotaGate quota,
         IDbaSchemaAnalyzer? dbaAnalyzer,

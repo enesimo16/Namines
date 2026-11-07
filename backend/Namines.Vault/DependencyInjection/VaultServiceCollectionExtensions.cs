@@ -18,6 +18,16 @@ namespace Namines.Vault.DependencyInjection;
 /// </summary>
 public static class VaultServiceCollectionExtensions
 {
+    public const int MigrationOrder = 120;
+
+    public static Namines.BuildingBlocks.Persistence.ModuleMigrationDescriptor MigrationDescriptor { get; } = new(
+        "Vault",
+        MigrationOrder,
+        VaultDbContext.SchemaName,
+        Namines.BuildingBlocks.Persistence.ModuleMigrationOwnership.OwnsChain,
+        connectionString => new VaultDbContext(
+            Namines.BuildingBlocks.Persistence.ModuleDbContextRegistration.MigrationOptions<VaultDbContext>(connectionString, VaultDbContext.SchemaName)));
+
     private const string FallbackConnectionString =
         "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres";
 
@@ -50,7 +60,10 @@ public static class VaultServiceCollectionExtensions
             });
         }
 
-        services.AddSingleton(Namines.BuildingBlocks.Persistence.NonOwnerContext.Descriptor<Namines.Vault.Infrastructure.Persistence.VaultDbContext>("Vault", "namines_vault", "Tablolar 14.2 öncesinden beri kendi şemasında; DDL AuthDbContext zincirinde kalıyor. Bu fazda tablo taşınmadı, bağlam yalnızca okur/yazar."));
+        services.AddSingleton(MigrationDescriptor);
+        services.AddScoped<Namines.Vault.Application.IVaultData>(sp => sp.GetRequiredService<VaultDbContext>());
+        services.AddScoped<Namines.BuildingBlocks.Persistence.ITransactionParticipant>(sp =>
+            new Namines.BuildingBlocks.Persistence.TransactionParticipant(sp.GetRequiredService<VaultDbContext>()));
 
         services.TryAddSingleton<BackupCipher>();
 

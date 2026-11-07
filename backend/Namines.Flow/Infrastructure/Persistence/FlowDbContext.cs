@@ -8,7 +8,7 @@ namespace Namines.Flow.Infrastructure.Persistence;
 /// Namines Flow modülünün izole EF Core <see cref="DbContext"/>'i
 /// (Kritik Kontrol #5: EF Core Migration Isolation).
 /// </summary>
-public sealed class FlowDbContext : DbContext
+internal sealed class FlowDbContext : DbContext, Namines.Flow.Application.IFlowData
 {
     public const string SchemaName = FlowModelConfiguration.DefaultSchema;
     public const string MigrationsHistoryTableName = "__EFMigrationsHistory";
@@ -32,7 +32,12 @@ public sealed class FlowDbContext : DbContext
             schema: isRelationalSchemasSupported ? SchemaName : null,
             configureCrossModuleForeignKeys: false);
 
-        // Tablolar AuthDbContext zincirinde kuruldu; bu bağlam migration üretmez (bkz. MIGRATION_PLAN.md).
-        Namines.BuildingBlocks.Persistence.NonOwnerContext.ExcludeAllFromMigrations(modelBuilder);
     }
+}
+
+internal sealed class FlowDbContextFactory : Microsoft.EntityFrameworkCore.Design.IDesignTimeDbContextFactory<FlowDbContext>
+{
+    public FlowDbContext CreateDbContext(string[] args) =>
+        new(Namines.BuildingBlocks.Persistence.ModuleDbContextRegistration.MigrationOptions<FlowDbContext>(
+            Namines.BuildingBlocks.Persistence.ModuleDbContextRegistration.DesignTimeConnectionString(), FlowDbContext.SchemaName));
 }

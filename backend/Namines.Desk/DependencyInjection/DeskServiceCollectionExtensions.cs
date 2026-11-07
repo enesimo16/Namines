@@ -15,6 +15,16 @@ namespace Namines.Desk.DependencyInjection;
 /// </summary>
 public static class DeskServiceCollectionExtensions
 {
+    public const int MigrationOrder = 150;
+
+    public static Namines.BuildingBlocks.Persistence.ModuleMigrationDescriptor MigrationDescriptor { get; } = new(
+        "Desk",
+        MigrationOrder,
+        DeskDbContext.SchemaName,
+        Namines.BuildingBlocks.Persistence.ModuleMigrationOwnership.OwnsChain,
+        connectionString => new DeskDbContext(
+            Namines.BuildingBlocks.Persistence.ModuleDbContextRegistration.MigrationOptions<DeskDbContext>(connectionString, DeskDbContext.SchemaName)));
+
     private const string FallbackConnectionString =
         "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres";
 
@@ -40,7 +50,10 @@ public static class DeskServiceCollectionExtensions
             });
         }
 
-        services.AddSingleton(Namines.BuildingBlocks.Persistence.NonOwnerContext.Descriptor<Namines.Desk.Infrastructure.Persistence.DeskDbContext>("Desk", "desk", "Tablolar kendi şemasında; DDL AuthDbContext zincirinde kalıyor. Bu fazda tablo taşınmadı, bağlam yalnızca okur/yazar."));
+        services.AddSingleton(MigrationDescriptor);
+        services.AddScoped<Namines.Desk.Application.IDeskData>(sp => sp.GetRequiredService<DeskDbContext>());
+        services.AddScoped<Namines.BuildingBlocks.Persistence.ITransactionParticipant>(sp =>
+            new Namines.BuildingBlocks.Persistence.TransactionParticipant(sp.GetRequiredService<DeskDbContext>()));
 
         services.TryAddSingleton<IDeskHandoffTokenValidator, DeskHandoffTokenValidator>();
         services.TryAddScoped<IDeskApplicationService, DeskApplicationService>();

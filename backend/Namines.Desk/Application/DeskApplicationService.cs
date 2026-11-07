@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Models.Auth;
 using Namines.Desk.Abstractions;
-using Namines.Desk.Infrastructure.Persistence;
 
 namespace Namines.Desk.Application;
 
@@ -83,14 +82,14 @@ public interface IDeskApplicationService
 /// <summary>
 /// Namines Desk modülünün uygulama katmanı servisi.
 /// SSO devir jetonlarını (<see cref="DeskHandoffToken"/>), SQL geçmişini (<see cref="SqlQueryHistoryEntry"/>)
-/// ve kaydedilmiş sorguları (<see cref="SavedQuery"/>) yalnızca <see cref="DeskDbContext"/> üzerinden yönetir.
+/// ve kaydedilmiş sorguları (<see cref="SavedQuery"/>) yalnızca <see cref="IDeskData"/> üzerinden yönetir.
 /// </summary>
-public sealed class DeskApplicationService : IDeskApplicationService
+internal sealed class DeskApplicationService : IDeskApplicationService
 {
-    private readonly DeskDbContext _db;
+    private readonly IDeskData _db;
     private readonly IDeskHandoffTokenValidator _tokenValidator;
 
-    public DeskApplicationService(DeskDbContext db, IDeskHandoffTokenValidator tokenValidator)
+    public DeskApplicationService(IDeskData db, IDeskHandoffTokenValidator tokenValidator)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _tokenValidator = tokenValidator ?? throw new ArgumentNullException(nameof(tokenValidator));

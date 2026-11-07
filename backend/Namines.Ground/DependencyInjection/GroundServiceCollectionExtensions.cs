@@ -19,6 +19,16 @@ namespace Namines.Ground.DependencyInjection;
 /// </summary>
 public static class GroundServiceCollectionExtensions
 {
+    public const int MigrationOrder = 130;
+
+    public static Namines.BuildingBlocks.Persistence.ModuleMigrationDescriptor MigrationDescriptor { get; } = new(
+        "Ground",
+        MigrationOrder,
+        GroundDbContext.SchemaName,
+        Namines.BuildingBlocks.Persistence.ModuleMigrationOwnership.OwnsChain,
+        connectionString => new GroundDbContext(
+            Namines.BuildingBlocks.Persistence.ModuleDbContextRegistration.MigrationOptions<GroundDbContext>(connectionString, GroundDbContext.SchemaName)));
+
     private const string FallbackConnectionString =
         "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres";
 
@@ -62,7 +72,10 @@ public static class GroundServiceCollectionExtensions
             sp.GetRequiredService<ISupabaseClient>(),
             sp.GetRequiredService<ILogger<SupabaseProvider>>()));
 
-        services.AddSingleton(Namines.BuildingBlocks.Persistence.NonOwnerContext.Descriptor<Namines.Ground.Infrastructure.Persistence.GroundDbContext>("Ground", "ground", "Tablolar kendi şemasında; DDL AuthDbContext zincirinde kalıyor. Bu fazda tablo taşınmadı, bağlam yalnızca okur/yazar."));
+        services.AddSingleton(MigrationDescriptor);
+        services.AddScoped<Namines.Ground.Application.IGroundData>(sp => sp.GetRequiredService<GroundDbContext>());
+        services.AddScoped<Namines.BuildingBlocks.Persistence.ITransactionParticipant>(sp =>
+            new Namines.BuildingBlocks.Persistence.TransactionParticipant(sp.GetRequiredService<GroundDbContext>()));
 
         services.TryAddScoped<IGroundApplicationService, GroundApplicationService>();
         services.TryAddScoped<IGroundModule>(sp => new GroundModule(
