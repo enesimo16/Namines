@@ -39,7 +39,7 @@ public class ScaffolderController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Scaffolder: Error occurred during project generation and packaging.");
-            return StatusCode(500, new { error = $"Project generation error: {ex.Message}" });
+            return StatusCode(500, new { error = "Project generation failed." });
         }
     }
 
@@ -62,7 +62,7 @@ public class ScaffolderController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Scaffolder: Error occurred during Python project generation and packaging.");
-            return StatusCode(500, new { error = $"Project generation error: {ex.Message}" });
+            return StatusCode(500, new { error = "Project generation failed." });
         }
     }
 }

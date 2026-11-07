@@ -125,4 +125,22 @@ public sealed class AiNotConfiguredMappingTests
         Assert.Equal(500, other);
         Assert.Contains("Whiteboard analysis failed", otherRaw);
     }
+
+    [Theory]
+    [InlineData("generate")]
+    public async Task Migration_500_body_never_carries_the_exception_text(string action)
+    {
+        var (status, _, raw) = await ThroughMiddlewareAsync(Call(Migration(new InvalidOperationException("SECRET-DRIVER-DETAIL host=10.0.0.5")), action));
+        Assert.Equal(500, status);
+        Assert.DoesNotContain("SECRET-DRIVER-DETAIL", raw);
+        Assert.DoesNotContain("10.0.0.5", raw);
+    }
+
+    [Fact]
+    public async Task Reverse_engineer_500_body_never_carries_the_exception_text()
+    {
+        var (status, _, raw) = await ThroughMiddlewareAsync(() => Reverse(new InvalidOperationException("SECRET-PROVIDER-DETAIL")).AnalyzeImage(Png()));
+        Assert.Equal(500, status);
+        Assert.DoesNotContain("SECRET-PROVIDER-DETAIL", raw);
+    }
 }

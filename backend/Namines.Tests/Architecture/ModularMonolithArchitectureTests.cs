@@ -672,15 +672,14 @@ public sealed class ModularMonolithArchitectureTests
             Assert.DoesNotContain(forbidden, declaredDbSetProperties);
         }
 
-        // 37 - 10 = 27 DbSets declared directly on AuthDbContext for Phase 14.1
-        // 28: PendingSubscriptionCancellations, kullanıcı silmeyle aynı işlemde yazılmak zorunda (D-2'de Billing'e taşınır).
-        Assert.Equal(14, declaredDbSetProperties.Count);
+        // 14.2D-2 sonu: yalnızca Organizations, OrganizationMembers, TeamInvites (Identity tabloları taban sınıftan gelir).
+        Assert.Equal(3, declaredDbSetProperties.Count);
     }
 
     [Fact]
     public void Infrastructure_MustNotContain_RetiredLegacyServices()
     {
-        var infraAssembly = typeof(AuthDbContext).Assembly;
+        var infraAssembly = typeof(Namines.Infrastructure.Data.CrossModuleTransaction).Assembly; // AuthDbContext artik Identity derlemesinde: o derlemeye bakmak sinavi bosa cikarirdi
 
         var retiredFullTypeNames = new[]
         {

@@ -709,7 +709,7 @@ public class SchemaController : ControllerBase
             bool isRegionalRevision = !request.RevisionPrompt.Contains("DBA Analysis") && !request.RevisionPrompt.Contains("Automatically resolve the following");
             if (isRegionalRevision)
             {
-                return StatusCode(500, new { message = $"AI Revision failed: {ex.Message}" });
+                return StatusCode(500, new { message = "AI Revision failed." });
             }
 
             // Invoke the high-performance local optimization engine to fix all DBA findings

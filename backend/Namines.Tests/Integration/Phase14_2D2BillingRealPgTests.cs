@@ -264,10 +264,8 @@ public sealed class Phase14_2D2BillingRealPgTests : IClassFixture<Phase14_2BPost
         var other = KitBStripe.CheckoutCompletedJson("evt_other", DateTime.UtcNow, Customer("sig"), "u1", "sub_sig");
 
         Assert.Equal(400, (await DeliverAsync(cs, payload, signature: "t=1,v1=deadbeef")).Status);
-        // Başlık hiç yok: BEKLENEN 400. ŞİMDİKİ DAVRANIŞ (üretim hatası, bkz. rapor): Stripe.net boş başlıkta
-        // NullReferenceException atıyor, StripeWebhookService yalnızca StripeException yakaladığı için 500 dönüyor.
-        // Düzeltme servise "başlık boşsa 400" koruması eklemek; o zaman bu iddia 400'e çevrilmeli.
-        await Assert.ThrowsAsync<NullReferenceException>(() => DeliverAsync(cs, payload, unsigned: true));
+        // Başlık hiç yok: 400 (Stripe.net null başlıkta patlardı, servis artık önceden reddeder).
+        Assert.Equal(400, (await DeliverAsync(cs, payload, unsigned: true)).Status);
         // Başka gizli anahtarla imzalı.
         Assert.Equal(400, (await DeliverAsync(cs, payload, signature: KitBStripe.SignatureHeader(payload, DateTime.UtcNow, "whsec_other"))).Status);
         // Doğru anahtar, ama başka bir gövdenin imzası: gövde kurcalanmış.

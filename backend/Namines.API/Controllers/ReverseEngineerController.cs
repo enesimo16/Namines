@@ -126,7 +126,7 @@ public class ReverseEngineerController : ControllerBase
         catch (Exception ex) when (ex is not AiNotConfiguredException)
         {
             _logger.LogError(ex, "ReverseEngineer: Görsel çözümleme sırasında hata oluştu.");
-            return StatusCode(500, new { error = $"Whiteboard analysis failed: {ex.Message}" });
+            return StatusCode(500, new { error = "Whiteboard analysis failed." });
         }
     }
 }

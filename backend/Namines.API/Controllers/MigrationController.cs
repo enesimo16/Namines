@@ -43,7 +43,7 @@ public class MigrationController : ControllerBase
         catch (Exception ex) when (ex is not AiNotConfiguredException)
         {
             _logger.LogError(ex, "Migration: DbContext parse işlemi sırasında beklenmeyen hata");
-            return StatusCode(500, new { error = $"Failed to parse DbContext: {ex.Message}" });
+            return StatusCode(500, new { error = "Failed to parse DbContext." });
         }
     }
 
@@ -68,7 +68,7 @@ public class MigrationController : ControllerBase
         catch (Exception ex) when (ex is not AiNotConfiguredException)
         {
             _logger.LogError(ex, "Migration: Şema karşılaştırma sırasında hata oluştu");
-            return StatusCode(500, new { error = $"Schema comparison failed: {ex.Message}" });
+            return StatusCode(500, new { error = "Schema comparison failed." });
         }
     }
 
@@ -92,7 +92,7 @@ public class MigrationController : ControllerBase
         catch (Exception ex) when (ex is not AiNotConfiguredException)
         {
             _logger.LogError(ex, "Migration: Migration üretimi sırasında hata oluştu");
-            return StatusCode(500, new { error = $"Migration code generation failed: {ex.Message}" });
+            return StatusCode(500, new { error = "Migration code generation failed." });
         }
     }
 }
