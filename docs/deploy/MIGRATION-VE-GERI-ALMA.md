@@ -244,3 +244,23 @@ onların yerine geçmez:
 
 Bunlardan ilki (CI kontrolü) en yüksek getirili: kuralın tek zayıf noktası
 insanın hatırlaması.
+
+## 5.4 Bilinçli istisna: Faz 14.2D-2
+
+Billing ve Governance tabloları `public`'ten `billing`/`governance` altına yerinde taşınır; `AspNetUsers`'tan beş Stripe kolonu FİZİKSEL düşer (veri `billing.customers`/`billing.subscriptions`'a doğrulanarak kopyalanır). Dağıtım durdur-migrate-aç gerektirir.
+
+- **Sıra:** `deploy/sql/roles.sql` (artık `billing` ve `governance` şemalarını da devreder) → eski sürümü durdur → yedek → `--migrate` → yeni sürümü aç.
+- **Ön kontrol:** aynı Stripe müşteri kimliğini taşıyan iki kullanıcı olmamalı: `SELECT "StripeCustomerId", count(*) FROM "AspNetUsers" WHERE nullif("StripeCustomerId",'') IS NOT NULL GROUP BY 1 HAVING count(*) > 1`. Varsa migration açık hatayla durur ve hiçbir şey değişmez.
+- **Oturumlar:** kullanıcı satırlarına UPDATE yapılmaz; SecurityStamp, parola özeti ve JWT/yenileme jetonları aynı kalır, oturumlar düşmez.
+- **Denetim izi:** `governance."ChangeRequestAuditLogs"` artık UPDATE/DELETE/TRUNCATE kabul etmez (tetikleyici). İstisnalar: kullanıcı silinince `ActorUserId` boşaltma ve `namines.audit_retention = on` olan işlemde saklama silmesi. Elle düzeltme gerekirse tablo sahibi tetikleyiciyi geçici kapatır; bunu kayda geçirin.
+- **Geri alma (veritabanı önce, modüller TERS sırada):**
+  ```
+  dotnet ef database update 0 -c DeskDbContext       --project backend/Namines.Desk       --startup-project backend/Namines.API
+  dotnet ef database update 0 -c FlowDbContext       --project backend/Namines.Flow       --startup-project backend/Namines.API
+  dotnet ef database update 0 -c GroundDbContext     --project backend/Namines.Ground     --startup-project backend/Namines.API
+  dotnet ef database update 0 -c VaultDbContext      --project backend/Namines.Vault      --startup-project backend/Namines.API
+  (Ops, Gateway, Hub: 5.3'teki gibi)
+  dotnet ef database update 0 -c GovernanceDbContext --project backend/Namines.Governance --startup-project backend/Namines.API
+  dotnet ef database update 0 -c BillingDbContext    --project backend/Namines.Billing    --startup-project backend/Namines.API
+  ```
+  Billing Down'ı kolonları geri koyar ve sayı/alan doğrulaması yapar; açık abonelik iptali satırı varsa 2B outbox migration'ının Down'ı `RAISE` ile durur (önce işçi bitirsin ya da elle iptal edilsin).

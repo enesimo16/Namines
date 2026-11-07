@@ -81,3 +81,11 @@ Mevcut `CloudProjects` tablosu 4 farklı iş alanının verisini ve geçişli ba
   - Dış fiziksel kaynak temsil eden tablolar (`namines_vault.vault_backups`, `ground.ground_databases`): `ON DELETE RESTRICT` (önce dış kaynak silinmeli).
   - Atıf (attribution) sütunları (`CreatedByUserId`, `AuthorUserId`, `PerformedByUserId`): `ON DELETE SET NULL`.
   - Denetim (audit) tabloları (`gateway.gateway_audit_entries`, `ops.sql_execution_audits`, `ops.lifecycle_audit_logs`, `governance.change_request_audit_logs`): Silinen varlıktan uzun yaşaması için hedef varlığa FK konulmaz, anlık görüntü (snapshot) sütunları korunur.
+
+## Faz 14.2D-2 kararları
+
+- **Stripe alanları:** `AspNetUsers`'tan `billing.customers` (kullanıcı başına bir Stripe müşterisi, müşteri kimliği benzersiz) ve `billing.subscriptions` (kullanıcı başına güncel abonelik: abonelik kimliği, durum, plan kodu, dönem sonu) tablolarına taşındı, beş kolon fiziksel düştü. Org'a ait abonelik tablosu YOK: ekip planı kurucunun aboneliğinden okunuyor (gerçek ihtiyaç bu; ayrı org aboneliği ürün kararı gerektirir). Boş dizge müşteri kimliği "yok" sayılır. Aynı müşteri kimliği iki kullanıcıda varsa migration açık hatayla durur.
+- **`governance.user_ai_tool_policies` (değerlendirildi, YAPILMADI):** `UserAIPolicies` kullanıcı başına tek satır, sekiz sabit enum kolonu + `AdvancedJson`. Hep birlikte okunur (PK araması), araca göre tüm kullanıcılar üzerinde sorgu yok, araç kümesi kapalı ve kodla birlikte değişir. Normalize etmek her okumayı sekiz satırlık birleşime çevirir ve faydası yok; bilinçli olarak geniş satır.
+- **`governance.change_request_test_runs` (değerlendirildi, YAPILMADI):** test sonucu istek satırında altı kolon, her koşu bir öncekinin üstüne yazar, geçmiş istenmiyor, her zaman istekle okunuyor. Koşu geçmişi ürün gereksinimi olursa tablo açılır; bugün 1:1 değer nesnesi.
+- **Denetim izi:** `ChangeRequestAuditLogs` normalize edilmedi (anlık kopya, FK yok, silinen projeden uzun yaşar). Veritabanı tetikleyicisiyle değiştirilemez.
+- **UsageEvents bölümleme:** yapılmadı; ölçülmüş ihtiyaç yok (500 bin satırda dönem özeti 0,3 ms).

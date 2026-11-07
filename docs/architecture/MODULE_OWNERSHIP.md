@@ -42,3 +42,14 @@
    - `Identity` modülü `AccountDeletionService` üzerinden ortak ekip projelerinin sahipliğini devreder, kişisel projeler için `ProjectDeletion` akışını çağırır, `Billing` modülünden Stripe iptalini (`ISubscriptionCanceller`) tetikler ve kullanıcıyı siler.
 3. **Admin İstatistik ve Telemetri (`AdminController`):**
    - `AdminController` artık 13 tabloya doğrudan LINQ sorgusu atmaz; her modülün `.Contracts` içinde sunduğu salt-okunur özet metotlarını (`IVaultModule.GetAdminMetricsAsync`, `IGroundModule.GetAdminMetricsAsync`, `IFlowModule.GetAdminMetricsAsync`, `IDeskModule.GetAdminMetricsAsync`) çağırır.
+
+## 4. Faz 14.2D-2 sonrası D-2 modülleri
+
+| Modül | Şema | Tablolar | Bağlam | Sıra | Dışa açılan kapılar |
+|---|---|---|---|---|---|
+| Identity | `public` (tarihsel) | `AspNetUsers` ve Identity tabloları, `Organizations`, `OrganizationMembers`, `TeamInvites` | `AuthDbContext` (internal) | 0 | `IIdentityDirectory`, `IOrganizationMembers`, `IAccountOrganizations`, `IIdentityMaintenance`, `IIdentityAdmin`, `ITeamService` |
+| Billing | `billing` | `customers`, `subscriptions`, `UsageEvents`, `UserAIQuotas`, `UserBillingSettings`, `GlobalAiUsages`, `OrgAiUsages`, `StripeWebhookEvents`, `PendingSubscriptionCancellations` | `BillingDbContext` | 30 | `IAiQuota`, `IUsageMeter`, `IBillingAccounts`, `IBillingMaintenance`, `ISubscriptionService`, `IStripeWebhookService` |
+| Governance | `governance` | `ChangeRequests`, `ChangeRequestApprovals`, `ChangeRequestAuditLogs`, `UserAIPolicies` | `GovernanceDbContext` | 40 | `IChangeRequestService`, `IAiPolicies`, `IGovernanceAudit`, `IGovernanceMaintenance`, `IChangeRequestStats`, `IGovernanceAdminQueries` |
+| Vault / Ground / Flow / Desk | kendi şemaları | değişmedi | kendi bağlamları (internal), `I*Data` | 120/130/140/150 | değişmedi |
+
+Kimlik varlık sınıfları (`ApplicationUser`, `Organization`...) ASP.NET Identity ile iç içe olduğu için `Namines.Core`'da kaldı; Identity için ayrı bir Domain katmanı yoktur. Billing, kullanıcı bilgisini yalnızca `IIdentityDirectory`'den alır; Governance, Studio ve Identity'ye yalnızca sözleşmeyle gider.

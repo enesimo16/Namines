@@ -108,3 +108,9 @@ END $$;
 1. PostgreSQL DDL ifadeleri (`CREATE SCHEMA`, `CREATE TABLE`, `ALTER TABLE ... SET SCHEMA`, `INSERT INTO ... SELECT`, `ALTER TABLE ... DROP COLUMN`) **transactional**'dır.
 2. `DO $$ ... RAISE EXCEPTION ... $$` doğrulama bloğu başarısız olduğu anda tüm migration otomatik olarak `ROLLBACK` edilir; veritabanı migration öncesi durumuna **sıfır veri kaybıyla** geri döner.
 3. Geri alma (`Down()`) metotları da veriyi normalize tablodan `string_agg(...)` ile eski sütuna geri birleştirerek (`Reverse Backfill`) tam geri dönüş sağlar.
+
+## 4. Faz 14.2D-2 zincirleri
+
+Sıra: Auth(0) → Studio(20) → Billing(30) → Governance(40) → Hub(90) → Gateway(100) → Ops(110) → Vault(120) → Ground(130) → Flow(140) → Desk(150). Auth tarafı `Phase14_2D2_HandoffModules` (boş Up/Down). `Billing_01` yedi tabloyu taşır, yeni iki tabloyu doldurur, doğrular ve beş kolonu düşürür (tek işlem). `Governance_01` dört tabloyu taşır, eylem kısıtını genişletir ve denetim tetikleyicisini kurar. `Vault/Ground/Flow/Desk_01` tablo DDL'i taşımaz (tarihsel DDL Auth geçmişinde kalır, geçmiş yeniden yazılmaz); yalnızca zincir sahipliğini ve birincil anahtar adlarını modele hizalar.
+
+Geri alma sırası (ters): Desk, Flow, Ground, Vault, Ops, Gateway, Hub, Governance, Billing, Studio, sonra Auth. Billing Down kolonları geri koyar, veriyi tablolardan doldurur ve doğrular.

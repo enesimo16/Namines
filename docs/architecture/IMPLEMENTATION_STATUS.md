@@ -31,3 +31,15 @@
 3. **Migration orkestrasyonu (14.2D-1):** 14.2B'de silinen `ModuleMigrationOrchestrator` gerçek olarak yeniden yazıldı ve `--migrate` ile başlangıç kontrolünün tek yolu. Zincir sahibi: Auth, Studio, Hub, Gateway, Ops. Vault, Ground, Flow, Desk, Billing, Governance, Identity bağlamları açıkça "sahip değil": DDL'leri Auth zincirinde, 3'ü 14.2D-2'de değişecek. Test: `Non_owner_contexts_state_a_reason_and_have_no_migrations`.
 4. **Sır İzolasyonu:** bağlantı sırrı `studio.project_connections`'ta, tek çözme kapısı `IProjectConnectionSecretProvider`. `studio.project_git_repositories`, `hub.project_publications`, `studio.schema_share_links` hiç oluşmadı, önceki iddia yanlıştı; varlıkları silindi.
 5. **`CloudProjects` God Entity & Table Tasfiyesi (Faz 14.2B):** kolonlar fiziksel düştü, tablo `studio.projects` oldu, katalog kanıtı `PHASE_14_2B_REPORT.md` §3'te. Tüm tüketiciler `IStudioApplicationService`, `IHubApplicationService`, `IProjectConnectionSecretProvider`, `ICrossModuleTransaction` üzerinden.
+
+## 3. Faz 14.2D-2 (Governance, Billing, Identity): son durum
+
+| Madde | Durum | Kanıt |
+|---|---|---|
+| Billing gerçek modül | Kod ve testler tamam, bağımsız denetim bekliyor | `Namines.Billing`, `billing` şeması, `Billing_01_AdoptTables`; rapor §2-§4 |
+| Governance gerçek modül | Aynı | `Namines.Governance`, `governance` şeması, değiştirilemez denetim izi; rapor §2, §5 |
+| Identity gerçek modül, `AuthDbContext` yalnızca Identity | Aynı | `Namines.Identity`; bağlam internal; model yansımayla yalnızca kimlik varlıkları; hiçbir başka derleme başvurmuyor |
+| Vault/Ground/Flow/Desk zincir sahipliği (m-9, BL-C6) | Tamam (tarihsel DDL Auth geçmişinde kalır) | 4 boş benimseme migration'ı + birincil anahtar adı hizalama; `I*Data` portları |
+| Stripe alanları `AspNetUsers`'tan fiziksel düştü | Tamam | `billing.customers`, `billing.subscriptions`; migration içi `RAISE` doğrulaması; Down veriyi geri koyar |
+| Controller izin listesi | BOŞ | `Controllers_do_not_use_any_DbContext`, `The_controller_allowlist_is_empty_after_14_2D_2` |
+| Geri kalan açıklar | `PHASE_14_2D_2_REPORT.md` §10 |  |
