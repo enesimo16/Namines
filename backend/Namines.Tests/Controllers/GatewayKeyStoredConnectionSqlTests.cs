@@ -84,7 +84,7 @@ public sealed class GatewayKeyStoredConnectionSqlTests : IAsyncLifetime
         var groq = new GroqAIService(
             new System.Net.Http.HttpClient(), new ConfigurationBuilder().Build(),
             httpContextAccessor, new MemoryCache(new MemoryCacheOptions()));
-        var quota = new AiQuotaService(db, new ConfigurationBuilder().Build());
+        var quota = TestModules.For(db).AiQuota();
 
         var httpContext = new DefaultHttpContext();
         httpContext.Request.Headers["X-Namines-Key"] = rawApiKey;

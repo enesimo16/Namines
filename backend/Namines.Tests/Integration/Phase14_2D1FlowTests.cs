@@ -85,7 +85,7 @@ public sealed class Phase14_2D1FlowTests : IAsyncLifetime
         await ExecAsync(cs, "DELETE FROM studio.\"CrossDatabaseRelations\"");
         await ExecAsync(cs, "DELETE FROM studio.projects WHERE \"Id\" = 'p1'");
 
-        foreach (var table in new[] { "studio.\"Branches\"", "studio.\"SchemaVersions\"", "studio.project_connections", "studio.project_shares", "hub.repositories", "hub.project_tags", "hub.\"RepoIssues\"", "hub.\"RepoStars\"", "gateway.\"GatewayApiKeys\"", "gateway.\"GatewayTablePermissions\"", "public.\"ChangeRequests\"" })
+        foreach (var table in new[] { "studio.\"Branches\"", "studio.\"SchemaVersions\"", "studio.project_connections", "studio.project_shares", "hub.repositories", "hub.project_tags", "hub.\"RepoIssues\"", "hub.\"RepoStars\"", "gateway.\"GatewayApiKeys\"", "gateway.\"GatewayTablePermissions\"", "governance.\"ChangeRequests\"" })
         {
             var where = table.Contains("project_tags") || table.Contains("repositories") || table.Contains("project_") || table.Contains("Branches") || table.Contains("SchemaVersions") || table.Contains("RepoIssues") || table.Contains("RepoStars") || table.Contains("Gateway") || table.Contains("ChangeRequests")
                 ? "\"ProjectId\" = 'p1'" : "true";
@@ -159,7 +159,7 @@ public sealed class Phase14_2D1FlowTests : IAsyncLifetime
             "INSERT INTO gateway.\"GatewayTablePermissions\" (\"Id\",\"ProjectId\",\"TableName\",\"CanRead\",\"CanWrite\",\"CanExport\",\"UpdatedAt\") VALUES ('z','nope','t',true,false,false,now())",
             "INSERT INTO studio.\"Branches\" (\"Id\",\"ProjectId\",\"Name\",\"IsDefault\",\"CreatedAt\") VALUES ('z','nope','x',false,now())",
             "INSERT INTO studio.projects (\"Id\",\"Name\",\"DbType\",\"SchemaJson\",\"NodePositionsJson\",\"UserId\",\"CreatedAt\",\"UpdatedAt\",\"AutoApproveSafeChanges\") VALUES ('z','n','d','{}','{}','no-user',now(),now(),false)",
-            "INSERT INTO public.\"ChangeRequests\" (\"Id\",\"ProjectId\",\"BranchId\",\"HeadVersionId\",\"Status\",\"RiskLevel\",\"ImpactReportJson\",\"CreatedAt\",\"VotingMembersAtCreation\") VALUES ('z','p1','b1','no-version',0,0,'{}',now(),1)",
+            "INSERT INTO governance.\"ChangeRequests\" (\"Id\",\"ProjectId\",\"BranchId\",\"HeadVersionId\",\"Status\",\"RiskLevel\",\"ImpactReportJson\",\"CreatedAt\",\"VotingMembersAtCreation\") VALUES ('z','p1','b1','no-version',0,0,'{}',now(),1)",
         })
         {
             var ex = await Assert.ThrowsAsync<PostgresException>(() => ExecAsync(cs, sql));

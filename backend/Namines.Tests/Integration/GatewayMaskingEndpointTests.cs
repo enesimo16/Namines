@@ -107,7 +107,7 @@ public sealed class GatewayMaskingEndpointTests : IAsyncLifetime
 
         return new GatewayController(
             gateway: new GatewayService(new AllowAllHosts()), gate: TestModules.For(db).GatewayGate(configuration), audit: TestModules.For(db).GatewayAudit, usage: TestModules.For(db).Usage, configuration: configuration,
-            groq: groq, logger: NullLogger<GatewayController>.Instance, quota: new AiQuotaService(db, new ConfigurationBuilder().Build()),
+            groq: groq, logger: NullLogger<GatewayController>.Instance, quota: TestModules.For(db).AiQuota(),
             secrets: TestModules.For(db).Authority(new ThrowingProtector()), studio: TestModules.For(db).StudioService, introspection: null!, workbench: null!, authority: TestModules.For(db).DefaultAuthority, projects: TestModules.For(db).Projects, branches: TestModules.For(db).Branches)
         {
             ControllerContext = new ControllerContext { HttpContext = http },

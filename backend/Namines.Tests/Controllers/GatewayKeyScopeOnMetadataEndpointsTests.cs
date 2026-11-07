@@ -70,7 +70,7 @@ public sealed class GatewayKeyScopeOnMetadataEndpointsTests : IAsyncLifetime
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
         var groq = new GroqAIService(new HttpClient(), new ConfigurationBuilder().Build(), accessor,
             new MemoryCache(new MemoryCacheOptions()));
-        var quota = new AiQuotaService(db, new ConfigurationBuilder().Build());
+        var quota = TestModules.For(db).AiQuota();
 
         // ForwardedHeaders:KnownNetworks TANIMLI: istemci adresi güvenilir sayılıyor, IP kısıtı
         // gerçekten değerlendirilebiliyor.

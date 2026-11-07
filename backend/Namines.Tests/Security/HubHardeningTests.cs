@@ -504,7 +504,7 @@ public sealed class HubHardeningTests : IAsyncLifetime
     public async Task Seeder_vitrin_kullanicisi_admin_degil_ve_sayaclar_sifir()
     {
         await using var db = new AuthDbContext(_options);
-        await HubBlueprintSeeder.SeedAsync(db, TestModules.For(db).Projects, TestModules.For(db).Branches, NewUserManager(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger.Instance);
+        await HubBlueprintSeeder.SeedAsync(TestModules.For(db).Identity, TestModules.For(db).Projects, TestModules.For(db).Branches, NewUserManager(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger.Instance);
 
         await using var verify = new AuthDbContext(_options);
         var architect = await verify.Users.AsNoTracking().SingleAsync(u => u.Id == "namines-architect");
@@ -531,7 +531,7 @@ public sealed class HubHardeningTests : IAsyncLifetime
         }
 
         await using var db = new AuthDbContext(_options);
-        await HubBlueprintSeeder.SeedAsync(db, TestModules.For(db).Projects, TestModules.For(db).Branches, NewUserManager(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger.Instance);
+        await HubBlueprintSeeder.SeedAsync(TestModules.For(db).Identity, TestModules.For(db).Projects, TestModules.For(db).Branches, NewUserManager(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger.Instance);
 
         await using var verify = new AuthDbContext(_options);
         Assert.False(await verify.Studio().Projects.AnyAsync());
@@ -550,7 +550,7 @@ public sealed class HubHardeningTests : IAsyncLifetime
         }
 
         await using var db = new AuthDbContext(_options);
-        await HubBlueprintSeeder.SeedAsync(db, TestModules.For(db).Projects, TestModules.For(db).Branches, NewUserManager(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger.Instance);
+        await HubBlueprintSeeder.SeedAsync(TestModules.For(db).Identity, TestModules.For(db).Projects, TestModules.For(db).Branches, NewUserManager(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger.Instance);
 
         await using var verify = new AuthDbContext(_options);
         Assert.False((await verify.Users.AsNoTracking().SingleAsync(u => u.Id == "namines-architect")).IsDev);
