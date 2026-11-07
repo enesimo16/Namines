@@ -16,7 +16,7 @@
 | API compatibility | PASS | Yetki matrisi 829 karşılaştırma, 0 fark; yeni duman betiği 46 etiketin şekli tabanla 0 fark (§7) |
 | Documentation | PASS | Bu rapor, `IMPLEMENTATION_STATUS`, `MODULE_OWNERSHIP`, `DATABASE_NORMALIZATION`, `MIGRATION_PLAN`, `docs/deploy/MIGRATION-VE-GERI-ALMA.md` §5.4 |
 | Performans | PASS | §9 |
-| Independent audit | BEKLİYOR | Yazılmadı; denetçinin işi |
+| Independent audit | CONDITIONALLY ACCEPTED, bulgular düzeltildi, yeniden denetim BEKLİYOR | `PHASE_14_2D_2_INDEPENDENT_AUDIT.md`; kapanış §12 |
 
 ## 2. Son durum
 
@@ -60,7 +60,7 @@ Migration içi `RAISE` doğrulamaları (Billing_01): önce yinelenen `StripeCust
 
 ## 5. Akış denetimi
 
-**Billing.** Kota rezervasyonu `AiQuotaService.TryReserveAsync` tek işlemde havuz (yalnızca Free), kullanıcı tavanı ve ekip havuzunu koşullu artırır; biri tutmazsa hiçbiri yazılmaz (karar önceliği havuz, kullanıcı, ekip). Önceki sürümde havuz ve ekip havuzu "oku, sonra yaz"dı: eşzamanlı isteklerde aşılabiliyordu. Gerçek PG testleri: 40 paralel rezervasyon tek kullanıcı tavanında tam 10 izin; 24 kullanıcı Free havuzda tam 10 izin; 12 üye ekip havuzunda tam 6 izin; reddedilen rezervasyon hiçbir sayaca dokunmaz; çift iade sıfırın altına inmez. **Bilinen sınır:** `AIQuotaMiddleware` yolu (`CheckAsync` + başarıdan sonra `ConsumeAsync`) rezervasyon değil; havuz sayacı orada gerçek tüketimi gösterir ve kullanıcı sayacı tavanda kırpılır, fakat bu yolda havuz tavanı sert değil (yerel yedeğe düşme kararı için okunuyor). `TryReserveAsync` kullanan yollar (şema üretimi, Gateway `/query/nl`, Flow) sert.
+**Billing.** Kota rezervasyonu `AiQuotaService.TryReserveAsync` tek işlemde havuz (yalnızca Free), kullanıcı tavanı ve ekip havuzunu koşullu artırır; biri tutmazsa hiçbiri yazılmaz (karar önceliği havuz, kullanıcı, ekip). Önceki sürümde havuz ve ekip havuzu "oku, sonra yaz"dı: eşzamanlı isteklerde aşılabiliyordu. Gerçek PG testleri: 40 paralel rezervasyon tek kullanıcı tavanında tam 10 izin; 24 kullanıcı Free havuzda tam 10 izin; 12 üye ekip havuzunda tam 6 izin; reddedilen rezervasyon hiçbir sayaca dokunmaz; çift iade sıfırın altına inmez. `AIQuotaMiddleware` ana yolu da artık önce `TryReserveAsync` ile rezerve eder, hata ya da 2xx dışı yanıtta iade eder (denetim M-3 sonrası; §12). Bu sınır kapandı.
 
 **Webhook.** İmza zorunlu (gizli anahtar yoksa 500, başlık yoksa/geçersizse 400; eksik başlıkta Stripe.net'in `NullReferenceException`'ı üretim hatası olarak bulundu ve servis artık önceden 400 veriyor). Olay kimliği birincil anahtar ve etkiyle AYNI işlemde; 12 paralel aynı teslimat tam bir etki üretir ve sahte Stripe geçidi bir kez çağrılır; etki patlarsa kayıt geri alınır ve yeniden deneme çalışır; sıra dışı eski olay `stale` kaydedilir, abonelik durumu değişmez. Yaşam döngüsü: `checkout.session.completed` (aktifleştir), `customer.subscription.updated` (past_due, plan değişimi, dönem sonunda iptal ayarı durumu bozmaz), `deleted` (ücretsize indir); `created` bilerek işlenmez (Stripe `incomplete` ile açar, etkinleştirmeyi `checkout.session.completed` yapar).
 
@@ -132,10 +132,8 @@ Geçici değişiklik, derleme, `Phase14_2D1ModuleArchitectureTests`+`BoundarySca
 - **Desk kişisel verisi** (sorgu geçmişi, kayıtlı sorgular, devir jetonları) hesap silmede yalnızca veritabanı FK'si (`CASCADE`) ile gidiyor; sözleşmeyle açık silme yok. Bu FK'ler düşerse silme sessizce eksik kalır. FK testle (`Deleting_a_user_removes_the_desk_sql_history_through_the_foreign_key`) korunuyor.
 - **Tarihsel DDL:** Vault/Ground/Flow/Desk tablolarının `CREATE TABLE`'ı hâlâ Auth geçmişinde (geçmiş yeniden yazılmadı); zincir sahipliği taşındı.
 - **Kimlik varlık sınıfları** `Namines.Core`'da (§2).
-- **Middleware kota yolu** havuz tavanını sert uygulamıyor (§5).
 - **JWT/yenileme jetonu sürekliliği** canlı HTTP'de ayrıca sınanmadı (§5, Identity); parola özeti ve SecurityStamp'ın aynı kaldığı parmak izi ile gösterildi.
-- **`dotnet ef has-pending-model-changes`** Studio/Hub/Gateway/Ops için bu fazda yeniden komut olarak çalıştırılmadı (test karşılığı geçiyor).
-- **Admin kontrolcüsünde** `UserManager` hâlâ yönetici doğrulaması ve kullanıcı güncellemesi için kullanılıyor (DbContext değil, Identity API'si); tam bir yönetici Application servisine taşınmadı.
+- **Denetim sonrası açık kalanlar (§12):** M-2 süreç-içi testi kilit olmadan da geçiyor (ayırt edici kanıt canlı HTTP ölçümü); m-7 geçmiş yeniden yazılmadı; m-8 kimlik varlıkları Core'da kaldı (borç `MODULE_OWNERSHIP.md`'de); Down sonra eski ikili veri kontrolü yapılmadı.
 - Namines MCP araçları (`namines_*`) kullanılamadı; yerine gerçek PostgreSQL.
 - Üretim veritabanında çalıştırılmadı, hiçbir şey push edilmedi. Geliştirme notu: önceki denetimden kalan API süreci (PID 38252) artık çalışmıyordu; derleme doğrudan ana kopyada yapıldı.
 
@@ -143,8 +141,78 @@ Geçici değişiklik, derleme, `Phase14_2D1ModuleArchitectureTests`+`BoundarySca
 
 | Komut | Proje | Toplam | Geçen | Kalan | Atlanan | Süre | Ortam |
 |---|---|---|---|---|---|---|---|
-| `dotnet test -c Release --no-build` | `Namines.Tests` | 3331 | 3331 | 0 | 0 | 25 dk 02 sn | Windows, Docker PG17 |
-| `dotnet test -c Release --no-build` | `Namines.Tests.RunTests` | 19 | 19 | 0 | 0 | 1 dk 20 sn | Aynı |
+| `dotnet test -c Release --no-build` | `Namines.Tests` | 3347 | 3347 | 0 | 0 | 24 dk 05 sn | Windows, Docker PG17 |
+| `dotnet test -c Release --no-build` | `Namines.Tests.RunTests` | 19 | 19 | 0 | 0 | 1 dk 09 sn | Aynı |
 | `dotnet build ... --no-incremental` | çözüm | | | 0 hata | | | 0 uyarı |
 
-Taban 3184 → 3331 (+147). Yeniden adlandırılan/silinen test yok; D-1 ile kapsamı değişen testler (yetki yeni sözleşmelere uyarlanan hesap silme, denetim eklemeli izi, Stripe alanı tohumları) aynı ad ve niyetle duruyor.
+Taban 3184 → 3331 (+147) → denetim düzeltmeleriyle 3347 (+16: 4 webhook, 2 migration, 1 denetim izi rolü, 4 kota ara katmanı, 2 kimlik sınırı, 3 yeni taranan derleme). Yeniden adlandırılan/kaldırılan 5 test vardı ve burada ilk yazılan "hiçbiri" cümlesi yanlıştı; liste §12 m-5'te. Derleme `--no-incremental`: 0 uyarı, 0 hata.
+
+## 12. Bağımsız denetim bulgularının kapanışı
+
+Denetim kararı CONDITIONALLY ACCEPTED (`PHASE_14_2D_2_INDEPENDENT_AUDIT.md`, `4d255de`). Aşağıdaki her madde aynı fazda düzeltildi; kanıt, çalıştırılan komut ya da testtir. Düzeltmeler dört commit'te: webhook/kota/denetim izi/Stripe kimlikleri (`a17c3bc`), Identity servisleri (`16a5241`), mimari taramalar (`181294d`), belgeler.
+
+### M-1 Eşlemeyi kuran checkout asla "eski" sayılmaz
+- Neden: `StripeWebhookService` sıra kontrolü, eşlemesi olmayan müşterinin daha yeni `subscription.updated` olayını da "uygulandı" sayıyordu; sonra gelen eski `checkout.session.completed` stale diye atılıyor, kullanıcı hiç bağlanmıyordu ve Stripe yeniden denemez.
+- Düzeltme: sıra hesabı yalnızca gerçekten UYGULANMIŞ durum olaylarına bakar. Eşlemesi olmayan müşterinin güncelleme/silme olayı yazacak satır olmadığı için etkisiz kalır ve sıra hesabına girmez; checkout eşlemeyi kuruyorsa (müşteri bağlı değil) her zaman uygulanır. Diğer olay türleri aynı tuzağa bakıldı: yalnızca üç durum olayı (`checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`) sıra hesabına girer, diğer türler durum yazmaz.
+- Test (gerçek PG): `A_checkout_that_creates_the_mapping_is_never_dropped_as_stale_even_after_a_newer_update`; karşıt: `A_checkout_older_than_an_applied_state_event_of_an_already_mapped_customer_is_stale` (bağlı müşteride eski checkout hâlâ stale).
+- Canlı HTTP (denetçinin `wh.js` betiği, imzalı olaylarla): `4d255de` derlemesi `checkout completed @+40 (older) for wu4 ... {"stale":true} mapped=0 type=0`; düzeltilmiş derleme `mapped=1 type=2`.
+
+### M-2 Aynı müşterinin farklı olayları seri işlenir
+- Neden: iki ayrı olay (updated@t, deleted@t+1) paralel gelince her biri diğerini görmeden "en yeniyim" diyordu; sonucu commit sırası belirliyordu.
+- Düzeltme: işlem içinde `pg_advisory_xact_lock(hashtextextended('stripe-customer:' + müşteri, 0))`; sıra kontrolü KİLİT ALTINDA ve Stripe'ın olayı üretme zamanına (`Event.Created`) göre yapılır. Kilit işlem sonunda düşer; olay kimliği birincil anahtarı aynı işlemde kalır.
+- Canlı HTTP, 25 tur `updated(active)@t` paralel `deleted@t+1`: `4d255de` derlemesinde `final != canceled` = **8**, düzeltilmişte **0**. Bu, ayırt edici kanıttır.
+- Test (gerçek PG): `Different_events_of_one_customer_arriving_in_parallel_always_end_at_the_newest_state` (30 tur, `FOR UPDATE` tutucusuyla commit sırası zorlanıyor). **Dürüst sınır:** bu süreç-içi test kilit devre dışı bırakıldığında da geçiyor, yani `4d255de`'de düşmüyor; yarışı süreç-içinde güvenilir üretemedim ve nedenini çözemedim. Ayırt edici kanıt yukarıdaki canlı HTTP ölçümüdür; test regresyon bekçisi olarak duruyor, yarışa karşı tek başına koruma sayılmamalı.
+
+### M-3 AI kotası: önce atomik rezervasyon
+- Neden: `AIQuotaMiddleware` salt-okunur `CheckAsync` + yanıttan sonra `ConsumeAsync`; paralel istekler kullanıcı tavanını, havuzu ve ekip havuzunu aşıyordu.
+- Düzeltme: ana yol `TryReserveAsync` ile isteği ÖNCE rezerve eder (tek koşullu `ExecuteUpdate`, tek işlem); hata ya da 2xx dışı yanıtta `RefundAsync` ile iade eder. `/api/schema/generate` kendi rezervasyonunu yapan uçtur (`HasReservedInScope`) ve eski yoldan geçer.
+- Test (gerçek PG, gerçek ara katman, 80 ms'lik sahte sağlayıcı): `Phase14_2D2QuotaMiddlewareTests` 4 test: kullanıcı tavanı (12 paralel, 3 geçer), serbest havuz (24 kullanıcı, 10 geçer), ekip havuzu (8 üye x 16 istek, tam `limit/6000` geçer), başarısız yanıt iadesi. Eski ara katmanda 4 testten 3'ü düşüyor, yenide hepsi geçiyor.
+
+### M-4 Kimlik yönetimi Identity modülünde
+- `AuthController` 41, `AdminController` 10 `UserManager` çağrısı taşıyordu. Şimdi `IIdentityAccounts` (kayıt, parola/kilit/MFA kapıları, hesap silme yeniden doğrulaması, profil, oturum iptali, MFA kurulum/aç/kapat, OAuth kullanıcı çözümü) ve `IAdminUserService` (yönetici yetkisi, hedef kullanıcı okuma) Identity modülünde; denetleyiciler yalnızca sonucu HTTP'ye eşler. `PlatformAdminAuthority` Identity'ye taşındı ve aynı kuralı paylaşır.
+- Davranış, rota, durum kodu ve ileti değişmedi: yetki matrisi **829 karşılaştırma, 0 fark** (hem tabana hem bir önceki yeni çalıştırmaya karşı); `smoke-d1` 95/95, `smoke-d2` 44/44, yanıt şekilleri önceki çalıştırmayla `cmp` ile birebir aynı.
+- **GET üzerinde `IsDev=true` yazımı (karar):** kaldırıldı. Yönetici yetkisi zaten yapılandırılmış `Dev:Email`'den (ya da `IsDev`, `Admin` rolünden) gelir; bayrağı yazmak yetki için gerekli değildi, bir okuma isteği kalıcı yetki durumunu değiştiriyor ve hatayı yutuyordu. Meşru davranış korunuyor: yapılandırılmış geliştirici hesabı yönetici sayılır ve parola girişinde (`PasswordSignInAsync`) `IsDev`, `EmailConfirmed`, `Corporate` ile yükseltilir (eskiden de oradaydı). Test: `Admin_resolution_is_read_only_for_the_configured_developer_account`.
+- Mimari test: `No_controller_takes_UserManager_SignInManager_or_RoleManager` (kurucu, alan, özellik, eylem parametresi; 20'den fazla denetleyici taranır).
+
+### m-1 Denetim izi değiştirilemezliği
+- `namines_app` `SET LOCAL namines.audit_retention='on'; DELETE` ile tetikleyiciyi aşabiliyordu. Tetikleyici DELETE'e artık yalnızca ayar açık VE `current_user` tablo sahibiyse izin verir; temizlik tek yoldan, `governance.purge_change_request_audit(cutoff, batch)` SECURITY DEFINER işlevinden geçer (`search_path` sabit, PUBLIC'ten EXECUTE geri alındı, yalnızca `namines_app`'e verildi, 90 günden yeni satırı silmez: 22023). `DataRetentionService` ayarı en az 90 güne çeker.
+- Test: `A_hijacked_application_role_cannot_delete_audit_rows_even_with_the_session_setting` `namines_app` rolüyle: ayar+DELETE `42501`, `DISABLE TRIGGER` reddedilir, işlev yeni satırı reddeder, eski satırı siler, ayar işlem sonunda kapanır.
+
+### m-2 Taramalar Billing, Governance, Identity'yi kapsıyor
+- Tablo sahipliği ve SQL metni taramasının sahip listesi ve taranan derlemeleri 4 modülden 7'ye çıktı (Identity'nin `public` tabloları dahil); Domain katmanı testi artık EF Core/Npgsql ÖZNİTELİKLERİNİ de tarar (öznitelik tür başvurusu olarak görünmüyordu).
+- Üç kaçan mutasyon artık düşüyor (geçici değişiklik, derleme, test, geri alma): Governance SQL'inde `billing.customers` -> `Sql_text_never_names_another_modules_table(Namines.Governance)`; Billing SQL'inde `public."AspNetUsers"` -> `...(Namines.Billing)`; Billing domain sınıfında `[Microsoft.EntityFrameworkCore.Index("UserId")]` -> `Domain_namespaces_do_not_depend_on_persistence_or_ef` (ve model kayması nedeniyle `Every_context_has_no_pending_model_changes`). Değişiklikten önce üçü de geçiyordu.
+
+### m-3 Stripe kimlikleri
+- Karar: müşteri ve abonelik kimlikleri migration'da kırpılır; boş "yok" sayılır (NULL); kırpılmış değerler yinelenirse migration durur (müşteri ve abonelik için ayrı ileti). `billing.subscriptions.StripeSubscriptionId` filtreli (NULL hariç) benzersiz indeks aldı. Down kırpılmış değeri geri koyar (boş -> NULL, boşluklu kimlik kırpılmış döner; özgün boşluk bilgisi kaybolur, anlam kaybolmaz). Migration özetinde belgeli.
+- Testler: `Padded_and_blank_stripe_ids_are_trimmed_into_the_new_tables_and_come_back_trimmed_on_down`, `The_same_stripe_subscription_on_two_users_stops_the_migration_and_changes_nothing`.
+
+### m-4 `IMPLEMENTATION_STATUS.md`
+- Bütün dosya son duruma göre yeniden yazıldı: başlık ve tarih, 14.2D-1 ACCEPTED, Aşama 5/6 tamamlandı, Aşama 8 açık, 14.2C satırındaki eski "controller'lar hâlâ AuthDbContext kullanıyor" cümlesi, §2 madde 3'teki zincir sahibi listesi (artık 11 bağlam), §3 denetim sonrası durum.
+
+### m-5 Yeniden adlandırılan/kaldırılan testler (§11'deki önceki "hiçbiri" cümlesi yanlıştı)
+Beş test adı değişti ya da kalktı; hepsi D-2'nin kendi sonucu (izin listesi boşaldı, sahip olmayan bağlam kalmadı):
+
+| Eski | Durum | Yerine |
+|---|---|---|
+| `Controllers_do_not_use_any_DbContext_outside_the_explicit_D2_allowlist` | Kaldırıldı | `Controllers_do_not_use_any_DbContext` (izin listesi yok) ve `The_controller_allowlist_is_empty_after_14_2D_2` |
+| `Allowlist_has_no_stale_entries` | Kaldırıldı | Liste yok; ayrı test gerekmiyor |
+| `Non_owner_contexts_state_a_reason_and_have_no_migrations` | Kaldırıldı | Sahip olmayan bağlam kalmadı; `Every_DbContext_in_the_solution_has_a_declared_migration_status` ve zincir sırası testi |
+| `AuthDbContext_has_no_dbset_or_model_entry_for_the_four_modules` | Değişti | `AuthDbContext_model_contains_only_identity_entity_types` |
+| `All_Eleven_Modules_Register_DbContexts_And_Facades` | Yeniden adlandırıldı | `All_Eleven_Modules_Register_DbContexts_And_Services` (cephe kalmadı) |
+
+IL taramasının `IDesignTimeDbContextFactory` muafiyeti daraltıldı: imza düzeyi tarama (alan, kurucu, metot imzası) artık hiçbir muafiyet taşımıyor; yalnızca IL düzeyinde, hizası kaymış baytları tesadüfen fabrikaya çözen tarayıcıya karşı fabrika türleri muaf. Fabrikalar kodda çağrılmaz (yalnızca `dotnet ef` bulur); muafiyet bu tek tür grubuyla sınırlı ve gerekçesi testin yorumunda yazılı.
+
+### m-6 İmzalı ama ayrıştırılamayan gövde
+- `ConstructEvent` `NullReferenceException`/JSON istisnası da 400'e çevrilir; ayrıştırma sonrası `Id` ya da `Data.Object` boşsa 400. Test: `A_signed_but_unparseable_body_is_a_400_not_a_500` (boş gövde, `{}`, `null`, `[]`, `data`'sız olay; hiçbir olay satırı yazılmaz).
+
+### m-7 Geçmiş temizliği: yapılmadı, gerekçeli
+`fea5610`, `b65fc95`, `bfa0893`, `e00b95f` API'yi, `c9fe0b8` ve `8bbac01` test projesini derlemiyor (ara adımlar; sonraki commit düzeltiyor). `00c287b..HEAD` aralığını (19 commit) yeniden yazmadım: yedek dal ve boş `git diff` kanıtıyla güvenli yapılabilir, ama diğer maddelerin önüne geçmemeliydi ve yeniden yazım denetim belgesinin atıf yaptığı hash'leri (`4d255de`, `1cc4ad8`) geçersiz kılar. Sonuç: bu aralıkta `git bisect` ara commit'lerde derleme hatası görebilir; son ağaç ve her düzeltme commit'i derleniyor ve test ediliyor. İstenirse ayrı bir iş olarak yapılabilir.
+
+### m-8 Kimlik varlıklarının yeri: bilinçli borç
+Taşınmadı: ~250 dosyada geçen ad alanı ve migration anlık görüntüleri tek PR'ı mekanik ve büyük yapar; neden ve somut sonraki adım `MODULE_OWNERSHIP.md` "Kimlik varlıklarının yeri" bölümünde.
+
+### Ek kapılar
+- `dotnet ef migrations has-pending-model-changes` 11 bağlamın hepsi için komut olarak yeniden çalıştırıldı (Billing, Governance, Studio, Hub, Gateway, Ops, Vault, Ground, Flow, Desk, Auth): hepsi "No changes have been made to the model since the last migration."
+- Down sonra eski ikili ile veri kontrolü yapılmadı (ucuz değil: eski derleme, `dotnet ef` Down ve HTTP turu gerekir). Down'ın veriyi geri koyduğu migration testleri (`Padded_and_blank_...` dahil) yerine geçer; açık madde.
+- Eski JWT canlı kontrolünü denetçi yaptı; yeniden yapılmadı.
+- Frontend dosyası değişmedi; `tsc`/`eslint`/`vitest`/`next build` çalıştırılmadı.
