@@ -53,3 +53,13 @@
 | Vault / Ground / Flow / Desk | kendi şemaları | değişmedi | kendi bağlamları (internal), `I*Data` | 120/130/140/150 | değişmedi |
 
 Kimlik varlık sınıfları (`ApplicationUser`, `Organization`...) ASP.NET Identity ile iç içe olduğu için `Namines.Core`'da kaldı; Identity için ayrı bir Domain katmanı yoktur. Billing, kullanıcı bilgisini yalnızca `IIdentityDirectory`'den alır; Governance, Studio ve Identity'ye yalnızca sözleşmeyle gider.
+
+### Kimlik varlıklarının yeri (bilinçli borç, denetim m-8)
+
+Identity ve Vault/Ground/Flow/Desk varlıkları hâlâ `Namines.Core/Models/Auth` içinde (`ApplicationUser`, `Organization`, `TeamInvite`, `VaultBackup`, `VaultSchedule`, `GroundDatabase`, `SavedQuery`, `DeskHandoffToken`, `UserType`...). Neden:
+
+1. `ApplicationUser` ASP.NET Identity şablon türüdür (`IdentityUser`); Identity modülünün dışında da (Billing/Governance/Studio sözleşmeleri, testler) CLR türü olarak anılır.
+2. Namespace `Namines.Core.Models.Auth` yaklaşık 250 dosyada geçiyor (API 23, Identity 68, testler 87, diğer modüller 5-8'er) ve migration anlık görüntüleri/tasarım dosyaları CLR tür adını taşıyor; taşıma hepsini ve anlık görüntüleri aynı anda değiştirir. Veri tabanında hiçbir değişiklik gerektirmez ama tek PR'da çok geniş bir mekanik diff olur.
+3. Sınır, tür konumuna değil erişim yoluna dayanır: bu türleri okuyan/yazan tek kod Identity (ve kendi modülünün) `DbContext`'idir, bunu mimari testler zorlar.
+
+Sonraki adım (somut): (a) önce `Namines.Identity.Domain` içine yalnızca `Organization`, `OrganizationMember`, `TeamInvite` taşınır (Identity dışında ancak sözleşme türlerinden anılır, bu yüzden küçük bir yüzey); (b) `ApplicationUser` Core'da kalır, çünkü dış sözleşmeler onu `IdentityUser` olarak tanır; (c) Vault/Ground/Flow/Desk varlıkları kendi modül projelerine ayrı bir fazda taşınır. Her adım `has-pending-model-changes` ve migration parmak izi testiyle birlikte yapılır.
