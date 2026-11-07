@@ -1,3 +1,6 @@
+using Namines.Identity.Infrastructure.Persistence;
+using Namines.Identity.Application;
+using Namines.Identity.Infrastructure.Security;
 using Namines.Gateway.DependencyInjection;
 using Namines.Hub.DependencyInjection;
 using Namines.Studio.DependencyInjection;
@@ -17,7 +20,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Namines.API.Controllers;
 using Namines.BuildingBlocks.DependencyInjection;
-using Namines.BuildingBlocks.Modules;
 using Namines.BuildingBlocks.Persistence;
 using Namines.BuildingBlocks.Security;
 using Namines.Core.Models;

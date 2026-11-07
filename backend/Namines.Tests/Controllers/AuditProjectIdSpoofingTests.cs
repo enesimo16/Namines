@@ -1,3 +1,4 @@
+using Namines.Identity.Infrastructure.Persistence;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;

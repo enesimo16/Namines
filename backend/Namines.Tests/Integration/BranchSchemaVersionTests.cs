@@ -1,3 +1,4 @@
+using Namines.Identity.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;

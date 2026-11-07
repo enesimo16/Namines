@@ -1,3 +1,4 @@
+using Namines.Governance.Domain;
 using Namines.Core.Analysis;
 using Namines.Core.Models.Auth;
 

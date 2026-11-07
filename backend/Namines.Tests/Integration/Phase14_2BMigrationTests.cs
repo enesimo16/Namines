@@ -1,3 +1,4 @@
+using Namines.Identity.Infrastructure.Persistence;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -414,8 +415,8 @@ public sealed class Phase14_2BMigrationTests : IClassFixture<Phase14_2BPostgresF
         await using (var ctx = Context(cs))
             await ctx.GetService<IMigrator>().MigrateAsync(ReconcileDrift);
 
-        var prepare = Infrastructure.Migrations.Phase14_2BDecompositionScripts.UpPrepare;
-        var verify = Infrastructure.Migrations.Phase14_2BDecompositionScripts.UpVerify;
+        var prepare = Namines.Identity.Infrastructure.Persistence.Migrations.Phase14_2BDecompositionScripts.UpPrepare;
+        var verify = Namines.Identity.Infrastructure.Persistence.Migrations.Phase14_2BDecompositionScripts.UpVerify;
 
         // Bozulmamış hâlde geçer: aşağıdakiler gerçekten bozmanın yakalandığını gösterir.
         await using (var conn = new NpgsqlConnection(cs))
@@ -454,8 +455,8 @@ public sealed class Phase14_2BMigrationTests : IClassFixture<Phase14_2BPostgresF
         await using (var ctx = Context(cs))
             await ctx.GetService<IMigrator>().MigrateAsync("20261105060611_Phase14_2B_DecomposeCloudProjects");
 
-        var restore = Infrastructure.Migrations.Phase14_2BDecompositionScripts.DownRestore;
-        var verify = Infrastructure.Migrations.Phase14_2BDecompositionScripts.DownVerify;
+        var restore = Namines.Identity.Infrastructure.Persistence.Migrations.Phase14_2BDecompositionScripts.DownRestore;
+        var verify = Namines.Identity.Infrastructure.Persistence.Migrations.Phase14_2BDecompositionScripts.DownVerify;
 
         var cases = new (string Corrupt, string Expected)[]
         {

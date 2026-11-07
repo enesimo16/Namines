@@ -1,3 +1,4 @@
+using Namines.Billing.Domain;
 using Microsoft.EntityFrameworkCore;
 using Namines.BuildingBlocks.Persistence;
 using Namines.Infrastructure.Data;
@@ -15,7 +16,7 @@ using Xunit;
 namespace Namines.Tests.TestSupport;
 
 /// <summary>Migration testlerinin ortak el kitabı: taşınan tablolar, tohum, beklenen sayımlar.</summary>
-public static partial class TestModules
+internal static partial class TestModules
 {
     /// <summary>D-1'den önceki son Auth migration'ı: canlı sistemin bugünkü seviyesi.</summary>
     public const string Level14_2C = "20261105114438_Phase14_2C_NormalizeCollections";
@@ -29,6 +30,10 @@ public static partial class TestModules
         ("gateway", "GatewayApiKeys"), ("gateway", "GatewayTablePermissions"), ("gateway", "GatewayAuditEntries"),
         ("gateway", "api_key_allowed_origins"), ("gateway", "api_key_allowed_ips"), ("gateway", "table_masked_columns"),
         ("ops", "Feedbacks"), ("ops", "SqlExecutionAudits"), ("ops", "FeatureFlags"), ("ops", "AiToolRoutes"),
+        ("billing", "UsageEvents"), ("billing", "UserAIQuotas"), ("billing", "UserBillingSettings"), ("billing", "GlobalAiUsages"),
+        ("billing", "OrgAiUsages"), ("billing", "StripeWebhookEvents"), ("billing", "PendingSubscriptionCancellations"),
+        ("billing", "customers"), ("billing", "subscriptions"),
+        ("governance", "ChangeRequests"), ("governance", "ChangeRequestApprovals"), ("governance", "ChangeRequestAuditLogs"), ("governance", "UserAIPolicies"),
     };
 
     public static IReadOnlyList<Func<string, DbContext>> OwnerContextFactories =>
@@ -42,17 +47,7 @@ public static partial class TestModules
         Descriptors.Where(d => d.Module != "Auth").Select(d => d.CreateContext).ToList();
 
     /// <summary>Çalışma zamanında tablo eşleyen her bağlam: sahip olanlar ve zinciri olmayanlar.</summary>
-    public static IReadOnlyList<Func<string, DbContext>> AllContextFactories =>
-        OwnerContextFactories.Concat(new Func<string, DbContext>[]
-        {
-            cs => new Namines.Vault.Infrastructure.Persistence.VaultDbContext(ModuleDbContextRegistration.MigrationOptions<Namines.Vault.Infrastructure.Persistence.VaultDbContext>(cs, "namines_vault")),
-            cs => new Namines.Ground.Infrastructure.Persistence.GroundDbContext(ModuleDbContextRegistration.MigrationOptions<Namines.Ground.Infrastructure.Persistence.GroundDbContext>(cs, "ground")),
-            cs => new Namines.Flow.Infrastructure.Persistence.FlowDbContext(ModuleDbContextRegistration.MigrationOptions<Namines.Flow.Infrastructure.Persistence.FlowDbContext>(cs, "flow")),
-            cs => new Namines.Desk.Infrastructure.Persistence.DeskDbContext(ModuleDbContextRegistration.MigrationOptions<Namines.Desk.Infrastructure.Persistence.DeskDbContext>(cs, "desk")),
-            cs => new Namines.BuildingBlocks.Modules.IdentityModuleDbContext(ModuleDbContextRegistration.MigrationOptions<Namines.BuildingBlocks.Modules.IdentityModuleDbContext>(cs, "public")),
-            cs => new Namines.BuildingBlocks.Modules.BillingDbContext(ModuleDbContextRegistration.MigrationOptions<Namines.BuildingBlocks.Modules.BillingDbContext>(cs, "public")),
-            cs => new Namines.BuildingBlocks.Modules.GovernanceDbContext(ModuleDbContextRegistration.MigrationOptions<Namines.BuildingBlocks.Modules.GovernanceDbContext>(cs, "public")),
-        }).ToList();
+    public static IReadOnlyList<Func<string, DbContext>> AllContextFactories => OwnerContextFactories;
 
     public static Task MigrateAllAsync(string connectionString, bool upToAuthOnly) =>
         ModuleMigrationOrchestrator.MigrateAllAsync(

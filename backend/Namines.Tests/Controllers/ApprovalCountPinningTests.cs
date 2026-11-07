@@ -1,3 +1,6 @@
+using Namines.Governance.Domain;
+using Namines.Identity.Infrastructure.Persistence;
+using Namines.Tests.TestSupport;
 using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -94,7 +97,7 @@ public sealed class ApprovalCountPinningTests : IAsyncLifetime
             CreatedByUserId = "author",
             VotingMembersAtCreation = pinnedTeamSize,
         };
-        db.ChangeRequests.Add(cr);
+        db.Governance().ChangeRequests.Add(cr);
         await db.SaveChangesAsync();
 
         return cr.Id;

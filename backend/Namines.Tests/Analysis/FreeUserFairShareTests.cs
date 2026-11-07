@@ -1,3 +1,4 @@
+using Namines.Billing.Application;
 using Namines.Infrastructure.Data;
 
 namespace Namines.Tests.Analysis;

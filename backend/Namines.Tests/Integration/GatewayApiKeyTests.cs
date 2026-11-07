@@ -1,3 +1,4 @@
+using Namines.Identity.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Analysis;
 using Namines.Core.Models;

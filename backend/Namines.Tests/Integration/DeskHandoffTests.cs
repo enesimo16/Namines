@@ -1,3 +1,4 @@
+using Namines.Identity.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Testcontainers.PostgreSql;
 using Namines.Core.Models.Auth;

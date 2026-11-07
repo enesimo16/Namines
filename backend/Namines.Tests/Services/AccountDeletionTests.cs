@@ -1,3 +1,4 @@
+using Namines.Identity.Infrastructure.Persistence;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;

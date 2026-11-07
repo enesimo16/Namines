@@ -1,3 +1,5 @@
+using Namines.Identity.Infrastructure.Persistence;
+using Namines.Tests.TestSupport;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
@@ -145,7 +147,7 @@ public sealed class BillingHardeningTests : IAsyncLifetime
 
         await using (var db = new AuthDbContext(_options))
         {
-            Assert.Empty(await db.StripeWebhookEvents.ToListAsync());
+            Assert.Empty(await db.Billing().StripeWebhookEvents.ToListAsync());
             var user = await db.Users.SingleAsync(u => u.Id == "u1");
             Assert.Equal("active", user.SubscriptionStatus);
             Assert.Equal(UserType.Corporate, user.Type);
@@ -161,7 +163,7 @@ public sealed class BillingHardeningTests : IAsyncLifetime
             var user = await db.Users.SingleAsync(u => u.Id == "u1");
             Assert.Equal("canceled", user.SubscriptionStatus);
             Assert.Equal(UserType.Individual, user.Type);
-            Assert.Single(await db.StripeWebhookEvents.ToListAsync());
+            Assert.Single(await db.Billing().StripeWebhookEvents.ToListAsync());
         }
 
         // 3) Başarıdan sonraki tekrar iletim artık duplicate.

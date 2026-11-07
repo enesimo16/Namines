@@ -1,14 +1,14 @@
+using Namines.Identity.Infrastructure.Persistence;
 using System.Data.Common;
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
-using Namines.BuildingBlocks.Modules;
 using Namines.Core.Models.Auth;
 using Namines.Hub.Domain;
 using Namines.Infrastructure.Data;
-using Namines.Infrastructure.Migrations;
+using Namines.Identity.Infrastructure.Persistence.Migrations;
 using Namines.Tests.Services;
 using Namines.Tests.TestSupport;
 using Npgsql;

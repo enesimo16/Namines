@@ -1,3 +1,4 @@
+using Namines.Identity.Infrastructure.Persistence;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.SignalR;

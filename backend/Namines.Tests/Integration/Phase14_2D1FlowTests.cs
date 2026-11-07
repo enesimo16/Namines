@@ -1,3 +1,5 @@
+using Namines.Identity.Infrastructure.Persistence;
+using Namines.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -317,7 +319,7 @@ public sealed class Phase14_2D1FlowTests : IAsyncLifetime
     {
         var cs = await UpgradedAsync("governance");
         var kit = Kit(cs);
-        var cr = await kit.Db.ChangeRequests.AsNoTracking().SingleAsync();
+        var cr = await kit.Db.Governance().ChangeRequests.AsNoTracking().SingleAsync();
         Assert.Equal("main", (await kit.Branches.GetAsync(cr.BranchId))!.Name);
         Assert.Equal(1, (await kit.Branches.GetVersionAsync(cr.HeadVersionId))!.Version);
     }

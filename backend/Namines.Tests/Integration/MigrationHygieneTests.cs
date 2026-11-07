@@ -1,3 +1,4 @@
+using Namines.Identity.Infrastructure.Persistence;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;

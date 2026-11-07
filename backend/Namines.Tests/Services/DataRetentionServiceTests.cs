@@ -1,3 +1,6 @@
+using Namines.Billing.Domain;
+using Namines.Identity.Infrastructure.Persistence;
+using Namines.Tests.TestSupport;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -53,8 +56,8 @@ public sealed class DataRetentionServiceTests : IAsyncLifetime
         {
             db.Gateway().GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p", CreatedAt = Now.AddDays(-400) });
             db.Gateway().GatewayAuditEntries.Add(new GatewayAuditEntry { ProjectId = "p", CreatedAt = Now.AddDays(-10) });
-            db.StripeWebhookEvents.Add(new StripeWebhookEvent { Id = "evt_old", EventType = "x", ProcessedAt = Now.AddDays(-200) });
-            db.StripeWebhookEvents.Add(new StripeWebhookEvent { Id = "evt_new", EventType = "x", ProcessedAt = Now.AddDays(-1) });
+            db.Billing().StripeWebhookEvents.Add(new StripeWebhookEvent { Id = "evt_old", EventType = "x", ProcessedAt = Now.AddDays(-200) });
+            db.Billing().StripeWebhookEvents.Add(new StripeWebhookEvent { Id = "evt_new", EventType = "x", ProcessedAt = Now.AddDays(-1) });
             deskDb.DeskHandoffTokens.Add(new DeskHandoffToken { TokenHash = "a", UserId = "u", ExpiresAt = Now.AddDays(-30) });
             deskDb.DeskHandoffTokens.Add(new DeskHandoffToken { TokenHash = "b", UserId = "u", ExpiresAt = Now.AddMinutes(5) });
             db.TeamInvites.Add(new TeamInvite { TokenHash = "i1", OrganizationId = "o", CreatedByUserId = "u", ExpiresAt = Now.AddDays(-30) });

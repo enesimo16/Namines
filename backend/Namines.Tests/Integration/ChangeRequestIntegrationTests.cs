@@ -1,3 +1,6 @@
+using Namines.Governance.Domain;
+using Namines.Identity.Infrastructure.Persistence;
+using Namines.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Enums;
 using Namines.Core.Models.Auth;
@@ -93,7 +96,7 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         await _context!.ChangeRequests.AddAsync(cr);
         await _context.SaveChangesAsync();
 
-        var reloaded = await _context.ChangeRequests.FindAsync(cr.Id);
+        var reloaded = await _context.Governance().ChangeRequests.FindAsync(cr.Id);
         Assert.NotNull(reloaded);
         Assert.Equal(ChangeRequestStatus.PendingReview, reloaded!.Status);
     }
@@ -105,13 +108,13 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         await _context!.ChangeRequests.AddAsync(cr);
         await _context.SaveChangesAsync();
 
-        await _context.ChangeRequestApprovals.AddAsync(new ChangeRequestApproval
+        await _context.Governance().ChangeRequestApprovals.AddAsync(new ChangeRequestApproval
         {
             ChangeRequestId = cr.Id, UserId = _reviewerId, Decision = ApprovalDecision.Approved
         });
         await _context.SaveChangesAsync();
 
-        await _context.ChangeRequestApprovals.AddAsync(new ChangeRequestApproval
+        await _context.Governance().ChangeRequestApprovals.AddAsync(new ChangeRequestApproval
         {
             ChangeRequestId = cr.Id, UserId = _reviewerId, Decision = ApprovalDecision.Rejected
         });
@@ -125,7 +128,7 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         await _context!.ChangeRequests.AddAsync(cr);
         await _context.SaveChangesAsync();
 
-        await _context.ChangeRequestApprovals.AddAsync(new ChangeRequestApproval
+        await _context.Governance().ChangeRequestApprovals.AddAsync(new ChangeRequestApproval
         {
             ChangeRequestId = cr.Id, UserId = _reviewerId, Decision = ApprovalDecision.Approved
         });
@@ -138,8 +141,8 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         // işleminde birlikte tetikleniyor; ChangeRequest.HeadVersionId'nin SchemaVersion'a
         // Restrict FK'si olması bu iki cascade yolunun aynı anda yürütülmesini engellemiyor —
         // Postgres tüm cascade kapanışını tek işlemde hesaplıyor. Bu test tam bunu kanıtlıyor.
-        Assert.False(await _context.ChangeRequests.AnyAsync(c => c.Id == cr.Id));
-        Assert.False(await _context.ChangeRequestApprovals.AnyAsync(a => a.ChangeRequestId == cr.Id));
+        Assert.False(await _context.Governance().ChangeRequests.AnyAsync(c => c.Id == cr.Id));
+        Assert.False(await _context.Governance().ChangeRequestApprovals.AnyAsync(a => a.ChangeRequestId == cr.Id));
     }
 
     [RequiresDockerFact]
@@ -152,14 +155,14 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         // Yazar kendi breaking değişikliğini onaylayamaz — policy bunu reddeder,
         // burada sadece DB'nin de bunu engellemediğini (uygulama katmanı sorumluluğu)
         // ve normal akışta ikinci farklı kullanıcının onayının durumu değiştirdiğini kanıtlıyoruz.
-        await _context.ChangeRequestApprovals.AddAsync(new ChangeRequestApproval
+        await _context.Governance().ChangeRequestApprovals.AddAsync(new ChangeRequestApproval
         {
             ChangeRequestId = cr.Id, UserId = _reviewerId, Decision = ApprovalDecision.Approved
         });
         cr.Status = ChangeRequestStatus.PendingReview; // hâlâ 2 onay gerekiyor (Breaking)
         await _context.SaveChangesAsync();
 
-        var reloaded = await _context.ChangeRequests
+        var reloaded = await _context.Governance().ChangeRequests
             .Include(c => c.Approvals)
             .FirstAsync(c => c.Id == cr.Id);
 
@@ -179,7 +182,7 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         await _context.SaveChangesAsync();
 
         // Otomatik onay — hiçbir insan aktör yok, ActorUserId null.
-        await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
+        await _context.Governance().ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
         {
             ChangeRequestId = cr.Id,
             Action = ChangeRequestAuditAction.AutoApproved,
@@ -188,7 +191,7 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         });
         await _context.SaveChangesAsync();
 
-        var entry = await _context.ChangeRequestAuditLogs.SingleAsync(a => a.ChangeRequestId == cr.Id);
+        var entry = await _context.Governance().ChangeRequestAuditLogs.SingleAsync(a => a.ChangeRequestId == cr.Id);
         Assert.Equal(ChangeRequestAuditAction.AutoApproved, entry.Action);
         Assert.Null(entry.ActorUserId);
     }
@@ -200,7 +203,7 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         await _context!.ChangeRequests.AddAsync(cr);
         await _context.SaveChangesAsync();
 
-        await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
+        await _context.Governance().ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
         {
             ChangeRequestId = cr.Id, ProjectId = cr.ProjectId,
             Action = ChangeRequestAuditAction.Created, ActorUserId = _userId
@@ -210,9 +213,9 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         _context.Studio().ChangeTracker.Clear();
         await _context.Studio().Branches.Where(b => b.Id == _branchId).ExecuteDeleteAsync();
 
-        Assert.True(await _context.ChangeRequestAuditLogs.AnyAsync(a => a.ChangeRequestId == cr.Id));
+        Assert.True(await _context.Governance().ChangeRequestAuditLogs.AnyAsync(a => a.ChangeRequestId == cr.Id));
         // DB-10: denetim izi CR'nin gitmesiyle SILINMEZ (FK yok, anlik kopya kalir).
-        var kept = await _context.ChangeRequestAuditLogs.SingleAsync(a => a.ChangeRequestId == cr.Id);
+        var kept = await _context.Governance().ChangeRequestAuditLogs.SingleAsync(a => a.ChangeRequestId == cr.Id);
         Assert.Equal(cr.ProjectId, kept.ProjectId);
     }
 
@@ -223,7 +226,7 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         await _context!.ChangeRequests.AddAsync(cr);
         await _context.SaveChangesAsync();
 
-        await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
+        await _context.Governance().ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
         {
             ChangeRequestId = cr.Id, Action = ChangeRequestAuditAction.Created, ActorUserId = _userId,
             CreatedAt = DateTime.UtcNow
@@ -232,14 +235,14 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
 
         cr.Status = ChangeRequestStatus.Approved;
         cr.ResolvedAt = DateTime.UtcNow;
-        await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
+        await _context.Governance().ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
         {
             ChangeRequestId = cr.Id, Action = ChangeRequestAuditAction.Approved, ActorUserId = _reviewerId,
             CreatedAt = DateTime.UtcNow.AddSeconds(1)
         });
         await _context.SaveChangesAsync();
 
-        var timeline = await _context.ChangeRequestAuditLogs
+        var timeline = await _context.Governance().ChangeRequestAuditLogs
             .Where(a => a.ChangeRequestId == cr.Id)
             .OrderBy(a => a.CreatedAt)
             .ToListAsync();

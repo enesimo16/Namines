@@ -1,3 +1,4 @@
+using Namines.Identity.Infrastructure.Security;
 using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -19,6 +20,16 @@ using Namines.Core.Security;
 using Namines.Infrastructure.Data;
 using Namines.Ops.Application;
 using Namines.Ops.Infrastructure.Persistence;
+using Namines.Billing.Application;
+using Namines.Billing.Infrastructure.Persistence;
+using Namines.Governance.Application;
+using Namines.Governance.Infrastructure.Persistence;
+using Namines.Identity.Application;
+using Namines.Identity.Infrastructure.Persistence;
+using Namines.Vault.Infrastructure.Persistence;
+using Namines.Ground.Infrastructure.Persistence;
+using Namines.Flow.Infrastructure.Persistence;
+using Namines.Desk.Infrastructure.Persistence;
 
 namespace Namines.Tests.TestSupport;
 
@@ -27,7 +38,7 @@ namespace Namines.Tests.TestSupport;
 /// servisleri. DI'daki gibi tek örnek: işlem koordinatörü ile servisler aynı bağlamı görmeli, yoksa
 /// servis işleme katılmaz.
 /// </summary>
-public sealed class ModuleKit
+internal sealed class ModuleKit
 {
     private bool _flushing;
 
@@ -39,7 +50,13 @@ public sealed class ModuleKit
         Hub = new HubDbContext(ModuleOptions<HubDbContext>(connectionString, interceptors));
         Gateway = new GatewayDbContext(ModuleOptions<GatewayDbContext>(connectionString, interceptors));
         Ops = new OpsDbContext(ModuleOptions<OpsDbContext>(connectionString, interceptors));
-        Transaction = new CrossModuleTransaction(db, Participants(), new SharedTransactionManager());
+        Billing = new BillingDbContext(ModuleOptions<BillingDbContext>(connectionString, interceptors));
+        Governance = new GovernanceDbContext(ModuleOptions<GovernanceDbContext>(connectionString, interceptors));
+        Vault = new VaultDbContext(ModuleOptions<VaultDbContext>(connectionString, interceptors));
+        Ground = new GroundDbContext(ModuleOptions<GroundDbContext>(connectionString, interceptors));
+        Flow = new FlowDbContext(ModuleOptions<FlowDbContext>(connectionString, interceptors));
+        Desk = new DeskDbContext(ModuleOptions<DeskDbContext>(connectionString, interceptors));
+        Transaction = new CrossModuleTransaction(Participants(), new SharedTransactionManager());
         HookFlush();
     }
 
@@ -60,11 +77,17 @@ public sealed class ModuleKit
         Hub = new HubDbContext(SharedConnectionOptions<HubDbContext>(db));
         Gateway = new GatewayDbContext(SharedConnectionOptions<GatewayDbContext>(db));
         Ops = new OpsDbContext(SharedConnectionOptions<OpsDbContext>(db));
-        Transaction = new CrossModuleTransaction(db, Participants(), new SharedTransactionManager());
+        Billing = new BillingDbContext(SharedConnectionOptions<BillingDbContext>(db));
+        Governance = new GovernanceDbContext(SharedConnectionOptions<GovernanceDbContext>(db));
+        Vault = new VaultDbContext(SharedConnectionOptions<VaultDbContext>(db));
+        Ground = new GroundDbContext(SharedConnectionOptions<GroundDbContext>(db));
+        Flow = new FlowDbContext(SharedConnectionOptions<FlowDbContext>(db));
+        Desk = new DeskDbContext(SharedConnectionOptions<DeskDbContext>(db));
+        Transaction = new CrossModuleTransaction(Participants(), new SharedTransactionManager());
         HookFlush();
     }
 
-    private List<ITransactionParticipant> Participants() => ModuleContexts().Select(c => (ITransactionParticipant)new TransactionParticipant(c)).ToList();
+    private List<ITransactionParticipant> Participants() => new DbContext[] { Db }.Concat(ModuleContexts()).Select(c => (ITransactionParticipant)new TransactionParticipant(c)).ToList();
 
     /// <summary>Şema kurulumu ve test tohumu için bu kitteki tüm modül bağlamları.</summary>
     public IEnumerable<DbContext> ModuleContexts()
@@ -73,6 +96,12 @@ public sealed class ModuleKit
         yield return Hub;
         yield return Gateway;
         yield return Ops;
+        yield return Billing;
+        yield return Governance;
+        yield return Vault;
+        yield return Ground;
+        yield return Flow;
+        yield return Desk;
     }
 
     /// <summary>
@@ -98,6 +127,12 @@ public sealed class ModuleKit
     }
 
     internal OpsDbContext Ops { get; }
+    internal BillingDbContext Billing { get; }
+    internal GovernanceDbContext Governance { get; }
+    internal VaultDbContext Vault { get; }
+    internal GroundDbContext Ground { get; }
+    internal FlowDbContext Flow { get; }
+    internal DeskDbContext Desk { get; }
     public IFeedbackService Feedback => new FeedbackService(Ops);
     public ISqlExecutionAuditService SqlAudit => new SqlExecutionAuditService(Ops);
     public IOpsRetentionService OpsRetention => new OpsRetentionService(Ops);
@@ -110,9 +145,16 @@ public sealed class ModuleKit
     public IGatewayAuditLog GatewayAudit => new GatewayAuditLog(Gateway, DefaultAuthority, Branches);
     public IGatewayRequestGate GatewayGate(Microsoft.Extensions.Configuration.IConfiguration configuration) =>
         new GatewayRequestGate(GatewayAccess, GatewayAudit, Usage, DefaultAuthority, StudioService, new NoGatewayMetrics(), configuration);
-    public IGatewayKeyService GatewayKeys => new GatewayKeyService(Gateway, DefaultAuthority, Identity);
-    public IGatewayMaintenance GatewayMaintenance => new GatewayKeyService(Gateway, DefaultAuthority, Identity);
-    public IUsageMeter Usage => new UsageMeterBridge(Db);
+    public IGatewayKeyService GatewayKeys => new GatewayKeyService(Gateway, DefaultAuthority, BillingAccounts);
+    public IGatewayMaintenance GatewayMaintenance => new GatewayKeyService(Gateway, DefaultAuthority, BillingAccounts);
+    public IUsageMeter Usage => new UsageMeterService(Billing, Identity);
+    internal AiQuotaService AiQuota(Microsoft.Extensions.Configuration.IConfiguration? configuration = null) =>
+        new(Billing, configuration ?? new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(), Identity);
+    internal BillingAccountService BillingAccounts => new(Billing, Identity, AiQuota(),
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<BillingAccountService>.Instance, null, new ISubscriptionCancellationObserver[] { GovernanceAudit });
+    internal GovernanceAuditService GovernanceAudit => new(Governance);
+    internal AiPolicyService Policies => new(Governance);
+
     public IStudioApplicationService StudioService => new StudioApplicationService(Studio);
     public IHubApplicationService HubService => new HubApplicationService(Hub);
     public ICrossModuleTransaction Transaction { get; }
@@ -131,10 +173,10 @@ public sealed class ModuleKit
     internal HubIssueService HubIssues => new HubIssueService(Hub, HubService, Projects, DefaultAuthority, Identity);
 
     public IHubRepositoryService HubRepositories(IProjectDeletion deletion) =>
-        new HubRepositoryService(HubService, HubIssues, Projects, Branches, DefaultAuthority, Identity, deletion, new ChangeRequestStats(Db), Transaction);
+        new HubRepositoryService(HubService, HubIssues, Projects, Branches, DefaultAuthority, Identity, deletion, GovernanceAudit, Transaction);
 
     internal TenantProjectAuthorityService Authority(IConnectionSecretProtector protector, IDbHostAccessPolicy? hostPolicy = null) =>
-        new(Studio, Identity, protector, hostPolicy is null ? null : new ConnectionHostInspector(hostPolicy));
+        new(Studio, Identity, BillingAccounts, protector, hostPolicy is null ? null : new ConnectionHostInspector(hostPolicy));
 
     /// <summary>Hub verisini doğrudan yazar: proje oluşturma akışını sınamayan testlerin kurulumu.</summary>
     public async Task<ProjectRepository> SeedRepositoryAsync(
@@ -215,9 +257,12 @@ public sealed class ThrowingProtector : IConnectionSecretProtector
     public string Unprotect(string ciphertext) => throw new InvalidOperationException("Unprotect should not be reached.");
 }
 
-public static partial class TestModules
+internal static partial class TestModules
 {
     private static readonly ConditionalWeakTable<AuthDbContext, ModuleKit> Kits = new();
+
+    internal static BillingDbContext Billing(this AuthDbContext db) => For(db).Billing;
+    internal static GovernanceDbContext Governance(this AuthDbContext db) => For(db).Governance;
 
     public static ModuleKit For(AuthDbContext db) => Kits.GetValue(db, static d => new ModuleKit(d));
 
@@ -291,11 +336,17 @@ public static partial class TestModules
 
     public static IReadOnlyList<ModuleMigrationDescriptor> Descriptors { get; } = new[]
     {
-        AuthMigrations.Descriptor,
+        Namines.Identity.DependencyInjection.IdentityServiceCollectionExtensions.MigrationDescriptor,
         Namines.Studio.DependencyInjection.StudioServiceCollectionExtensions.MigrationDescriptor,
         Namines.Hub.DependencyInjection.HubServiceCollectionExtensions.MigrationDescriptor,
         Namines.Gateway.DependencyInjection.GatewayServiceCollectionExtensions.MigrationDescriptor,
         Namines.Ops.DependencyInjection.OpsServiceCollectionExtensions.MigrationDescriptor,
+        Namines.Billing.DependencyInjection.BillingServiceCollectionExtensions.MigrationDescriptor,
+        Namines.Governance.DependencyInjection.GovernanceServiceCollectionExtensions.MigrationDescriptor,
+        Namines.Vault.DependencyInjection.VaultServiceCollectionExtensions.MigrationDescriptor,
+        Namines.Ground.DependencyInjection.GroundServiceCollectionExtensions.MigrationDescriptor,
+        Namines.Flow.DependencyInjection.FlowServiceCollectionExtensions.MigrationDescriptor,
+        Namines.Desk.DependencyInjection.DeskServiceCollectionExtensions.MigrationDescriptor,
     };
 
     public static async Task MigrateAllModulesAsync(this AuthDbContext db) =>

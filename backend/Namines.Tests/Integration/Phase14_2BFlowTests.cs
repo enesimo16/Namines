@@ -1,3 +1,6 @@
+using Namines.Billing.Domain;
+using Namines.Identity.Infrastructure.Persistence;
+using Namines.Billing.Application;
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
@@ -694,10 +697,10 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
 
         await using var s = Open(cs);
         Assert.False(await s.Db.Users.AnyAsync(u => u.Id == "member"));
-        var row = await s.Db.PendingSubscriptionCancellations.AsNoTracking().SingleAsync();
+        var row = await s.Db.Billing().PendingSubscriptionCancellations.AsNoTracking().SingleAsync();
         Assert.Equal("sub_1", row.SubscriptionId);
         Assert.Null(row.CompletedAt);
-        var audit = await s.Db.ChangeRequestAuditLogs.AsNoTracking().SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
+        var audit = await s.Db.Governance().ChangeRequestAuditLogs.AsNoTracking().SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
         Assert.Contains("\"stripe\":\"queued\"", audit.Details);
 
         var canceller = new RecordingCanceller();
@@ -707,7 +710,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
 
         Assert.Equal(1, await Processor(s, canceller).ProcessDueAsync(row.NextAttemptAt.AddSeconds(1), 10, default));
         Assert.Equal(new[] { "sub_1" }, canceller.Canceled);
-        Assert.NotNull((await s.Db.PendingSubscriptionCancellations.AsNoTracking().SingleAsync()).CompletedAt);
+        Assert.NotNull((await s.Db.Billing().PendingSubscriptionCancellations.AsNoTracking().SingleAsync()).CompletedAt);
 
         // Tamamlanan bir daha denenmez.
         Assert.Equal(0, await Processor(s, canceller).ProcessDueAsync(DateTime.UtcNow.AddYears(1), 10, default));
@@ -728,8 +731,8 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         Assert.True(result.Ok, result.Code + " " + result.Error);
         Assert.Equal(new[] { "sub_1" }, canceller.Canceled);
         await using var v = Open(cs);
-        Assert.NotNull((await v.Db.PendingSubscriptionCancellations.AsNoTracking().SingleAsync()).CompletedAt);
-        var audit = await v.Db.ChangeRequestAuditLogs.AsNoTracking().SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
+        Assert.NotNull((await v.Db.Billing().PendingSubscriptionCancellations.AsNoTracking().SingleAsync()).CompletedAt);
+        var audit = await v.Db.Governance().ChangeRequestAuditLogs.AsNoTracking().SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
         Assert.Contains("\"stripe\":\"canceled\"", audit.Details);
     }
 
@@ -742,7 +745,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         Assert.True((await DeleteMemberAsync(cs, canceller)).Ok);
 
         await using var s = Open(cs);
-        var row = await s.Db.PendingSubscriptionCancellations.AsNoTracking().SingleAsync();
+        var row = await s.Db.Billing().PendingSubscriptionCancellations.AsNoTracking().SingleAsync();
         Assert.Equal(1, row.Attempts);
         Assert.Null(row.CompletedAt);
         Assert.NotNull(row.LastAttemptAt);
@@ -753,17 +756,17 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         var logger = new CapturingLogger();
         for (var i = 0; i < SubscriptionCancellationProcessor.AlertAfterAttempts - 1; i++)
         {
-            var due = (await s.Db.PendingSubscriptionCancellations.AsNoTracking().SingleAsync()).NextAttemptAt;
+            var due = (await s.Db.Billing().PendingSubscriptionCancellations.AsNoTracking().SingleAsync()).NextAttemptAt;
             Assert.Equal(1, await Processor(s, canceller, logger).ProcessDueAsync(due.AddSeconds(1), 10, default));
         }
-        var stuck = await s.Db.PendingSubscriptionCancellations.AsNoTracking().SingleAsync();
+        var stuck = await s.Db.Billing().PendingSubscriptionCancellations.AsNoTracking().SingleAsync();
         Assert.Equal(SubscriptionCancellationProcessor.AlertAfterAttempts, stuck.Attempts);
         Assert.Null(stuck.CompletedAt);
         Assert.Contains(LogLevel.Error, logger.Levels);
         Assert.True(stuck.NextAttemptAt - stuck.LastAttemptAt!.Value <= TimeSpan.FromHours(6));
 
         Assert.Equal(1, await Processor(s, canceller).ProcessDueAsync(stuck.NextAttemptAt.AddSeconds(1), 10, default));
-        Assert.NotNull((await s.Db.PendingSubscriptionCancellations.AsNoTracking().SingleAsync()).CompletedAt);
+        Assert.NotNull((await s.Db.Billing().PendingSubscriptionCancellations.AsNoTracking().SingleAsync()).CompletedAt);
         Assert.Equal(new[] { "sub_1" }, canceller.Canceled);
     }
 
@@ -792,7 +795,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         Assert.Equal(30, canceller.Canceled.Distinct().Count());
         Assert.Equal(30, canceller.Canceled.Count);
         await using var v = Open(cs);
-        Assert.Equal(30, await v.Db.PendingSubscriptionCancellations.CountAsync(c => c.CompletedAt != null && c.Attempts == 1));
+        Assert.Equal(30, await v.Db.Billing().PendingSubscriptionCancellations.CountAsync(c => c.CompletedAt != null && c.Attempts == 1));
     }
 
     [RequiresDockerFact]
@@ -801,7 +804,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         var cs = await NewDatabaseAsync("f_outbox_retention");
         await using var s = Open(cs);
         var old = DateTime.UtcNow.AddYears(-3);
-        s.Db.PendingSubscriptionCancellations.AddRange(
+        s.Db.Billing().PendingSubscriptionCancellations.AddRange(
             new PendingSubscriptionCancellation { Id = "open-old", SubscriptionId = "a", CreatedAt = old, NextAttemptAt = old },
             new PendingSubscriptionCancellation { Id = "done-old", SubscriptionId = "b", CreatedAt = old, NextAttemptAt = old, CompletedAt = old },
             new PendingSubscriptionCancellation { Id = "done-new", SubscriptionId = "c", CreatedAt = old, NextAttemptAt = old, CompletedAt = DateTime.UtcNow.AddDays(-1) });
@@ -812,7 +815,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
             NullLogger.Instance, DateTime.UtcNow, TimeSpan.Zero, default, s.Kit.OpsRetention, s.Kit.GatewayMaintenance);
 
         Assert.Equal(1, result["PendingSubscriptionCancellations"]);
-        var left = await s.Db.PendingSubscriptionCancellations.AsNoTracking().Select(c => c.Id).OrderBy(x => x).ToListAsync();
+        var left = await s.Db.Billing().PendingSubscriptionCancellations.AsNoTracking().Select(c => c.Id).OrderBy(x => x).ToListAsync();
         Assert.Equal(new[] { "done-new", "open-old" }, left);
     }
 
@@ -884,7 +887,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
             Assert.Equal("member", (await v.Kit.HubService.GetRepositoryAsync("team"))!.OwnerUserId);
             Assert.Equal("member", (await v.Db.Studio().Projects.AsNoTracking().SingleAsync(p => p.Id == "team")).UserId);
             // İşlem düştü: outbox satırı da yok, silinmemiş kullanıcının aboneliği iptal edilmez.
-            Assert.False(await v.Db.PendingSubscriptionCancellations.AnyAsync());
+            Assert.False(await v.Db.Billing().PendingSubscriptionCancellations.AnyAsync());
         }
 
         await using (var conn = new NpgsqlConnection(cs))
@@ -903,7 +906,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         Assert.Equal(new[] { "sub_1" }, canceller.Canceled);
         await using var after = Open(cs);
         Assert.Equal("owner", (await after.Kit.HubService.GetRepositoryAsync("team"))!.OwnerUserId);
-        var audit = await after.Db.ChangeRequestAuditLogs.AsNoTracking()
+        var audit = await after.Db.Governance().ChangeRequestAuditLogs.AsNoTracking()
             .SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
         Assert.Contains("\"stripe\":\"canceled\"", audit.Details);
     }

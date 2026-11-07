@@ -1,3 +1,8 @@
+using Namines.Billing.Domain;
+using Namines.Identity.Infrastructure.Persistence;
+using Namines.Tests.TestSupport;
+using Namines.BuildingBlocks.Contracts;
+using Namines.Billing.Application;
 using System.Threading;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -67,8 +72,8 @@ public class AiQuotaServiceTests : IAsyncLifetime
     private async Task ResetAsync()
     {
         await using var context = new AuthDbContext(_options);
-        await context.UserAIQuotas.ExecuteDeleteAsync();
-        await context.GlobalAiUsages.ExecuteDeleteAsync();
+        await context.Billing().UserAIQuotas.ExecuteDeleteAsync();
+        await context.Billing().GlobalAiUsages.ExecuteDeleteAsync();
     }
 
     // ── Token birimi ─────────────────────────────────────────────────────────
@@ -85,7 +90,7 @@ public class AiQuotaServiceTests : IAsyncLifetime
         await service.EnsureQuotaAsync("u1");
         await service.ConsumeAsync("u1", 2500);
 
-        var quota = await context.UserAIQuotas.SingleAsync(q => q.UserId == "u1");
+        var quota = await context.Billing().UserAIQuotas.SingleAsync(q => q.UserId == "u1");
         Assert.Equal(2500, quota.DailyUsageCount);
     }
 
@@ -101,7 +106,7 @@ public class AiQuotaServiceTests : IAsyncLifetime
         await service.ConsumeAsync("u1", 3000);
 
         var today = DateTime.UtcNow.Date;
-        var used = await context.GlobalAiUsages.Where(g => g.Date == today).Select(g => g.TokensUsed).SingleAsync();
+        var used = await context.Billing().GlobalAiUsages.Where(g => g.Date == today).Select(g => g.TokensUsed).SingleAsync();
         Assert.Equal(3000, used);
     }
 
@@ -118,7 +123,7 @@ public class AiQuotaServiceTests : IAsyncLifetime
         await service.ConsumeAsync("u1", 500);
 
         var today = DateTime.UtcNow.Date;
-        Assert.Equal(1000, await context.GlobalAiUsages.Where(g => g.Date == today).Select(g => g.TokensUsed).SingleAsync());
+        Assert.Equal(1000, await context.Billing().GlobalAiUsages.Where(g => g.Date == today).Select(g => g.TokensUsed).SingleAsync());
     }
 
     // ── Kapılar ──────────────────────────────────────────────────────────────
@@ -165,7 +170,7 @@ public class AiQuotaServiceTests : IAsyncLifetime
         await service.CheckAsync("u1", 5000);
         await service.CheckAsync("u1", 5000);
 
-        Assert.Equal(0, (await context.UserAIQuotas.SingleAsync(q => q.UserId == "u1")).DailyUsageCount);
+        Assert.Equal(0, (await context.Billing().UserAIQuotas.SingleAsync(q => q.UserId == "u1")).DailyUsageCount);
     }
 
     // ── Gün sınırı ───────────────────────────────────────────────────────────
@@ -214,7 +219,7 @@ public class AiQuotaServiceTests : IAsyncLifetime
         await ResetAsync();
         await using (var seed = new AuthDbContext(_options))
         {
-            seed.UserAIQuotas.Add(new UserAIQuota { UserId = "u1", DailyLimit = 100, DailyUsageCount = 0 });
+            seed.Billing().UserAIQuotas.Add(new UserAIQuota { UserId = "u1", DailyLimit = 100, DailyUsageCount = 0 });
             await seed.SaveChangesAsync();
         }
 
@@ -255,7 +260,7 @@ public class AiQuotaServiceTests : IAsyncLifetime
         await service.ConsumeAsync("u1", 900);
         await service.ConsumeAsync("u1", 900);
 
-        Assert.Equal(1000, (await context.UserAIQuotas.SingleAsync(q => q.UserId == "u1")).DailyUsageCount);
+        Assert.Equal(1000, (await context.Billing().UserAIQuotas.SingleAsync(q => q.UserId == "u1")).DailyUsageCount);
     }
 
     // ── Sahip hesabı ─────────────────────────────────────────────────────────
@@ -392,7 +397,7 @@ public class AiQuotaServiceTests : IAsyncLifetime
         await service.ConsumeAsync("owner", 4321);
 
         var today = DateTime.UtcNow.Date;
-        Assert.Equal(4321, await context.GlobalAiUsages
+        Assert.Equal(4321, await context.Billing().GlobalAiUsages
             .Where(g => g.Date == today).Select(g => g.TokensUsed).SingleAsync());
     }
 

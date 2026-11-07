@@ -1,3 +1,5 @@
+using Namines.Identity.Infrastructure.Persistence;
+using Namines.Tests.TestSupport;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -225,7 +227,7 @@ public sealed class StripeWebhookIdempotencyTests : IAsyncLifetime
         Assert.Equal(UserType.Individual, reloaded.Type);
 
         await using var db = NewContext();
-        var recorded = Assert.Single(await db.StripeWebhookEvents.ToListAsync());
+        var recorded = Assert.Single(await db.Billing().StripeWebhookEvents.ToListAsync());
         Assert.Equal("evt_first", recorded.Id);
         Assert.True(recorded.LatestProcessedForCustomer);
     }

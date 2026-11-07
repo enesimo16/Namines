@@ -37,6 +37,9 @@
       ve Ground referanslari da buraya tasindi.
     -->
     <ProjectReference Include="..\Namines.Vault\Namines.Vault.csproj" />
+    <ProjectReference Include="..\Namines.Billing\Namines.Billing.csproj" />
+    <ProjectReference Include="..\Namines.Governance\Namines.Governance.csproj" />
+    <ProjectReference Include="..\Namines.Identity\Namines.Identity.csproj" />
     <ProjectReference Include="..\Namines.Ground\Namines.Ground.csproj" />
   </ItemGroup>
 

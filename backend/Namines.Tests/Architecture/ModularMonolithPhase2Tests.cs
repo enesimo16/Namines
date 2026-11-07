@@ -14,7 +14,7 @@ using Namines.Flow.DependencyInjection;
 using Namines.Ground.Abstractions;
 using Namines.Ground.DependencyInjection;
 using Namines.Infrastructure.Events;
-using Namines.Infrastructure.Migrations;
+using Namines.Identity.Infrastructure.Persistence.Migrations;
 using Namines.Vault.Abstractions;
 using Namines.Vault.DependencyInjection;
 using Xunit;

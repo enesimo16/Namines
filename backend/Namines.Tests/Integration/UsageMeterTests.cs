@@ -1,3 +1,6 @@
+using Namines.Billing.Domain;
+using Namines.Identity.Infrastructure.Persistence;
+using Namines.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Analysis;
 using Namines.Core.Models.Auth;
@@ -97,7 +100,7 @@ public class UsageMeterTests : IAsyncLifetime
         // eklenir — fatura itirazında en zor çözülecek hata sınıfı.
         var userId = await UserAsync();
 
-        _context.UsageEvents.Add(new UsageEvent
+        _context.Billing().UsageEvents.Add(new UsageEvent
         {
             UserId = userId,
             Resource = UsageResource.AiCall,
@@ -130,7 +133,7 @@ public class UsageMeterTests : IAsyncLifetime
         await _context.RecordAsync(userId, UsageResource.AiCall, 0);
         await _context.RecordAsync(userId, UsageResource.AiCall, -5);
 
-        Assert.Empty(_context.UsageEvents.Where(e => e.UserId == userId));
+        Assert.Empty(_context.Billing().UsageEvents.Where(e => e.UserId == userId));
     }
 
     // ── Karar akışı ──────────────────────────────────────────────────────────
@@ -157,7 +160,7 @@ public class UsageMeterTests : IAsyncLifetime
         var before = await _context.EvaluateAsync(userId, UsageResource.AiCall);
         Assert.False(before.Allowed);
 
-        _context.UserBillingSettings.Add(new UserBillingSettings
+        _context.Billing().UserBillingSettings.Add(new UserBillingSettings
         {
             UserId = userId, OverageEnabled = true,
         });
@@ -174,7 +177,7 @@ public class UsageMeterTests : IAsyncLifetime
         // Tavan tek bir kaynağın değil, dönemin tamamının tutarına bakmalı.
         var userId = await UserAsync("active");
 
-        _context.UserBillingSettings.Add(new UserBillingSettings
+        _context.Billing().UserBillingSettings.Add(new UserBillingSettings
         {
             UserId = userId, OverageEnabled = true, MonthlyCapUsd = 0.05m,
         });

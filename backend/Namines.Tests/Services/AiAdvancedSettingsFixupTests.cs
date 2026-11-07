@@ -1,3 +1,6 @@
+using Namines.Governance.Domain;
+using Namines.Identity.Infrastructure.Persistence;
+using Namines.Tests.TestSupport;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -51,14 +54,14 @@ public sealed class AiAdvancedSettingsFixupTests : IAsyncLifetime
     {
         await using var db = Context();
         db.Users.Add(new ApplicationUser { Id = userId, UserName = userId });
-        db.UserAIPolicies.Add(new UserAIPolicy { UserId = userId, AdvancedJson = advancedJson });
+        db.Governance().UserAIPolicies.Add(new UserAIPolicy { UserId = userId, AdvancedJson = advancedJson });
         await db.SaveChangesAsync();
     }
 
     private async Task<string?> AdvancedJsonOfAsync(string userId)
     {
         await using var db = Context();
-        return await db.UserAIPolicies.Where(p => p.UserId == userId).Select(p => p.AdvancedJson).SingleAsync();
+        return await db.Governance().UserAIPolicies.Where(p => p.UserId == userId).Select(p => p.AdvancedJson).SingleAsync();
     }
 
     [Fact]

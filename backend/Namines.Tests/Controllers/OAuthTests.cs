@@ -1,3 +1,4 @@
+using Namines.Identity.Infrastructure.Persistence;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -168,10 +169,10 @@ public sealed class OAuthTests : IAsyncLifetime
         var userInDb = await db.Users.FirstOrDefaultAsync(u => u.Email == "google.dev@namines.app");
         Assert.NotNull(userInDb);
 
-        var policy = await db.UserAIPolicies.FirstOrDefaultAsync(p => p.UserId == userInDb.Id);
+        var policy = await db.Governance().UserAIPolicies.FirstOrDefaultAsync(p => p.UserId == userInDb.Id);
         Assert.NotNull(policy);
 
-        var quota = await db.UserAIQuotas.FirstOrDefaultAsync(q => q.UserId == userInDb.Id);
+        var quota = await db.Billing().UserAIQuotas.FirstOrDefaultAsync(q => q.UserId == userInDb.Id);
         Assert.NotNull(quota);
         Assert.Equal(100, quota.DailyLimit);
 
