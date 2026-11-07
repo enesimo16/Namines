@@ -2,7 +2,11 @@
 
 > Kapsam: `arch/phase-14-2`, `00c287b..1cc4ad8` (D-1 ACCEPTED tabanı ile D-2 sonu). Denetçi üretim kodu yazmadı ve değiştirmedi; yalnızca bu belge eklendi. Uygulayıcının raporu (`PHASE_14_2D_2_REPORT.md`) çalıştırılarak yeniden üretilmeden kabul edilmedi.
 
-## Karar: CONDITIONALLY ACCEPTED
+## Son karar (2. tur): CONDITIONALLY ACCEPTED
+
+2. turda M-1..M-4 ve m-1..m-8 çalıştırılarak yeniden denetlendi (§10): hepsi kapandı ya da gerekçeli kabul edildi. Üç küçük madde açık (R2-m1 ters sıra kalıntısı, R2-m2 ayırt edici olmayan regresyon testi, R2-m3 eski runbook). Bütün seri değerlendirmesi §11'de.
+
+## 1. tur kararı: CONDITIONALLY ACCEPTED
 
 Faz kabul ölçütlerinin çekirdeği çalıştırılarak doğrulandı: `AuthDbContext` yalnızca kimlik varlıklarını taşıyor, başka hiçbir derleme ona erişemiyor, Stripe kolonları fiziksel düştü ve veri kayıpsız taşındı, oturumlar korundu, denetim izi tetikleyiciyle değiştirilemiyor, yetki matrisi tabanla birebir, tüm testler gerçek PG ile geçiyor. Ama gerçek PG'de kendi yazdığım problarla iki fatura doğruluğu hatası (M-1, M-2) üretildi, kota yarışı kabul ölçütü ana AI yolunda karşılanmıyor (M-3) ve controller'larda kimlik/yetki mantığı kaldı (M-4). Bunlar aynı fazda kapanmalı; yeniden denetimde yalnız bu dört madde ve belge düzeltmeleri bakılır. Veri kaybı, migration veya tenant izolasyonu bulgusu yok.
 
@@ -177,3 +181,106 @@ M-1 ve M-2 için gerçek PG'de farklı olayların paralel/ters sırası testi ve
 ## 9. Yöntem
 
 `1cc4ad8` ve `00c287b` için ayrı worktree'ler, ayrı `dotnet publish` çıktıları. Taban ikilisiyle `smoke-d1.js` + `smoke-d2.js` + oturum yakalama çalıştırılarak D-1 durumunda DB üretildi, üstüne seed ve kirli kullanıcılar eklendi, şablon DB olarak çoğaltıldı. Tüm tablo parmak izi: `pg_temp` işleviyle her tablo için `to_jsonb` satırlarının sıralı md5'i (Stripe kolonları dışarıda). Katalog: FK, kısıt, indeks, tetikleyici, varsayılan, işlev gövdesi (`aud/cat.sql`). Problar: `aud/wh.js`, `aud/gov.js`, `aud/ident.js`, `aud/inv.js`, `aud/del.js`, `aud/sess-old.js`/`sess-new.js`, `aud/trg.sql`, `aud/mutD2.sh`. Geçici DB, rol ve worktree'ler iş bitince silindi; `arch/phase-14-2` temiz bırakıldı.
+
+---
+
+## 10. 2. tur (`4d255de..0dc558e`: `a17c3bc`, `16a5241`, `181294d`, `803c452`, `0dc558e`)
+
+Yöntem 1. turla aynı: `0dc558e` için ayrı temiz worktree, taban `00c287b` ikilisi, gerçek PG. Uygulayıcının sayılarına değil kendi koşumlarıma dayanıyor.
+
+### 10.1 Faz sonu tablosu (2. tur)
+
+| Alan | Sonuç | Kanıt |
+|---|---|---|
+| Build | PASS | `--no-incremental` Release: 0 uyarı, 0 hata, 49,1 sn |
+| Unit | PASS | Tam süit içinde; yeni testler eklendi (biri zayıf: R2-m2) |
+| Integration | PASS | `Namines.Tests` 3347/3347 gerçek PG |
+| Architecture | PASS, dar boşluklarla | Bu turda 7 mutasyonun 6'sı düştü, 1 kaçtı (R2-m4); 1. turda kaçan üçü (m-2) artık düşüyor |
+| Migration | PASS | §10.3 |
+| Data integrity | PASS | 57 tablo md5 birebir, Down birebir, Stripe alanları eşit (kasıtlı kırpma/NULL dışında) |
+| Security | PASS | M-1, M-2, M-3, m-1 çalıştırılarak kapandı; yeni küçük bulgular §10.5 |
+| API compatibility | PASS | 829/0 fark, 46 etiket şekil 0 fark, 50 etiketli kimlik akışı 0 fark, 15 etiketli yönetici okuma 0 fark |
+| Documentation | PASS, küçük borçla | R2-m3 |
+| Independent audit | **CONDITIONALLY ACCEPTED** | Üç küçük madde: R2-m1, R2-m2, R2-m3 |
+
+### 10.2 Test sayıları (2. tur, çalıştırıldı)
+
+| Komut | Proje | Toplam | Geçen | Kalan | Atlanan | Süre |
+|---|---|---|---|---|---|---|
+| `dotnet test -c Release --no-build` (paralel kapalı, `0dc558e` temiz worktree) | `Namines.Tests` | 3347 | 3347 | 0 | 0 | 29 dk 12 sn |
+| Aynı | `Namines.Tests.RunTests` | 19 | 19 | 0 | 0 | 1 dk 9 sn |
+| `dotnet-ef migrations has-pending-model-changes` | 11 bağlam | 11 | 11 "No changes" | | | |
+| `smoke-d1.js` (gerçek API) | boş DB; D-1'den yükseltilmiş DB (`postgres`); geç roller `namines_app` | 95 x 3 | 95 x 3 | 0 | | |
+| `smoke-d2.js` | aynı üç ortam | 44 x 3 | 44 x 3 | 0 | | 46 etiket şekli tabanla 0 fark (3 ortam) |
+| `aud/matrix.js` taban ve yeni | 220 etiket | 829 karşılaştırma | | 0 fark | | |
+
+Ortam: Windows 11, .NET 8, Testcontainers `postgres:17-alpine`; senaryolar `postgres:16-alpine`. Süit benim PG problarımla aynı anda koştu: süre karşılaştırma değeri taşımaz. TRX: 3331 -> 3347, 16 eklendi, 0 silindi/yeniden adlandırıldı, atlanan 0.
+
+### 10.3 Migration ve oturum (yeniden çalıştırıldı)
+
+D-1 durumu yine taban ikilisiyle üretildi (smoke-d1 + smoke-d2 + oturum yakalama + seed + 5 kirli kullanıcı).
+
+- Yinelenen `StripeSubscriptionId` (iki kullanıcıda `sub_1`) artık migration'ı açık hatayla durduruyor (`Billing_01: the same StripeSubscriptionId belongs to more than one user (sub_1)`); `billing.customers` oluşmuyor, 5 Stripe kolonu yerinde. Çözülünce rc=0. Bu yeni ön kontrol runbook'ta yok (R2-m3).
+- Up: 57 tablo `to_jsonb` md5 birebir. Stripe alanları satır satır eşit; kasıtlı fark: boşluklu `' cus_ws '` kırpıldı, `StripeCustomerId=''` taşınmadı (m-3 kapandı).
+- Tam Down (Desk, Flow, Ground, Vault, Governance, Billing, Auth) birebir; yeniden Up aynı; taze ile yükseltilmiş katalog farkı 0 (502 satır). Filtreli benzersiz indeks `IX_subscriptions_StripeSubscriptionId ... WHERE "StripeSubscriptionId" IS NOT NULL` var.
+- 3 eşzamanlı `--migrate`: üçü rc=0, sonuç aynı.
+- Geç roller: rc=0, `namines_app` eksik hak yok. `governance.purge_change_request_audit`: `SECURITY DEFINER`, `search_path = governance, pg_temp`, `EXECUTE` yalnız sahibine ve `namines_app`'e (PUBLIC yok).
+- Eski ikiliyle (`00c287b`) yakalanan JWT ve çerez, yükseltilmiş DB'de yeni ikiliyle: `/quota/status`, `/team`, `/usage` hepsi 200 (Bearer ve çerez); eski parolayla giriş 200. Uygulayıcı bunu yeniden koşmamıştı; koşuldu.
+
+### 10.4 Madde madde
+
+| ID | Sonuç | Kanıt |
+|---|---|---|
+| M-1 | **Kapandı** (ters alt-durum açık: R2-m1) | `wh.js`: bağlanmamış müşteri için `updated@+50`, sonra `checkout@+40` -> `mapped=1 type=2`. 29 paralel yineleme, imza matrisi, yaşam döngüsü, eski olay `stale`: önceki gibi |
+| M-2 | **Kapandı** (süit testi zayıf: R2-m2) | Aynı yarış 80 tur: son durum `canceled` olmayan 0 (4d255de: 10/25). Müşteri başına `pg_advisory_xact_lock`. Kilidi kaldıran mutasyon (kalan her şey aynı) aynı HTTP probunda 34/60 yanlış: kilit gerçekten gerekli ve etkili. 30 turluk karışık checkout/updated/deleted paralel koşuda 5xx ve `40P01` (deadlock) yok. İşlem içinde Stripe HTTP çağrısı kilit ve bağlantı altında: yalnız aynı müşteriyi bekletir (R2-m5) |
+| M-3 | **Kapandı** | Gerçek middleware, gerçek API: Free kullanıcı tek çağrı 2000 token; 40 paralel `smartseed` isteği: 4 `Allowed`, 36 `quota-exhausted`, sayaç tam 10000/10000. 400 dönen 5 uç (bozuk JSON, boş gövde, `schema/revise`, `schema/mockdata`, `aidba`) kotada net 0 (iade çalışıyor). Çağrı sürerken istemci kopması: rezervasyon korunuyor (iş yapıldı), sızıntı yok; istisna/iptalde `RefundAsync(CancellationToken.None)`. Çift ücret: `/api/schema/generate` kendi rezervasyonunu yapıyor, middleware orada yalnız `CheckAsync` + `HasReservedInScope`; diğer uçlar yalnız middleware'de rezerve ediyor. Tahmin ile gerçek maliyet farkı eskisi gibi (yalnız `generate` gerçek ölçümle uzlaştırıyor): kabul edilen borç |
+| M-4 | **Kapandı** | `UserManager`/`SignInManager`/`RoleManager` hiçbir controller'da yok (grep + yeni mimari test). Kalan kullanım API derlemesinde yalnız başlangıç tohumlayıcıları, `Program.cs` ve `PwnedPasswordValidator`: controller değil, kabul. Davranış eşliği: 50 etiketli kimlik akışı (kayıt, yineleme, zayıf/pwned/boş, giriş, yanlış parola, kilitlenme, profil, MFA kurulum, oturum iptali, çıkış, OAuth, desk jetonu, hesap silme) taban ve yeni ile durum + gövde şekli + mesaj 0 fark; gerçek `Dev:Email` hesabıyla 15 yönetici okuma etiketi 0 fark; matris 829/0. Not: betiğim MFA etkinleştirme ve hesap silme başarı yollarına jeton yüzünden ulaşamadı (iki ikilide de aynı 401); o yollar süit testlerine dayanıyor. `IsDev` artık GET'te yazılmıyor; girişte yapılandırılmış `Dev:Email` için yazılmaya devam ediyor (`IdentityAccountService.cs:151`) ve `DevAccountSeeder` kalıcı yazıyor: yapılandırılmış geliştirici/yönetici kilitlenmiyor, yönetici çözümü e-postadan okunuyor. Yeni mimari test gerçek: controller alanı ve `[FromServices]` parametresi mutasyonda düştü; controller'da `RequestServices.GetService(typeof(UserManager<>))` düşmedi (R2-m4) |
+| m-1 | **Kapandı** | `namines_app`: oturum ayarıyla DELETE reddedildi (tetikleyici artık `current_user` = tablo sahibi ister); `purge_change_request_audit(now()-10 gün)` -> 90 gün tabanı hatası; 100 günlük kesim yalnız 100 günden eski satırı siler (30 günlük kalır); geçici tablo ile `search_path` kaçırma etkisiz; işlev sonrası aynı işlemde düz DELETE reddedildi; doğrudan UPDATE reddedildi. `DataRetentionService` işlevi çağırıyor, ayarı 90 gün tabanına çekiyor. Bilinçli kalan: uygulama rolü 90 günden eski satırları işlev yoluyla silebilir (retention tasarımı) |
+| m-2 | **Kapandı**, kalan: R2-m6 | `Owners` 7 modül, taranan derleme 14. 1. turda kaçan üç mutasyon: Governance'ta metot içinde `billing."UserAIQuotas"` SQL'i düştü, Billing'de interpolasyonlu `public."AspNetUsers"` SQL'i düştü, Domain'de EF özniteliği düştü. Kullanılmayan `const` dize düşmedi: derleyici kullanılmayan sabit metni IL'e yazmıyor, sorguya dönüşemez, kabul |
+| m-3 | **Kapandı** | §10.3 |
+| m-4 | **Kapandı**, küçük kalıntı | `IMPLEMENTATION_STATUS.md` D-1 ACCEPTED (3. tur), Aşama 5/6 tamam, D-2 "yeniden denetim bekliyor" diyor: doğru. Runbook eski (R2-m3) |
+| m-5 | **Kapandı** | TRX: silinen/yeniden adlandırılan 0; rapor düzeltildi |
+| m-6 | **Kapandı** | İmzalı boş gövde, `null`, `{}`, `[]`, metin, `data.object` eksik: hepsi 400 (mesaj bazen "Invalid Stripe signature", yanıltıcı ama 4xx) |
+| m-7 | Kabul edilebilir borç | Geçmiş yeniden yazılmadı. Yerel dal, itilmedi, tek faz; squash birleştirmede bisect sorunu kalmaz. Ana dala olduğu gibi birleştirilirse `fea5610..e00b95f` bisect'i bozar |
+| m-8 | Kabul edilebilir borç, **blocker değil** | "`AuthDbContext` yalnızca Identity" ölçütü yapısal olarak sağlanıyor (model tabloları, katalog, `internal` bağlam, derleme erişimi). Kalan, `Namines.Core/Models/Auth` içindeki kimlik varlıkları: ad alanı/derleme yerleşimi borcu; bağımlılık yönü (Core modülü bilmez) bozulmuyor, veri sahipliği ve DbContext izolasyonu etkilenmiyor. Spec'in "her modülün Domain'i" cümlesine tam uyum değil; `MODULE_OWNERSHIP.md` borcu kaydediyor |
+
+### 10.5 Yeni küçük bulgular (2. tur)
+
+| ID | Bulgu | Yer | Yeniden üretim |
+|---|---|---|---|
+| R2-m1 | M-1 düzeltmesinin ters kalıntısı: bağlı olmayan müşterinin `subscription.deleted` olayı etkisiz kaydediliyor ve sıra hesabına girmiyor; sonra gelen daha eski `checkout.session.completed` kullanıcıyı `active`/Corporate yapıyor. Checkout durumu sabit `"active"` yazıyor. Gerçekte yalnız sıra dışı teslimatta ve eşleme öncesi iptalde olur | `StripeWebhookService.cs` `apply` ifadesi (checkout için `!mapped \|\| isLatest`) ve `HandleCheckoutCompletedAsync` | `wh2.js`: `cus_v1` için bağlanmamış `deleted@+50` -> 200; `checkout@+40` -> 200, `state=active type=2`. Düzeltme: bağlanmamış müşterinin güncelleme/silme olayını "uygulanmadı, yeniden dene" say (5xx ya da kaydetme), ya da checkout'ta Stripe'tan okunan gerçek durumu yaz |
+| R2-m2 | M-2'nin süit içi regresyon testi ayırt edici değil: `Different_events_of_one_customer_arriving_in_parallel_always_end_at_the_newest_state` kilit kapatılınca da geçiyor (3/3 koşum, 30 sn gerçek koşu). Kanıt yalnız canlı HTTP probunda (34/60 yanlış kilitsiz, 0/80 kilitli). Uygulayıcı bunu raporda kendisi söylüyor | `Phase14_2D2BillingRealPgTests.cs:460-497` | Kilit çağrısı `if (false)` ile kapatıldı, derlendi, filtreli test geçti. Düzeltme: iki ayrı bağlantıdan gerçek eşzamanlı teslim (başlangıç kapısı) ile HTTP düzeyinde yarış |
+| R2-m3 | Runbook (`MIGRATION-VE-GERI-ALMA.md` §5.4) eski: yeni `StripeSubscriptionId` yinelenen ön kontrolünü anmıyor, kimlik kırpma/boş=NULL davranışını anmıyor, denetim izi maddesi hâlâ `namines.audit_retention = on` ile silme diyor (artık yalnız `purge_change_request_audit`) | `docs/deploy/MIGRATION-VE-GERI-ALMA.md:253,255` | okuma |
+| R2-m4 | `No_controller_takes_UserManager_SignInManager_or_RoleManager` yalnız imza/alan/özellik türlerine bakıyor; IL içinden hizmet bulucu ile erişimi görmüyor (DbContext testi IL de tarıyor) | `Phase14_2D2IdentityBoundaryTests.cs` | Mutasyon: `RequestServices.GetService(typeof(UserManager<ApplicationUser>))`; yalnız rota anlık görüntüsü düştü, kimlik testi geçti |
+| R2-m5 | Checkout işlenirken Stripe HTTP çağrısı müşteri advisory kilidi ve açık DB işlemi altında; Stripe yavaşsa o müşterinin diğer olayları ve bir bağlantı bekler | `StripeWebhookService.cs` `HandleCheckoutCompletedAsync` | okuma |
+| R2-m6 | Tablo sahipliği ve SQL metin taramasının `Owners` listesinde Vault/Ground/Flow/Desk yok: bu dört modülün tablolarını başka modül SQL ile adlandırsa test görmez (koddaki gerçek ihlal yok) | `Phase14_2D1BoundaryScanTests.cs` `Owners` | okuma |
+
+R2-m1, R2-m2 ve R2-m3 faz içinde kapanmalı (küçük). R2-m4, R2-m5, R2-m6 kabul edilebilir borç.
+
+### 10.6 Doğrulanamayanlar (2. tur)
+
+Gerçek Stripe; canlı AI sağlayıcısı (M-3 gerçek middleware üzerinden yerel yedekli `smartseed` ucuyla sınandı, canlı model çağrısı yok); üretim DB; PgBouncer; Redis. `AspNetUsers` üzerindeki kilit penceresi izole ölçülemedi. MFA etkinleştirme/devre dışı bırakma ve hesap silme başarı yollarının taban/yeni HTTP eşliği betiğimle sınanamadı (süit testlerine dayanıyor). Eski `roles.sql` ile kurulu DB'den yükseltme ve "Down sonra eski ikili" yeniden koşulmadı.
+
+## 11. Son karar ve bütün seri
+
+**Son karar: CONDITIONALLY ACCEPTED.** D-2'nin dört Major bulgusu ve m-1..m-8 çalıştırılarak kapandı ya da gerekçeli kabul edildi; veri, migration, oturum, tenant izolasyonu, kota ve denetim izi sağlam. ACCEPTED için kapsamda üç küçük madde açık: R2-m1 (abonelik yaşam döngüsünde ters sıra kalıntısı, tekrarlanabilir), R2-m2 (M-2'yi koruyan süit testi ayırt edici değil) ve R2-m3 (runbook yanlış bilgi içeriyor). Yeniden denetimde yalnız bunlara bakılır.
+
+### Bütün seri, master prompt son hâli (0dc558e)
+
+| Madde | Durum |
+|---|---|
+| 11 gerçek modül | Evet: 11 zincir, 11 geçmiş tablosu, her biri kendi bağlamı, Application ve Infrastructure; Identity'de ayrı Domain ad alanı yok (kabul edilen borç) |
+| `AuthDbContext` yalnız Identity | Evet (reflection testi, katalog, `internal`) |
+| `CloudProject` God Entity değil | Evet (`studio.projects` 10 kolon) |
+| Sırlar güvenli | Evet: bağlantı dizesi şifreli + AAD, paylaşım jetonu hash, API anahtarı hash, webhook gövdesi saklanmıyor |
+| CSV ilişkiler normalize, eski kolonlar düştü | Evet (14.2B/C/D-1 denetimleri; bu fazda yeniden açılmadı) |
+| Modüller arası DbContext yok; controller'da DbContext ve kimlik yöneticisi yok | Evet |
+| Sözleşmeyle iletişim, tenant izolasyonu | Evet (matris 829/0) |
+| Gerçek PG testleri, mimari testler, 0 uyarı build | Evet (3347/3347, 19/19, mutasyonlu) |
+| Belgeler | Evet; runbook güncellemesi bekliyor (R2-m3) |
+| Dört bağımsız denetim ACCEPTED | 14.2B, 14.2C, 14.2D-1 ACCEPTED; 14.2D-2 bu belge: CONDITIONALLY ACCEPTED |
+
+Kalan borç (sahibin bilmesi gerekenler):
+
+- **Blocker (D-2 kapanışı için):** R2-m1, R2-m2, R2-m3 (küçük, aynı fazda).
+- **Kabul edilen borç:** (1) Kimlik varlıkları ve Vault/Ground/Flow/Desk varlıkları `Namines.Core/Models/Auth` altında, Identity'nin ayrı Domain'i yok; tarihsel DDL Auth geçmişinde. (2) Başlangıç tohumlayıcıları ve `PwnedPasswordValidator` API derlemesinde `UserManager` kullanıyor. (3) `Namines.Core` hâlâ hem paylaşılan sözleşme hem varlık deposu. (4) `schema/generate` dışındaki AI uçlarında rezervasyon tahmini token ile yapılıyor, gerçek ölçümle uzlaştırma yok. (5) 90 günden eski denetim satırlarını uygulama rolü işlev yoluyla silebilir. (6) Geçmiş: `fea5610..e00b95f` API'yi derlemiyor; squash birleştirme önerilir. (7) R2-m4..m6. (8) Gerçek Stripe, canlı AI sağlayıcısı, üretim DB ve hacimli kilit penceresi hiç sınanmadı.
