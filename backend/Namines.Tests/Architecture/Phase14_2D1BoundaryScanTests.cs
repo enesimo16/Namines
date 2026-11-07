@@ -25,6 +25,10 @@ public sealed class Phase14_2D1BoundaryScanTests
         ("Hub", typeof(Namines.Hub.Infrastructure.Persistence.HubDbContext).Assembly),
         ("Gateway", typeof(Namines.Gateway.Infrastructure.Persistence.GatewayDbContext).Assembly),
         ("Ops", typeof(Namines.Ops.Infrastructure.Persistence.OpsDbContext).Assembly),
+        // D-2: gerçek modül oldular; kendi tablolarını başka modülün SQL metni anamaz (denetim m-2).
+        ("Billing", typeof(Namines.Billing.Infrastructure.Persistence.BillingDbContext).Assembly),
+        ("Governance", typeof(Namines.Governance.Infrastructure.Persistence.GovernanceDbContext).Assembly),
+        ("Identity", typeof(Namines.Identity.Infrastructure.Persistence.AuthDbContext).Assembly),
     };
 
     private static DbContext OwnerContext(string module) => module switch
@@ -32,7 +36,9 @@ public sealed class Phase14_2D1BoundaryScanTests
         "Studio" => new Namines.Studio.Infrastructure.Persistence.StudioDbContext(new DbContextOptionsBuilder<Namines.Studio.Infrastructure.Persistence.StudioDbContext>().UseNpgsql(ModelOnly).Options),
         "Hub" => new Namines.Hub.Infrastructure.Persistence.HubDbContext(new DbContextOptionsBuilder<Namines.Hub.Infrastructure.Persistence.HubDbContext>().UseNpgsql(ModelOnly).Options),
         "Gateway" => new Namines.Gateway.Infrastructure.Persistence.GatewayDbContext(new DbContextOptionsBuilder<Namines.Gateway.Infrastructure.Persistence.GatewayDbContext>().UseNpgsql(ModelOnly).Options),
-        _ => new Namines.Ops.Infrastructure.Persistence.OpsDbContext(new DbContextOptionsBuilder<Namines.Ops.Infrastructure.Persistence.OpsDbContext>().UseNpgsql(ModelOnly).Options),
+        "Ops" => new Namines.Ops.Infrastructure.Persistence.OpsDbContext(new DbContextOptionsBuilder<Namines.Ops.Infrastructure.Persistence.OpsDbContext>().UseNpgsql(ModelOnly).Options),
+        // Billing/Governance/Identity bağlamları internal; tanımlayıcıdan kurulur (Identity'nin migration adı "Auth").
+        _ => Phase14_2D1ModuleArchitectureTests.AllDescriptors().Single(d => d.Module == (module == "Identity" ? "Auth" : module)).CreateContext(ModelOnly),
     };
 
     /// <summary>Modülün sahip olduğu (şema, tablo) çiftleri; kaynak modelin kendisi, elle liste değil.</summary>
@@ -41,7 +47,7 @@ public sealed class Phase14_2D1BoundaryScanTests
         using var ctx = OwnerContext(module);
         return ctx.Model.GetEntityTypes()
             .Where(e => e.GetTableName() is not null)
-            .Select(e => (e.GetSchema()!, e.GetTableName()!))
+            .Select(e => (e.GetSchema() ?? "public", e.GetTableName()!))
             .Distinct()
             .ToList();
     }
@@ -92,7 +98,7 @@ public sealed class Phase14_2D1BoundaryScanTests
     public static IEnumerable<object[]> ScannedAssemblies() => new[]
     {
         "Namines.API", "Namines.Infrastructure", "Namines.BuildingBlocks", "Namines.Studio", "Namines.Hub", "Namines.Gateway",
-        "Namines.Ops", "Namines.Vault", "Namines.Ground", "Namines.Flow", "Namines.Desk",
+        "Namines.Ops", "Namines.Vault", "Namines.Ground", "Namines.Flow", "Namines.Desk", "Namines.Billing", "Namines.Governance", "Namines.Identity",
     }.Select(n => new object[] { n });
 
     [Theory]
@@ -128,7 +134,7 @@ public sealed class Phase14_2D1BoundaryScanTests
                 if (table is null) continue;
                 var schema = entity.GetSchema() ?? "public";
                 var owner = owned.FirstOrDefault(o => string.Equals(o.Schema, schema, StringComparison.Ordinal) && string.Equals(o.Table, table, StringComparison.Ordinal));
-                if (owner.Module is not null && owner.Module != descriptor.Module)
+                if (owner.Module is not null && owner.Module != (descriptor.Module == "Auth" ? "Identity" : descriptor.Module))
                     violations.Add($"{descriptor.Module}: {entity.ClrType.Name} -> {schema}.{table} ({owner.Module})");
             }
         }

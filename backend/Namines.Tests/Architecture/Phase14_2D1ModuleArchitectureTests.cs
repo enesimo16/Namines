@@ -292,9 +292,15 @@ public sealed class Phase14_2D1ModuleArchitectureTests
         {
             foreach (var type in LoadableTypes(assembly).Where(t => t.Namespace?.EndsWith(".Application", StringComparison.Ordinal) == true))
             {
-                foreach (var used in ReferencedTypes(type).Concat(TypesUsedInIl(type)).Distinct())
+                // İmza düzeyi (alan, kurucu, metot imzası) HİÇ muaf değil: tasarım-zamanı fabrika da burada yasak.
+                foreach (var used in ReferencedTypes(type).Distinct())
+                    if (IsDbContext(used) || used.Namespace?.StartsWith("Namines.", StringComparison.Ordinal) == true && used.Namespace.Contains(".Infrastructure", StringComparison.Ordinal))
+                        violations.Add($"{type.FullName} -> {used.FullName}");
+                // IL düzeyi: yalnız tasarım-zamanı fabrikaları muaf. Fabrikalar kodda hiç çağrılmaz (yalnız dotnet-ef bulur);
+                // IL tarayıcısı hizası kaymış baytları tesadufen onlara çözebiliyor. Muafiyet bu tek türle sınırlı ve
+                // imza düzeyindeki yasak yukarıda aynen duruyor.
+                foreach (var used in TypesUsedInIl(type).Distinct())
                 {
-                    // Tasarim-zamani fabrikalar kodda hic cagrilmaz; IL taramasinin hizasi kaymis baytlari onlari tesadufen cozebilir.
                     if (used.GetInterfaces().Any(i => i.Name.StartsWith("IDesignTimeDbContextFactory", StringComparison.Ordinal))) continue;
                     if (IsDbContext(used) || used.Namespace?.StartsWith("Namines.", StringComparison.Ordinal) == true && used.Namespace.Contains(".Infrastructure", StringComparison.Ordinal))
                         violations.Add($"{type.FullName} -> {used.FullName}");
@@ -315,8 +321,26 @@ public sealed class Phase14_2D1ModuleArchitectureTests
                 Assert.DoesNotContain(referenced, IsDbContext);
                 Assert.DoesNotContain(referenced, t => t.Namespace?.Contains(".Infrastructure", StringComparison.Ordinal) == true);
                 Assert.DoesNotContain(referenced, t => t.Assembly.GetName().Name == "Microsoft.EntityFrameworkCore");
+                // Öznitelikler tür başvurusu olarak görünmez (ör. [Microsoft.EntityFrameworkCore.Index]); ayrıca taranır.
+                Assert.Empty(PersistenceAttributesOn(type));
             }
         }
+    }
+
+    /// <summary>Türün, üyelerinin ve parametrelerinin EF Core / Npgsql / Identity depolama özniteliği (DataAnnotations serbest).</summary>
+    private static IEnumerable<string> PersistenceAttributesOn(Type type)
+    {
+        const BindingFlags all = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+        static bool Persistence(CustomAttributeData a) =>
+            a.AttributeType.Assembly.GetName().Name is { } n && (n.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal) || n.StartsWith("Npgsql", StringComparison.Ordinal));
+
+        var carriers = new List<(string Name, IList<CustomAttributeData> Data)> { (type.FullName!, type.GetCustomAttributesData()) };
+        carriers.AddRange(type.GetProperties(all).Select(p => ($"{type.FullName}.{p.Name}", p.GetCustomAttributesData())));
+        carriers.AddRange(type.GetFields(all).Select(f => ($"{type.FullName}.{f.Name}", f.GetCustomAttributesData())));
+        carriers.AddRange(type.GetMethods(all).Select(m => ($"{type.FullName}.{m.Name}", m.GetCustomAttributesData())));
+        foreach (var (name, data) in carriers)
+            foreach (var attribute in data.Where(Persistence))
+                yield return $"{name} [{attribute.AttributeType.FullName}]";
     }
 
     [Fact]
