@@ -71,7 +71,8 @@ public sealed class DataRetentionServiceTests : IAsyncLifetime
         {
             var deskApp = new DeskApplicationService(deskDb, new DeskHandoffTokenValidator());
             var r = await DataRetentionService.PurgeAsync(
-                db, Defaults(), NullLogger.Instance, Now, TimeSpan.Zero, CancellationToken.None, TestModules.For(db).OpsRetention, TestModules.For(db).GatewayMaintenance, deskApp);
+                Defaults(), NullLogger.Instance, Now, TimeSpan.Zero, CancellationToken.None, TestModules.For(db).OpsRetention, TestModules.For(db).GatewayMaintenance,
+                TestModules.For(db).BillingAccounts, TestModules.For(db).GovernanceAudit, TestModules.For(db).IdentityMaintenance(), deskApp);
             Assert.Equal(1, r["GatewayAuditEntries"]);
             Assert.Equal(1, r["StripeWebhookEvents"]);
             Assert.Equal(1, r["desk_handoff_tokens"]);
@@ -81,7 +82,7 @@ public sealed class DataRetentionServiceTests : IAsyncLifetime
         await using var check = new AuthDbContext(_options);
         await using var checkDesk = new DeskDbContext(_deskOptions);
         Assert.Equal(1, await check.Gateway().GatewayAuditEntries.CountAsync());
-        Assert.Equal("evt_new", (await check.StripeWebhookEvents.SingleAsync()).Id);
+        Assert.Equal("evt_new", (await check.Billing().StripeWebhookEvents.SingleAsync()).Id);
         Assert.Equal("b", (await checkDesk.DeskHandoffTokens.SingleAsync()).TokenHash);
         Assert.Equal("i2", (await check.TeamInvites.SingleAsync()).TokenHash);
     }
@@ -99,7 +100,8 @@ public sealed class DataRetentionServiceTests : IAsyncLifetime
         await using var deskDb2 = new DeskDbContext(_deskOptions);
         var deskApp = new DeskApplicationService(deskDb2, new DeskHandoffTokenValidator());
         var r = await DataRetentionService.PurgeAsync(
-            db2, Defaults(), NullLogger.Instance, Now, TimeSpan.Zero, CancellationToken.None, TestModules.For(db2).OpsRetention, TestModules.For(db2).GatewayMaintenance, deskApp);
+            Defaults(), NullLogger.Instance, Now, TimeSpan.Zero, CancellationToken.None, TestModules.For(db2).OpsRetention, TestModules.For(db2).GatewayMaintenance,
+            TestModules.For(db2).BillingAccounts, TestModules.For(db2).GovernanceAudit, TestModules.For(db2).IdentityMaintenance(), deskApp);
         Assert.Equal(DataRetentionService.BatchSize + 50, r["GatewayAuditEntries"]);
         Assert.Equal(0, await db2.Gateway().GatewayAuditEntries.CountAsync());
     }

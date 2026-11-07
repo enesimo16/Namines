@@ -1,4 +1,6 @@
+using Namines.Billing.Application;
 using Namines.Billing.Domain;
+using Namines.BuildingBlocks.Contracts;
 using Namines.Identity.Infrastructure.Persistence;
 using Namines.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
@@ -43,23 +45,27 @@ public class UsageMeterTests : IAsyncLifetime
     private async Task<string> UserAsync(string? subscriptionStatus = null)
     {
         var id = Guid.NewGuid().ToString();
-        _context.Users.Add(new ApplicationUser
-        {
-            Id = id, UserName = id, SubscriptionStatus = subscriptionStatus,
-        });
+        _context.Users.Add(new ApplicationUser { Id = id, UserName = id });
         await _context.SaveChangesAsync();
+        if (subscriptionStatus is not null) await _context.SeedSubscriptionAsync(id, subscriptionStatus, planCode: null);
         return id;
     }
+
+    private IUsageMeter Meter => TestModules.For(_context).Usage;
+
+    /// <summary>Dönem toplamı artık yalnızca özet satırlarından okunur: tek yol, ekranın gördüğü sayı.</summary>
+    private async Task<decimal> UsedAsync(string userId, UsageResource resource) =>
+        (await Meter.GetOverviewAsync(userId)).Resources.Single(r => r.Resource == resource).Used;
 
     [RequiresDockerFact]
     public async Task Recorded_usage_adds_up_within_the_period()
     {
         var userId = await UserAsync();
 
-        await _context.RecordAsync(userId, UsageResource.AiCall, 3);
-        await _context.RecordAsync(userId, UsageResource.AiCall, 2);
+        await Meter.RecordAsync(userId, UsageResource.AiCall, 3);
+        await Meter.RecordAsync(userId, UsageResource.AiCall, 2);
 
-        Assert.Equal(5m, await _context.UsedThisPeriodAsync(userId, UsageResource.AiCall));
+        Assert.Equal(5m, await UsedAsync(userId, UsageResource.AiCall));
     }
 
     [RequiresDockerFact]
@@ -67,7 +73,7 @@ public class UsageMeterTests : IAsyncLifetime
     {
         // SUM boş kümede NULL döner; decimal'e çevirmek patlardı.
         var userId = await UserAsync();
-        Assert.Equal(0m, await _context.UsedThisPeriodAsync(userId, UsageResource.AiCall));
+        Assert.Equal(0m, await UsedAsync(userId, UsageResource.AiCall));
     }
 
     [RequiresDockerFact]
@@ -75,11 +81,11 @@ public class UsageMeterTests : IAsyncLifetime
     {
         var userId = await UserAsync();
 
-        await _context.RecordAsync(userId, UsageResource.AiCall, 5);
-        await _context.RecordAsync(userId, UsageResource.ApiRequest, 100);
+        await Meter.RecordAsync(userId, UsageResource.AiCall, 5);
+        await Meter.RecordAsync(userId, UsageResource.ApiRequest, 100);
 
-        Assert.Equal(5m, await _context.UsedThisPeriodAsync(userId, UsageResource.AiCall));
-        Assert.Equal(100m, await _context.UsedThisPeriodAsync(userId, UsageResource.ApiRequest));
+        Assert.Equal(5m, await UsedAsync(userId, UsageResource.AiCall));
+        Assert.Equal(100m, await UsedAsync(userId, UsageResource.ApiRequest));
     }
 
     [RequiresDockerFact]
@@ -88,9 +94,9 @@ public class UsageMeterTests : IAsyncLifetime
         var a = await UserAsync();
         var b = await UserAsync();
 
-        await _context.RecordAsync(a, UsageResource.AiCall, 7);
+        await Meter.RecordAsync(a, UsageResource.AiCall, 7);
 
-        Assert.Equal(0m, await _context.UsedThisPeriodAsync(b, UsageResource.AiCall));
+        Assert.Equal(0m, await UsedAsync(b, UsageResource.AiCall));
     }
 
     [RequiresDockerFact]
@@ -109,7 +115,7 @@ public class UsageMeterTests : IAsyncLifetime
         });
         await _context.SaveChangesAsync();
 
-        Assert.Equal(0m, await _context.UsedThisPeriodAsync(userId, UsageResource.AiCall));
+        Assert.Equal(0m, await UsedAsync(userId, UsageResource.AiCall));
     }
 
     [RequiresDockerFact]
@@ -118,10 +124,10 @@ public class UsageMeterTests : IAsyncLifetime
         // Transfer/depolama kesirli; tamsayıya yuvarlamak 0.4 GB'ı ya 0 ya 1 yapardı.
         var userId = await UserAsync();
 
-        await _context.RecordAsync(userId, UsageResource.DataTransferGigabyte, 0.25m);
-        await _context.RecordAsync(userId, UsageResource.DataTransferGigabyte, 0.5m);
+        await Meter.RecordAsync(userId, UsageResource.DataTransferGigabyte, 0.25m);
+        await Meter.RecordAsync(userId, UsageResource.DataTransferGigabyte, 0.5m);
 
-        Assert.Equal(0.75m, await _context.UsedThisPeriodAsync(userId, UsageResource.DataTransferGigabyte));
+        Assert.Equal(0.75m, await UsedAsync(userId, UsageResource.DataTransferGigabyte));
     }
 
     [RequiresDockerFact]
@@ -130,8 +136,8 @@ public class UsageMeterTests : IAsyncLifetime
         // Negatif bir miktar kullanımı azaltır; bir hata onu "kredi"ye çevirirdi.
         var userId = await UserAsync();
 
-        await _context.RecordAsync(userId, UsageResource.AiCall, 0);
-        await _context.RecordAsync(userId, UsageResource.AiCall, -5);
+        await Meter.RecordAsync(userId, UsageResource.AiCall, 0);
+        await Meter.RecordAsync(userId, UsageResource.AiCall, -5);
 
         Assert.Empty(_context.Billing().UsageEvents.Where(e => e.UserId == userId));
     }
@@ -142,9 +148,9 @@ public class UsageMeterTests : IAsyncLifetime
     public async Task A_free_user_is_stopped_at_the_allowance()
     {
         var userId = await UserAsync();
-        await _context.RecordAsync(userId, UsageResource.AiCall, 100);
+        await Meter.RecordAsync(userId, UsageResource.AiCall, 100);
 
-        var decision = await _context.EvaluateAsync(userId, UsageResource.AiCall);
+        var decision = await Meter.EvaluateAsync(userId, UsageResource.AiCall);
 
         Assert.False(decision.Allowed);
     }
@@ -155,9 +161,9 @@ public class UsageMeterTests : IAsyncLifetime
         // Ayar kaydı olmayan kullanıcı için varsayılan KAPALI olmalı — kayıt
         // yokluğunu "açık" saymak, herkese sürpriz fatura riski açardı.
         var userId = await UserAsync("active");
-        await _context.RecordAsync(userId, UsageResource.AiCall, 500);
+        await Meter.RecordAsync(userId, UsageResource.AiCall, 500);
 
-        var before = await _context.EvaluateAsync(userId, UsageResource.AiCall);
+        var before = await Meter.EvaluateAsync(userId, UsageResource.AiCall);
         Assert.False(before.Allowed);
 
         _context.Billing().UserBillingSettings.Add(new UserBillingSettings
@@ -166,7 +172,7 @@ public class UsageMeterTests : IAsyncLifetime
         });
         await _context.SaveChangesAsync();
 
-        var after = await _context.EvaluateAsync(userId, UsageResource.AiCall);
+        var after = await Meter.EvaluateAsync(userId, UsageResource.AiCall);
         Assert.True(after.Allowed);
         Assert.Equal(0.03m, after.OverageCostUsd);
     }
@@ -184,9 +190,9 @@ public class UsageMeterTests : IAsyncLifetime
         await _context.SaveChangesAsync();
 
         // 502 çağrı → 2 aşım × $0.03 = $0.06, tavan $0.05.
-        await _context.RecordAsync(userId, UsageResource.AiCall, 502);
+        await Meter.RecordAsync(userId, UsageResource.AiCall, 502);
 
-        var decision = await _context.EvaluateAsync(userId, UsageResource.AiCall);
+        var decision = await Meter.EvaluateAsync(userId, UsageResource.AiCall);
 
         Assert.False(decision.Allowed);
         Assert.Contains("spending cap", decision.Reason!);
@@ -197,10 +203,10 @@ public class UsageMeterTests : IAsyncLifetime
     {
         var userId = await UserAsync();
 
-        await _context.RecordAsync(userId, UsageResource.AiCall, 2);
-        await _context.RecordAsync(userId, UsageResource.BranchDatabase, 1);
+        await Meter.RecordAsync(userId, UsageResource.AiCall, 2);
+        await Meter.RecordAsync(userId, UsageResource.BranchDatabase, 1);
 
-        var summary = await _context.PeriodSummaryAsync(userId);
+        var summary = (await Meter.GetOverviewAsync(userId)).Resources.ToDictionary(r => r.Resource, r => r.Used);
 
         Assert.Equal(2m, summary[UsageResource.AiCall]);
         Assert.Equal(1m, summary[UsageResource.BranchDatabase]);

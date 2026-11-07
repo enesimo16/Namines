@@ -37,6 +37,12 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         _options = new DbContextOptionsBuilder<AuthDbContext>().UseSqlite(_connection).Options;
         await using var db = new AuthDbContext(_options);
         await db.EnsureModulesCreatedAsync();
+
+        // Desk artık kendi bağlamında: kullanıcıya giden FK (ON DELETE CASCADE) modelde yok, yalnızca PostgreSQL
+        // göçünde var. SQLite'ta aynı davranışı tetikleyiciyle taklit ediyoruz ki "kullanıcı gidince SQL geçmişi de gider"
+        // iddiası korunsun; gerçek FK Phase14_2D2GovernanceRealPgTests'te PostgreSQL'e karşı sınanıyor.
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE TRIGGER trg_user_delete_cascades_sql_history AFTER DELETE ON \"AspNetUsers\" BEGIN DELETE FROM \"sql_query_history\" WHERE \"UserId\" = OLD.\"Id\"; END;");
     }
 
     public async Task DisposeAsync() => await _connection.DisposeAsync();
@@ -66,7 +72,14 @@ public sealed class AccountDeletionTests : IAsyncLifetime
 
     private static AccountDeletionService NewService(
         AuthDbContext db, FakeStore store, FakeProvider provider, ISubscriptionCanceller? canceller = null) =>
-        new(db, NewUserManager(db), Create(db, store, provider), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance, TestModules.For(db).Feedback, TestModules.For(db).Projects, TestModules.For(db).GatewayMaintenance, canceller);
+        Assemble(db, Create(db, store, provider), NewUserManager(db), canceller);
+
+    /// <summary>Hesap silme planının tüm ayakları sözleşmelerden: kimlik, faturalama ve denetim modülleri gerçek servislerle.</summary>
+    private static AccountDeletionService Assemble(
+        AuthDbContext db, ProjectDeletionService projects, UserManager<ApplicationUser> users, ISubscriptionCanceller? canceller = null)
+    {
+        return TestModules.For(db).AccountDeletion(users, projects, canceller);
+    }
 
     private static CloudProject Project(string id, string userId, string? orgId) => new()
     {
@@ -84,12 +97,14 @@ public sealed class AccountDeletionTests : IAsyncLifetime
     private static async Task SeedAsync(AuthDbContext db, FakeStore store)
     {
         db.Users.AddRange(
-            new ApplicationUser { Id = "u1", UserName = "alice", Email = "alice@example.com", StripeSubscriptionId = "sub_123" },
+            new ApplicationUser { Id = "u1", UserName = "alice", Email = "alice@example.com" },
             new ApplicationUser { Id = "u2", UserName = "bob", Email = "bob@example.com" });
         db.Organizations.AddRange(
             new Organization { Id = "P", Name = "Alice personal", IsPersonal = true, CreatedByUserId = "u1" },
             new Organization { Id = "T", Name = "Team", CreatedByUserId = "u2" });
         await db.SaveChangesAsync();
+        // Stripe abonelik kimligi artik faturalama tablosunda (kullanici satirinda degil).
+        await db.SeedSubscriptionAsync("u1", status: null, planCode: null, stripeSubscriptionId: "sub_123");
 
         Member(db, "P", "u1", OrgRole.Owner);
         Member(db, "T", "u2", OrgRole.Owner, 60);
@@ -148,7 +163,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
 
         db.ChangeTracker.Clear();
         var user = await db.Users.SingleAsync(u => u.Id == "u1");
-        var result = await NewService(db, store, new FakeProvider()).DeleteAsync(user, CancellationToken.None);
+        var result = await NewService(db, store, new FakeProvider()).DeleteAsync(user.Id, CancellationToken.None);
 
         Assert.False(result.Ok);
         Assert.Equal(409, result.StatusCode);
@@ -171,7 +186,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await SeedAsync(db, store);
 
         var result = await NewService(db, store, provider)
-            .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
+            .DeleteAsync("u1", CancellationToken.None);
 
         Assert.True(result.Ok, result.Code + " " + result.Error);
         Assert.Empty(store.Blobs);
@@ -198,7 +213,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         db.ChangeTracker.Clear();
 
         var result = await NewService(db, store, new FakeProvider())
-            .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
+            .DeleteAsync("u1", CancellationToken.None);
 
         Assert.True(result.Ok, result.Code + " " + result.Error);
         await using var verify = NewContext();
@@ -219,7 +234,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await db.OrganizationMembers.Where(m => m.OrganizationId == "T" && m.UserId == "u1").ExecuteDeleteAsync();
 
         var result = await NewService(db, store, new FakeProvider())
-            .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
+            .DeleteAsync("u1", CancellationToken.None);
 
         Assert.True(result.Ok, result.Code + " " + result.Error);
         await using var verify = NewContext();
@@ -235,13 +250,21 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await SeedAsync(db, store);
 
         var result = await NewService(db, store, new FakeProvider(), canceller)
-            .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
+            .DeleteAsync("u1", CancellationToken.None);
 
         Assert.True(result.Ok, result.Code + " " + result.Error);
         Assert.Equal(new[] { "sub_123" }, canceller.Canceled);
         await using var verify = NewContext();
-        var audit = await verify.ChangeRequestAuditLogs.SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
-        Assert.Contains("\"stripe\":\"canceled\"", audit.Details);
+        // Degistirilemez iz: ilk satir "queued" kalir, iptal tamamlaninca YENI bir satir eklenir (BL-4).
+        var audits = await verify.Governance().ChangeRequestAuditLogs.ToListAsync();
+        var deletedRow = Assert.Single(audits, a => a.Action == ChangeRequestAuditAction.AccountDeleted);
+        var outbox = await verify.Billing().PendingSubscriptionCancellations.SingleAsync();
+        Assert.Contains("\"stripe\":\"queued\"", deletedRow.Details);
+        Assert.Contains(outbox.Id, deletedRow.Details);
+        Assert.NotNull(outbox.CompletedAt);
+        var completed = Assert.Single(audits, a => a.Action == ChangeRequestAuditAction.SubscriptionCancellationCompleted);
+        Assert.Equal(outbox.Id, completed.ChangeRequestId);
+        Assert.Contains("\"stripe\":\"canceled\"", completed.Details);
     }
 
     [Fact]
@@ -252,15 +275,19 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await SeedAsync(db, store);
 
         var result = await NewService(db, store, new FakeProvider(), canceller: null)
-            .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
+            .DeleteAsync("u1", CancellationToken.None);
 
         Assert.True(result.Ok, result.Code + " " + result.Error);
         await using var verify = NewContext();
-        var audit = await verify.ChangeRequestAuditLogs.SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
+        var audit = await verify.Governance().ChangeRequestAuditLogs.SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
         Assert.Contains("\"stripe\":\"queued\"", audit.Details);
-        var outbox = await verify.PendingSubscriptionCancellations.SingleAsync();
+        var outbox = await verify.Billing().PendingSubscriptionCancellations.SingleAsync();
         Assert.Equal("sub_123", outbox.SubscriptionId);
         Assert.Null(outbox.CompletedAt);
+        // Iptal tamamlanmadigi icin tamamlanma satiri YOK; ilk satir degismeden kaliyor.
+        Assert.DoesNotContain(await verify.Governance().ChangeRequestAuditLogs.ToListAsync(),
+            a => a.Action == ChangeRequestAuditAction.SubscriptionCancellationCompleted);
+        Assert.Contains(outbox.Id, audit.Details);
     }
 
     [Fact]
@@ -271,7 +298,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await SeedAsync(db, store);
 
         var result = await NewService(db, store, new FakeProvider())
-            .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
+            .DeleteAsync("u1", CancellationToken.None);
 
         Assert.True(result.Ok, result.Code + " " + result.Error);
         await using var verify = NewContext();
@@ -288,7 +315,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
 
         Assert.False(await verifyDesk.SqlQueryHistory.AnyAsync());
 
-        var audit = await verify.ChangeRequestAuditLogs.SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
+        var audit = await verify.Governance().ChangeRequestAuditLogs.SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
         Assert.Equal("u1", audit.ChangeRequestId);
         Assert.Null(audit.ActorUserId);
         Assert.Null(audit.ChangeRequestTitle);
@@ -296,7 +323,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
             Assert.DoesNotContain(pii, audit.Details ?? string.Empty);
 
         // Kişisel projenin silme denetim satırı da ad/aktör taşımıyor.
-        var projectAudit = await verify.ChangeRequestAuditLogs
+        var projectAudit = await verify.Governance().ChangeRequestAuditLogs
             .Where(a => a.ProjectId == "pp" && a.Action == ChangeRequestAuditAction.ProjectDeleted).SingleAsync();
         Assert.Null(projectAudit.ActorUserId);
         Assert.Null(projectAudit.ChangeRequestTitle);
@@ -310,7 +337,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await SeedAsync(db, store);
 
         var result = await NewService(db, store, new FakeProvider { FailDelete = true })
-            .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
+            .DeleteAsync("u1", CancellationToken.None);
 
         Assert.False(result.Ok);
         Assert.Equal(503, result.StatusCode);
@@ -339,7 +366,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         db.ChangeTracker.Clear();
 
         var result = await NewService(db, store, new FakeProvider())
-            .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
+            .DeleteAsync("u1", CancellationToken.None);
         Assert.True(result.Ok, result.Code + " " + result.Error);
 
         await using var read = NewContext();
@@ -375,9 +402,9 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         }).Build();
         var all = new List<Claim>(claims) { new(ClaimTypes.NameIdentifier, "u1") };
         var um = NewUserManager(db);
-        return new AuthController(um, db, config, new MigrationService(null!), new AutomationJobQueue(),
+        return new AuthController(um, TestModules.For(db).BillingAccounts, TestModules.For(db).Policies, config, new MigrationService(null!), new AutomationJobQueue(),
             NullLogger<AuthController>.Instance, TestModules.For(db).StudioService, TestModules.For(db).Lifecycle, TestModules.For(db).Workspace, new FakeEnv(), null,
-            new AccountDeletionService(db, um, Create(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance, TestModules.For(db).Feedback, TestModules.For(db).Projects, TestModules.For(db).GatewayMaintenance))
+            Assemble(db, Create(db), um))
         {
             ControllerContext = new ControllerContext
             {

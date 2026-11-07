@@ -31,6 +31,8 @@ public sealed class AutomationDependencyInjectionTests
         services.AddDbContext<AuthDbContext>(options => options.UseSqlite(connection));
         services.AddDbContext<OpsDbContext>(options => options.UseSqlite(connection));
         services.AddScoped<Namines.Ops.Application.IOpsData>(sp => sp.GetRequiredService<OpsDbContext>());
+        // Kimlik modülü üretimde Program'da kaydoluyor (AddIdentityModule); kota ve Flow servisleri dizinine ihtiyaç duyuyor.
+        services.AddScoped<IIdentityDirectory, Namines.Identity.Application.IdentityDirectoryService>();
 
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>

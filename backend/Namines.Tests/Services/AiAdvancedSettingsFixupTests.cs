@@ -72,7 +72,7 @@ public sealed class AiAdvancedSettingsFixupTests : IAsyncLifetime
         await SeedUserPolicyAsync("pro-user", new AiAdvancedSettings { MaxTokens = "4096" }.ToJson());
 
         await using (var db = Context())
-            await AiAdvancedSettingsFixup.RunAsync(db, NullLogger.Instance);
+            await AiAdvancedSettingsFixup.RunAsync(TestModules.For(db).Policies, NullLogger.Instance);
 
         var settings = AiAdvancedSettings.Parse(await AdvancedJsonOfAsync("pro-user"));
 
@@ -86,14 +86,14 @@ public sealed class AiAdvancedSettingsFixupTests : IAsyncLifetime
         await SeedUserPolicyAsync("u1", new AiAdvancedSettings { MaxTokens = "4096" }.ToJson());
 
         await using (var db = Context())
-            await AiAdvancedSettingsFixup.RunAsync(db, NullLogger.Instance);
+            await AiAdvancedSettingsFixup.RunAsync(TestModules.For(db).Policies, NullLogger.Instance);
 
         var afterFirstRun = await AdvancedJsonOfAsync("u1");
 
         // İkinci çalıştırma: satır artık > 4096 olduğundan eşleşmemeli, hiçbir
         // şey değişmemeli.
         await using (var db = Context())
-            await AiAdvancedSettingsFixup.RunAsync(db, NullLogger.Instance);
+            await AiAdvancedSettingsFixup.RunAsync(TestModules.For(db).Policies, NullLogger.Instance);
 
         var afterSecondRun = await AdvancedJsonOfAsync("u1");
 
@@ -112,7 +112,7 @@ public sealed class AiAdvancedSettingsFixupTests : IAsyncLifetime
         }.ToJson());
 
         await using (var db = Context())
-            await AiAdvancedSettingsFixup.RunAsync(db, NullLogger.Instance);
+            await AiAdvancedSettingsFixup.RunAsync(TestModules.For(db).Policies, NullLogger.Instance);
 
         var settings = AiAdvancedSettings.Parse(await AdvancedJsonOfAsync("u1"));
 
@@ -130,7 +130,7 @@ public sealed class AiAdvancedSettingsFixupTests : IAsyncLifetime
         await SeedUserPolicyAsync("u1", new AiAdvancedSettings { MaxTokens = "8000" }.ToJson());
 
         await using (var db = Context())
-            await AiAdvancedSettingsFixup.RunAsync(db, NullLogger.Instance);
+            await AiAdvancedSettingsFixup.RunAsync(TestModules.For(db).Policies, NullLogger.Instance);
 
         Assert.Equal("8000", AiAdvancedSettings.Parse(await AdvancedJsonOfAsync("u1")).MaxTokens);
     }
@@ -141,7 +141,7 @@ public sealed class AiAdvancedSettingsFixupTests : IAsyncLifetime
         await SeedUserPolicyAsync("u1", advancedJson: null);
 
         await using (var db = Context())
-            await AiAdvancedSettingsFixup.RunAsync(db, NullLogger.Instance);
+            await AiAdvancedSettingsFixup.RunAsync(TestModules.For(db).Policies, NullLogger.Instance);
 
         Assert.Null(await AdvancedJsonOfAsync("u1"));
     }

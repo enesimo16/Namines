@@ -136,7 +136,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         };
 
     private AuthController Auth(Scope s, string userId) =>
-        new(Users(s.Db), s.Db, _config, new MigrationService(null!), new AutomationJobQueue(),
+        new(Users(s.Db), s.Kit.BillingAccounts, s.Kit.Policies, _config, new MigrationService(null!), new AutomationJobQueue(),
             NullLogger<AuthController>.Instance, s.Kit.StudioService, s.Kit.Lifecycle, s.Kit.Workspace)
         {
             ControllerContext = new ControllerContext { HttpContext = Http(userId) },
@@ -489,9 +489,8 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
 
         await using var d = Open(cs);
         var um = Users(d.Db);
-        var service = new AccountDeletionService(d.Db, um, ProjectDeletionTestKit.Create(d.Db, d.Kit),
-            d.Kit.HubService, d.Kit.Transaction, NullLogger<AccountDeletionService>.Instance, d.Kit.Feedback, d.Kit.Projects, d.Kit.GatewayMaintenance);
-        var result = await service.DeleteAsync(await d.Db.Users.SingleAsync(u => u.Id == "member"), default);
+        var service = d.Kit.AccountDeletion(um, ProjectDeletionTestKit.Create(d.Db, d.Kit));
+        var result = await service.DeleteAsync("member", default);
         Assert.True(result.Ok, result.Code + " " + result.Error);
 
         await using var v = Open(cs);
@@ -668,7 +667,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
     }
 
     private static SubscriptionCancellationProcessor Processor(Scope s, ISubscriptionCanceller? canceller, ILogger? logger = null) =>
-        new(s.Db, canceller, logger ?? NullLogger.Instance);
+        new(s.Kit.Billing, canceller, logger ?? NullLogger.Instance, new ISubscriptionCancellationObserver[] { s.Kit.GovernanceAudit });
 
     /// <summary>Aboneliği olan, silinecek bir kullanıcı: "member" ekipte, projesi varise devrolur.</summary>
     private async Task<string> SubscribedMemberDatabaseAsync(string name)
@@ -676,14 +675,14 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         var cs = await NewDatabaseAsync(name);
         await using var s = Open(cs);
         await SeedProjectAsync(s, "team", owner: "member", slug: "teamrepo");
-        await s.Db.Users.Where(u => u.Id == "member").ExecuteUpdateAsync(x => x.SetProperty(u => u.StripeSubscriptionId, "sub_1"));
+        await s.Db.SeedSubscriptionAsync("member", status: null, planCode: null, stripeSubscriptionId: "sub_1");
         return cs;
     }
 
     private static async Task<AccountDeletionResult> DeleteMemberAsync(string cs, ISubscriptionCanceller? canceller, CancellationToken ct = default)
     {
         await using var d = Open(cs);
-        return await AccountDeletion(d, canceller).DeleteAsync(await d.Db.Users.SingleAsync(u => u.Id == "member"), ct);
+        return await AccountDeletion(d, canceller).DeleteAsync("member", ct);
     }
 
     [RequiresDockerFact]
@@ -711,6 +710,11 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         Assert.Equal(1, await Processor(s, canceller).ProcessDueAsync(row.NextAttemptAt.AddSeconds(1), 10, default));
         Assert.Equal(new[] { "sub_1" }, canceller.Canceled);
         Assert.NotNull((await s.Db.Billing().PendingSubscriptionCancellations.AsNoTracking().SingleAsync()).CompletedAt);
+        // Tamamlanma haberi değiştirilemez ize YENİ satır olarak eklenir; ilk satır "queued" kalır (BL-4).
+        var trail = await s.Db.Governance().ChangeRequestAuditLogs.AsNoTracking().ToListAsync();
+        Assert.Contains("\"stripe\":\"queued\"", Assert.Single(trail, a => a.Action == ChangeRequestAuditAction.AccountDeleted).Details);
+        var completed = Assert.Single(trail, a => a.Action == ChangeRequestAuditAction.SubscriptionCancellationCompleted);
+        Assert.Equal(row.Id, completed.ChangeRequestId);
 
         // Tamamlanan bir daha denenmez.
         Assert.Equal(0, await Processor(s, canceller).ProcessDueAsync(DateTime.UtcNow.AddYears(1), 10, default));
@@ -732,8 +736,9 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         Assert.Equal(new[] { "sub_1" }, canceller.Canceled);
         await using var v = Open(cs);
         Assert.NotNull((await v.Db.Billing().PendingSubscriptionCancellations.AsNoTracking().SingleAsync()).CompletedAt);
-        var audit = await v.Db.Governance().ChangeRequestAuditLogs.AsNoTracking().SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
-        Assert.Contains("\"stripe\":\"canceled\"", audit.Details);
+        var trail = await v.Db.Governance().ChangeRequestAuditLogs.AsNoTracking().ToListAsync();
+        Assert.Contains("\"stripe\":\"queued\"", Assert.Single(trail, a => a.Action == ChangeRequestAuditAction.AccountDeleted).Details);
+        Assert.Contains("\"stripe\":\"canceled\"", Assert.Single(trail, a => a.Action == ChangeRequestAuditAction.SubscriptionCancellationCompleted).Details);
     }
 
     [RequiresDockerFact]
@@ -778,7 +783,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         {
             await conn.OpenAsync();
             await using var cmd = new NpgsqlCommand("""
-                INSERT INTO "PendingSubscriptionCancellations" ("Id","SubscriptionId","CreatedAt","Attempts","NextAttemptAt")
+                INSERT INTO billing."PendingSubscriptionCancellations" ("Id","SubscriptionId","CreatedAt","Attempts","NextAttemptAt")
                 SELECT 'r' || i, 'sub_' || i, now(), 0, now() - interval '1 minute' FROM generate_series(1, 30) i;
                 """, conn);
             await cmd.ExecuteNonQueryAsync();
@@ -811,8 +816,9 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         await s.Db.SaveChangesAsync();
 
         var result = await DataRetentionService.PurgeAsync(
-            s.Db, DataRetentionService.RetentionOptions.From(new ConfigurationBuilder().Build()),
-            NullLogger.Instance, DateTime.UtcNow, TimeSpan.Zero, default, s.Kit.OpsRetention, s.Kit.GatewayMaintenance);
+            DataRetentionService.RetentionOptions.From(new ConfigurationBuilder().Build()),
+            NullLogger.Instance, DateTime.UtcNow, TimeSpan.Zero, default, s.Kit.OpsRetention, s.Kit.GatewayMaintenance,
+            s.Kit.BillingAccounts, s.Kit.GovernanceAudit, s.Kit.IdentityMaintenance());
 
         Assert.Equal(1, result["PendingSubscriptionCancellations"]);
         var left = await s.Db.Billing().PendingSubscriptionCancellations.AsNoTracking().Select(c => c.Id).OrderBy(x => x).ToListAsync();
@@ -820,8 +826,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
     }
 
     private static AccountDeletionService AccountDeletion(Scope s, ISubscriptionCanceller? canceller = null) =>
-        new(s.Db, Users(s.Db), ProjectDeletionTestKit.Create(s.Db, s.Kit), s.Kit.HubService, s.Kit.Transaction,
-            NullLogger<AccountDeletionService>.Instance, s.Kit.Feedback, s.Kit.Projects, s.Kit.GatewayMaintenance, canceller);
+        s.Kit.AccountDeletion(Users(s.Db), ProjectDeletionTestKit.Create(s.Db, s.Kit), canceller);
 
     [RequiresDockerFact]
     public async Task Hesap_silme_varis_slug_cakismasi()
@@ -835,7 +840,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         await SeedProjectAsync(s, "team-free", owner: "member", slug: "other-name");
 
         await using var d = Open(cs);
-        var result = await AccountDeletion(d).DeleteAsync(await d.Db.Users.SingleAsync(u => u.Id == "member"), default);
+        var result = await AccountDeletion(d).DeleteAsync("member", default);
         Assert.True(result.Ok, result.Code + " " + result.Error);
 
         await using var v = Open(cs);
@@ -856,7 +861,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         await using (var s = Open(cs))
         {
             await SeedProjectAsync(s, "team", owner: "member", slug: "teamrepo");
-            await s.Db.Users.Where(u => u.Id == "member").ExecuteUpdateAsync(x => x.SetProperty(u => u.StripeSubscriptionId, "sub_1"));
+            await s.Db.SeedSubscriptionAsync("member", status: null, planCode: null, stripeSubscriptionId: "sub_1");
         }
 
         await using (var conn = new NpgsqlConnection(cs))
@@ -872,7 +877,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         var canceller = new RecordingCanceller();
         await using (var d = Open(cs))
         {
-            var failed = await AccountDeletion(d, canceller).DeleteAsync(await d.Db.Users.SingleAsync(u => u.Id == "member"), default);
+            var failed = await AccountDeletion(d, canceller).DeleteAsync("member", default);
             // Genel 500 değil: ne olduğunu ve yeniden denemenin güvenli olduğunu söyleyen 503.
             Assert.False(failed.Ok);
             Assert.Equal(503, failed.StatusCode);
@@ -899,16 +904,16 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
 
         await using (var retry = Open(cs))
         {
-            var result = await AccountDeletion(retry, canceller).DeleteAsync(await retry.Db.Users.SingleAsync(u => u.Id == "member"), default);
+            var result = await AccountDeletion(retry, canceller).DeleteAsync("member", default);
             Assert.True(result.Ok, result.Code + " " + result.Error);
         }
 
         Assert.Equal(new[] { "sub_1" }, canceller.Canceled);
         await using var after = Open(cs);
         Assert.Equal("owner", (await after.Kit.HubService.GetRepositoryAsync("team"))!.OwnerUserId);
-        var audit = await after.Db.Governance().ChangeRequestAuditLogs.AsNoTracking()
-            .SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
-        Assert.Contains("\"stripe\":\"canceled\"", audit.Details);
+        var trail = await after.Db.Governance().ChangeRequestAuditLogs.AsNoTracking().ToListAsync();
+        Assert.Contains("\"stripe\":\"queued\"", Assert.Single(trail, a => a.Action == ChangeRequestAuditAction.AccountDeleted).Details);
+        Assert.Contains("\"stripe\":\"canceled\"", Assert.Single(trail, a => a.Action == ChangeRequestAuditAction.SubscriptionCancellationCompleted).Details);
     }
 
     [RequiresDockerFact]
@@ -1011,7 +1016,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
             var groq = new Namines.Infrastructure.AI.GroqAIService(new HttpClient(), _config, new HttpContextAccessor { HttpContext = http }, new MemoryCache(new MemoryCacheOptions()));
             return new GatewayController(
                 gateway: null!, gate: TestModules.For(s.Db).GatewayGate(_config), audit: TestModules.For(s.Db).GatewayAudit, usage: TestModules.For(s.Db).Usage, configuration: _config, groq: groq,
-                logger: NullLogger<GatewayController>.Instance, quota: new AiQuotaService(s.Db, _config),
+                logger: NullLogger<GatewayController>.Instance, quota: s.Kit.AiQuota(_config),
                 secrets: authority, studio: s.Kit.StudioService,
                 introspection: new DbIntrospectionService(NullLogger<DbIntrospectionService>.Instance, policy),
                 workbench: null!, authority: s.Kit.DefaultAuthority, projects: s.Kit.Projects, branches: s.Kit.Branches)
