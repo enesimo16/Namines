@@ -21,28 +21,14 @@ namespace Namines.Tests.Architecture;
 /// </summary>
 public sealed class Phase14_2D1ModuleArchitectureTests
 {
-    private static readonly string[] Modules = { "Namines.Studio", "Namines.Hub", "Namines.Gateway", "Namines.Ops" };
+    private static readonly string[] Modules = { "Namines.Studio", "Namines.Hub", "Namines.Gateway", "Namines.Ops", "Namines.Billing", "Namines.Governance", "Namines.Identity", "Namines.Vault", "Namines.Ground", "Namines.Flow", "Namines.Desk" };
 
     /// <summary>
     /// AuthDbContext enjekte etmesine izin verilen controller'lar ve dokundukları D-2 verisi (14.2D-1 denetim
     /// sonrası sayıldı). Studio/Hub/Gateway/Ops verisi ve proje yaşam döngüsü bu controller'larda yok
     /// (<see cref="Controllers_do_not_write_studio_projects_directly"/>). Her satır D-2'de kalkmak üzere burada.
     /// </summary>
-    private static readonly HashSet<string> D2ControllersAllowedAuthDbContext = new(StringComparer.Ordinal)
-    {
-        "AdminController",          // Identity: Users; Billing: UserAIQuotas, UserAIPolicies, UsageEvents, GlobalAiUsages, PendingSubscriptionCancellations; Governance: ChangeRequests
-        "AuthController",           // Identity: kullanıcı, oturum, MFA; Billing: UserAIPolicies, UserAIQuotas
-        "ChangeRequestController",  // Governance: ChangeRequests, ChangeRequestApprovals, ChangeRequestAuditLogs
-        "CoderAIController",        // Billing: UserAIPolicies
-        "DocumentationController",  // Billing: UserAIPolicies
-        "PolicyController",         // Billing: UserAIPolicies; Identity: Users
-        "ProjectMemberController",  // Identity: OrganizationMembers
-        "QuotaController",          // Billing: UserAIQuotas, GlobalAiUsages; Identity: Users
-        "SmartSeedController",      // Billing: UserAIPolicies
-        "StripeWebhookController",  // Billing: StripeWebhookEvents
-        "TeamController",           // Identity: OrganizationMembers, TeamInvites, Users, kişisel org
-        "UsageController",          // Billing: UserBillingSettings; Identity: Users
-    };
+    private static readonly HashSet<string> D2ControllersAllowedAuthDbContext = new(StringComparer.Ordinal);
 
     private static string BackendRoot()
     {
@@ -134,7 +120,7 @@ public sealed class Phase14_2D1ModuleArchitectureTests
     // ── Controller'lar ──────────────────────────────────────────────────────
 
     [Fact]
-    public void Controllers_do_not_use_any_DbContext_outside_the_explicit_D2_allowlist()
+    public void Controllers_do_not_use_any_DbContext()
     {
         var violations = new List<string>();
         foreach (var controller in Controllers())
@@ -142,8 +128,6 @@ public sealed class Phase14_2D1ModuleArchitectureTests
             var used = ReferencedTypes(controller).Concat(TypesUsedInIl(controller)).Where(IsDbContext).Distinct().ToList();
             foreach (var context in used)
             {
-                // ctx.Users, ctx.Database gibi üyeler IL'de AuthDbContext'in taban tipinde görünür.
-                if (context.IsAssignableFrom(typeof(AuthDbContext)) && D2ControllersAllowedAuthDbContext.Contains(controller.Name)) continue;
                 violations.Add($"{controller.Name} -> {context.Name}");
             }
         }
@@ -151,16 +135,9 @@ public sealed class Phase14_2D1ModuleArchitectureTests
     }
 
     [Fact]
-    public void Allowlist_has_no_stale_entries()
+    public void The_controller_allowlist_is_empty_after_14_2D_2()
     {
-        // İzin listesinde olup artık bağlam kullanmayan controller listeden düşmeli: liste küçülmek zorunda.
-        var stale = new List<string>();
-        foreach (var name in D2ControllersAllowedAuthDbContext)
-        {
-            var controller = Controllers().SingleOrDefault(c => c.Name == name);
-            if (controller is null || !ReferencedTypes(controller).Concat(TypesUsedInIl(controller)).Contains(typeof(AuthDbContext))) stale.Add(name);
-        }
-        Assert.Empty(stale);
+        Assert.Empty(D2ControllersAllowedAuthDbContext);
     }
 
     [Theory]
@@ -174,6 +151,18 @@ public sealed class Phase14_2D1ModuleArchitectureTests
     [InlineData("FeaturesController")]
     [InlineData("DatabaseExecutorController")]
     [InlineData("LaunchController")]
+    [InlineData("AdminController")]
+    [InlineData("AuthController")]
+    [InlineData("ChangeRequestController")]
+    [InlineData("TeamController")]
+    [InlineData("ProjectMemberController")]
+    [InlineData("StripeWebhookController")]
+    [InlineData("QuotaController")]
+    [InlineData("UsageController")]
+    [InlineData("PolicyController")]
+    [InlineData("CoderAIController")]
+    [InlineData("DocumentationController")]
+    [InlineData("SmartSeedController")]
     public void Module_controllers_are_not_on_the_allowlist(string controller)
     {
         Assert.DoesNotContain(controller, D2ControllersAllowedAuthDbContext);
@@ -183,21 +172,45 @@ public sealed class Phase14_2D1ModuleArchitectureTests
     // ── AuthDbContext ───────────────────────────────────────────────────────
 
     [Fact]
-    public void AuthDbContext_has_no_dbset_or_model_entry_for_the_four_modules()
+    public void AuthDbContext_model_contains_only_identity_entity_types()
     {
-        var moduleAssemblies = new[] { typeof(Namines.Studio.Domain.CloudProject).Assembly, typeof(Namines.Hub.Domain.RepoIssue).Assembly, typeof(Namines.Gateway.Domain.GatewayApiKey).Assembly, typeof(Namines.Ops.Domain.Feedback).Assembly };
-
-        var dbSets = typeof(AuthDbContext).GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-            .Where(p => p.PropertyType.IsGenericType && p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>))
-            .Select(p => p.PropertyType.GetGenericArguments()[0]);
-        Assert.DoesNotContain(dbSets, t => moduleAssemblies.Contains(t.Assembly));
-
         using var db = new AuthDbContext(new DbContextOptionsBuilder<AuthDbContext>().UseNpgsql("Host=localhost;Database=model-only").Options);
-        Assert.DoesNotContain(db.Model.GetEntityTypes(), e => moduleAssemblies.Contains(e.ClrType.Assembly));
+        var allowed = new HashSet<string>
+        {
+            "ApplicationUser", "Organization", "OrganizationMember", "TeamInvite",
+            "IdentityRole", "IdentityRoleClaim<string>", "IdentityUserClaim<string>", "IdentityUserLogin<string>",
+            "IdentityUserRole<string>", "IdentityUserToken<string>",
+        };
+        var foreign = db.Model.GetEntityTypes().Select(e => e.ClrType.Name).Where(n => !allowed.Contains(n)).ToList();
+        Assert.Empty(foreign);
 
         var tables = db.Model.GetEntityTypes().Select(e => e.GetTableName()).ToHashSet();
-        foreach (var moved in new[] { "projects", "Branches", "SchemaVersions", "CrossDatabaseRelations", "repositories", "RepoIssues", "RepoStars", "GatewayApiKeys", "GatewayAuditEntries", "Feedbacks", "SqlExecutionAudits", "FeatureFlags", "AiToolRoutes" })
+        foreach (var moved in new[] { "projects", "Branches", "SchemaVersions", "CrossDatabaseRelations", "repositories", "RepoIssues", "RepoStars", "GatewayApiKeys", "GatewayAuditEntries", "Feedbacks", "SqlExecutionAudits", "FeatureFlags", "AiToolRoutes",
+                                      "UsageEvents", "UserAIQuotas", "UserBillingSettings", "GlobalAiUsages", "OrgAiUsages", "StripeWebhookEvents", "PendingSubscriptionCancellations",
+                                      "ChangeRequests", "ChangeRequestApprovals", "ChangeRequestAuditLogs", "UserAIPolicies",
+                                      "vault_backups", "ground_databases", "automation_rules", "sql_query_history" })
             Assert.DoesNotContain(moved, tables);
+
+        // Stripe alanları kullanıcı satırında değil.
+        var userColumns = db.Model.FindEntityType(typeof(Namines.Core.Models.Auth.ApplicationUser))!.GetProperties().Select(p => p.Name).ToList();
+        Assert.DoesNotContain(userColumns, c => c is "StripeCustomerId" or "StripeSubscriptionId" or "SubscriptionStatus" or "PlanCode" or "CurrentPeriodEnd");
+    }
+
+    [Fact]
+    public void Only_the_identity_assembly_references_AuthDbContext()
+    {
+        var identity = typeof(AuthDbContext).Assembly;
+        var offenders = new List<string>();
+        var production = new[]
+        {
+            typeof(Namines.API.Controllers.HubController).Assembly, typeof(Namines.Infrastructure.Data.CrossModuleTransaction).Assembly,
+            typeof(ModuleMigrationOrchestrator).Assembly, typeof(Namines.Core.Models.Auth.ApplicationUser).Assembly,
+        }.Concat(ModuleAssemblies().Where(a => a != identity));
+        foreach (var assembly in production)
+            foreach (var type in LoadableTypes(assembly))
+                if (ReferencedTypes(type).Concat(TypesUsedInIl(type)).Any(t => t == typeof(AuthDbContext) || t.IsAssignableTo(typeof(AuthDbContext))))
+                    offenders.Add(type.FullName!);
+        Assert.Empty(offenders);
     }
 
     // ── Bağımlılık grafiği ──────────────────────────────────────────────────
@@ -214,6 +227,9 @@ public sealed class Phase14_2D1ModuleArchitectureTests
     [InlineData("Namines.Hub")]
     [InlineData("Namines.Gateway")]
     [InlineData("Namines.Ops")]
+    [InlineData("Namines.Billing")]
+    [InlineData("Namines.Governance")]
+    [InlineData("Namines.Identity")]
     public void Module_project_references_only_Core_and_BuildingBlocks(string project) =>
         Assert.Equal(new[] { "Namines.BuildingBlocks", "Namines.Core" }, ProjectReferences(project).OrderBy(x => x, StringComparer.Ordinal));
 
@@ -243,6 +259,13 @@ public sealed class Phase14_2D1ModuleArchitectureTests
     [InlineData(typeof(HubDbContext))]
     [InlineData(typeof(GatewayDbContext))]
     [InlineData(typeof(OpsDbContext))]
+    [InlineData(typeof(Namines.Billing.Infrastructure.Persistence.BillingDbContext))]
+    [InlineData(typeof(Namines.Governance.Infrastructure.Persistence.GovernanceDbContext))]
+    [InlineData(typeof(AuthDbContext))]
+    [InlineData(typeof(Namines.Vault.Infrastructure.Persistence.VaultDbContext))]
+    [InlineData(typeof(Namines.Ground.Infrastructure.Persistence.GroundDbContext))]
+    [InlineData(typeof(Namines.Flow.Infrastructure.Persistence.FlowDbContext))]
+    [InlineData(typeof(Namines.Desk.Infrastructure.Persistence.DeskDbContext))]
     public void Module_DbContext_is_internal_so_the_compiler_blocks_outside_use(Type context)
     {
         Assert.False(context.IsPublic);
@@ -301,7 +324,8 @@ public sealed class Phase14_2D1ModuleArchitectureTests
         {
             var name = assembly.GetName().Name!;
             var namespaces = LoadableTypes(assembly).Select(t => t.Namespace).Distinct().ToHashSet();
-            Assert.Contains(name + ".Domain", namespaces);
+            // Identity'nin varlıkları (ApplicationUser, Organization...) ASP.NET Identity ile iç içe Core'da: Domain katmanı yok, bilinçli.
+            if (name != "Namines.Identity") Assert.Contains(name + ".Domain", namespaces);
             Assert.Contains(name + ".Application", namespaces);
             Assert.Contains(name + ".Infrastructure.Persistence", namespaces);
             Assert.Contains(name + ".DependencyInjection", namespaces);
@@ -364,13 +388,15 @@ public sealed class Phase14_2D1ModuleArchitectureTests
         Namines.Hub.DependencyInjection.HubServiceCollectionExtensions.AddHubModule(services);
         Namines.Gateway.DependencyInjection.GatewayServiceCollectionExtensions.AddGatewayModule(services);
         Namines.Ops.DependencyInjection.OpsServiceCollectionExtensions.AddOpsModule(services);
+        Namines.Billing.DependencyInjection.BillingServiceCollectionExtensions.AddBillingModule(services, registerWorkers: false);
+        Namines.Governance.DependencyInjection.GovernanceServiceCollectionExtensions.AddGovernanceModule(services);
         Namines.Vault.DependencyInjection.VaultServiceCollectionExtensions.AddNaminesVault(services, registerWorkers: false);
         Namines.Ground.DependencyInjection.GroundServiceCollectionExtensions.AddNaminesGround(services, registerWorkers: false);
         Namines.Flow.DependencyInjection.FlowServiceCollectionExtensions.AddFlowModule(services, registerWorkers: false);
         Namines.Desk.DependencyInjection.DeskServiceCollectionExtensions.AddDeskModule(services);
         return services.Where(d => d.ServiceType == typeof(ModuleMigrationDescriptor))
             .Select(d => (ModuleMigrationDescriptor)d.ImplementationInstance!)
-            .Append(AuthMigrations.Descriptor)
+            .Append(Namines.Identity.DependencyInjection.IdentityServiceCollectionExtensions.MigrationDescriptor)
             .ToList();
     }
 
@@ -396,7 +422,7 @@ public sealed class Phase14_2D1ModuleArchitectureTests
     public void Chain_order_is_auth_first_then_modules_and_owners_have_their_own_history_schema()
     {
         var chain = ModuleMigrationOrchestrator.Chain(AllDescriptors());
-        Assert.Equal(new[] { "Auth", "Studio", "Hub", "Gateway", "Ops" }, chain.Select(d => d.Module));
+        Assert.Equal(new[] { "Auth", "Studio", "Billing", "Governance", "Hub", "Gateway", "Ops", "Vault", "Ground", "Flow", "Desk" }, chain.Select(d => d.Module));
 
         foreach (var module in chain.Where(d => d.Module != "Auth"))
         {
@@ -419,14 +445,10 @@ public sealed class Phase14_2D1ModuleArchitectureTests
     }
 
     [Fact]
-    public void Non_owner_contexts_state_a_reason_and_have_no_migrations()
+    public void No_context_is_left_without_a_migration_chain()
     {
-        foreach (var module in AllDescriptors().Where(d => d.Ownership == ModuleMigrationOwnership.DdlInAuthChain))
-        {
-            Assert.False(string.IsNullOrWhiteSpace(module.NonOwnerReason), module.Module);
-            using var ctx = module.CreateContext(ModelOnly);
-            Assert.Empty(ctx.GetService<IMigrationsAssembly>().Migrations);
-        }
+        // 14.2D-2 sonu: AuthDbContext zincirinde DDL'i kalan, sahibi olmayan bağlam yok.
+        Assert.Empty(AllDescriptors().Where(d => d.Ownership == ModuleMigrationOwnership.DdlInAuthChain));
     }
 
     [Fact]

@@ -125,6 +125,7 @@ internal static partial class TestModules
         ("hub.\"RepoStars\"", 1), ("hub.\"RepoIssues\"", 2), ("hub.\"RepoIssueComments\"", 1),
         ("gateway.\"GatewayApiKeys\"", 1), ("gateway.\"GatewayTablePermissions\"", 1), ("gateway.\"GatewayAuditEntries\"", 1),
         ("ops.\"Feedbacks\"", 2), ("ops.\"SqlExecutionAudits\"", 1), ("ops.\"FeatureFlags\"", 1), ("ops.\"AiToolRoutes\"", 1),
+        ("governance.\"ChangeRequests\"", 1),
     };
 
     /// <summary>Bu fazda şema değiştirmeyenler: her iki hâlde aynı yerde.</summary>
@@ -133,7 +134,6 @@ internal static partial class TestModules
         ("studio.projects", 2), ("studio.project_connections", 1), ("studio.project_shares", 1),
         ("hub.repositories", 2), ("hub.project_tags", 1), ("hub.issue_labels", 2), ("hub.repo_issue_labels", 2),
         ("gateway.api_key_allowed_origins", 1), ("gateway.api_key_allowed_ips", 1), ("gateway.table_masked_columns", 1),
-        ("public.\"ChangeRequests\"", 1),
     };
 
     public static IReadOnlyList<(string Table, long Expected)> SeededCountsBeforeMove { get; } =
@@ -213,9 +213,9 @@ internal static partial class TestModules
         ("gateway.GatewayApiKeys", "FK_GatewayApiKeys_projects_ProjectId", 'c'),
         ("gateway.GatewayApiKeys", "FK_GatewayApiKeys_AspNetUsers_CreatedByUserId", 'n'),
         ("gateway.GatewayTablePermissions", "FK_GatewayTablePermissions_projects_ProjectId", 'c'),
-        ("public.ChangeRequests", "FK_ChangeRequests_projects_ProjectId", 'c'),
-        ("public.ChangeRequests", "FK_ChangeRequests_Branches_BranchId", 'c'),
-        ("public.ChangeRequests", "FK_ChangeRequests_SchemaVersions_HeadVersionId", 'a'),
+        ("governance.ChangeRequests", "FK_ChangeRequests_projects_ProjectId", 'c'),
+        ("governance.ChangeRequests", "FK_ChangeRequests_Branches_BranchId", 'c'),
+        ("governance.ChangeRequests", "FK_ChangeRequests_SchemaVersions_HeadVersionId", 'a'),
         ("flow.automation_rules", "FK_automation_rules_projects_ProjectId", 'c'),
         ("ground.ground_databases", "FK_ground_databases_projects_ProjectId", 'r'),
         ("namines_vault.vault_backups", "FK_vault_backups_projects_ProjectId", 'r'),

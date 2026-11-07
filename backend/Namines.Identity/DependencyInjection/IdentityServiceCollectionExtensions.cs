@@ -55,6 +55,7 @@ public static class IdentityServiceCollectionExtensions
         services.AddSingleton(MigrationDescriptor);
         services.AddScoped<ITransactionParticipant>(sp => new TransactionParticipant(sp.GetRequiredService<AuthDbContext>()));
 
+        services.AddScoped<IIdentityData>(sp => sp.GetRequiredService<AuthDbContext>());
         services.AddScoped<IIdentityDirectory, IdentityDirectoryService>();
         services.AddScoped<IOrganizationMembers, OrganizationMembersService>();
         services.AddScoped<IAccountOrganizations, AccountOrganizationsService>();

@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Namines.BuildingBlocks.Contracts;
 using Namines.Core.Models.Auth;
-using Namines.Identity.Infrastructure.Persistence;
 
 namespace Namines.Identity.Application;
 
@@ -13,9 +12,9 @@ namespace Namines.Identity.Application;
 /// </summary>
 internal sealed class OrganizationMembersService : IOrganizationMembers
 {
-    private readonly AuthDbContext _db;
+    private readonly IIdentityData _db;
 
-    public OrganizationMembersService(AuthDbContext db) => _db = db;
+    public OrganizationMembersService(IIdentityData db) => _db = db;
 
     public async Task<IReadOnlyList<MemberRow>> ListAsync(string organizationId, CancellationToken ct = default) =>
         await _db.OrganizationMembers.AsNoTracking()
@@ -109,10 +108,10 @@ internal sealed class OrganizationMembersService : IOrganizationMembers
 /// <summary>Hesap silme planının kimlik tarafı: üyelik okumaları, devir, organizasyon ve kullanıcı silme.</summary>
 internal sealed class AccountOrganizationsService : IAccountOrganizations
 {
-    private readonly AuthDbContext _db;
+    private readonly IIdentityData _db;
     private readonly UserManager<ApplicationUser> _users;
 
-    public AccountOrganizationsService(AuthDbContext db, UserManager<ApplicationUser> users)
+    public AccountOrganizationsService(IIdentityData db, UserManager<ApplicationUser> users)
     {
         _db = db;
         _users = users;
@@ -171,9 +170,9 @@ internal sealed class AccountOrganizationsService : IAccountOrganizations
 
 internal sealed class IdentityMaintenanceService : IIdentityMaintenance
 {
-    private readonly AuthDbContext _db;
+    private readonly IIdentityData _db;
 
-    public IdentityMaintenanceService(AuthDbContext db) => _db = db;
+    public IdentityMaintenanceService(IIdentityData db) => _db = db;
 
     public Task<int> PurgeExpiredInvitesAsync(DateTime cutoffUtc, TimeSpan pause, CancellationToken ct = default) =>
         Namines.BuildingBlocks.Persistence.BatchedDelete.RunAsync(

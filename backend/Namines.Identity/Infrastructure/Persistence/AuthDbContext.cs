@@ -12,7 +12,7 @@ namespace Namines.Identity.Infrastructure.Persistence
     /// Zincirin geçmişi burada: <c>public.__EFMigrationsHistory</c>. 14.2 öncesi migration'lar diğer modüllerin
     /// tablolarını da kurdu; onlar silinmedi (geçmiş yeniden yazılmaz), ama tablolar artık kendi modül zincirlerinin.
     /// </summary>
-    internal class AuthDbContext : IdentityDbContext<ApplicationUser>
+    internal class AuthDbContext : IdentityDbContext<ApplicationUser>, Namines.Identity.Application.IIdentityData
     {
         public DbSet<Organization> Organizations { get; set; } = null!;
         public DbSet<OrganizationMember> OrganizationMembers { get; set; } = null!;

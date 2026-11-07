@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Models.Auth;
-using Namines.Identity.Infrastructure.Persistence;
 
 namespace Namines.Identity.Application;
 
@@ -17,7 +16,7 @@ internal static class OrgAccess
     /// BranchProvisioning ile aynı yarış-güvenli desen.
     /// </summary>
     public static async Task<Organization> GetOrCreatePersonalOrgAsync(
-        this AuthDbContext context, string userId, string displayName, CancellationToken ct = default)
+        this IIdentityData context, string userId, string displayName, CancellationToken ct = default)
     {
         var existing = await context.Organizations
             .FirstOrDefaultAsync(o => o.IsPersonal && o.CreatedByUserId == userId, ct);

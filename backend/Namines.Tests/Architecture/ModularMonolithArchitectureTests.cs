@@ -1,3 +1,6 @@
+using Namines.Billing.DependencyInjection;
+using Namines.Governance.DependencyInjection;
+using Namines.Identity.DependencyInjection;
 using Namines.Identity.Infrastructure.Persistence;
 using Namines.Identity.Application;
 using Namines.Identity.Infrastructure.Security;
@@ -395,7 +398,7 @@ public sealed class ModularMonolithArchitectureTests
     }
 
     [Fact]
-    public void All_Eleven_Modules_Register_DbContexts_And_Facades()
+    public void All_Eleven_Modules_Register_DbContexts_And_Services()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -408,6 +411,9 @@ public sealed class ModularMonolithArchitectureTests
 
         services.AddNaminesBuildingBlocks();
         services.AddOpsModule();
+        services.AddBillingModule(registerWorkers: false);
+        services.AddGovernanceModule();
+        services.AddIdentityModule("Host=localhost;Database=model-only;Username=u;Password=p", _ => { });
         services.AddStudioModule();
         services.AddHubModule();
         services.AddGatewayModule();
@@ -420,10 +426,10 @@ public sealed class ModularMonolithArchitectureTests
         using var scope = sp.CreateScope();
 
         // Tüm 11 modül cephesi (facade) ve izole DbContext'leri çözümlenebilmeli ve PostgreSQL şemaları eşleşmeli.
-        var identity = scope.ServiceProvider.GetRequiredService<IIdentityModule>();
+        var identityDb = scope.ServiceProvider.GetRequiredService<Namines.Identity.Infrastructure.Persistence.AuthDbContext>();
         var studioDb = scope.ServiceProvider.GetRequiredService<StudioDbContext>();
-        var billing = scope.ServiceProvider.GetRequiredService<IBillingModule>();
-        var governance = scope.ServiceProvider.GetRequiredService<IGovernanceModule>();
+        var billingDb = scope.ServiceProvider.GetRequiredService<Namines.Billing.Infrastructure.Persistence.BillingDbContext>();
+        var governanceDb = scope.ServiceProvider.GetRequiredService<Namines.Governance.Infrastructure.Persistence.GovernanceDbContext>();
         var ground = scope.ServiceProvider.GetRequiredService<IGroundModule>();
         var vault = scope.ServiceProvider.GetRequiredService<IVaultModule>();
         var flow = scope.ServiceProvider.GetRequiredService<IFlowModule>();
@@ -432,10 +438,10 @@ public sealed class ModularMonolithArchitectureTests
         var gatewayDb = scope.ServiceProvider.GetRequiredService<GatewayDbContext>();
         var opsDb = scope.ServiceProvider.GetRequiredService<OpsDbContext>();
 
-        Assert.Equal("identity", identity.DbContext.Model.GetDefaultSchema());
+        Assert.Null(identityDb.Model.GetDefaultSchema()); // Identity tabloları public'te (tarihsel yer)
         Assert.Equal("studio", studioDb.Model.GetDefaultSchema());
-        Assert.Equal("billing", billing.DbContext.Model.GetDefaultSchema());
-        Assert.Equal("governance", governance.DbContext.Model.GetDefaultSchema());
+        Assert.Equal("billing", billingDb.Model.GetDefaultSchema());
+        Assert.Equal("governance", governanceDb.Model.GetDefaultSchema());
         Assert.Equal("hub", hubDb.Model.GetDefaultSchema());
         Assert.Equal("gateway", gatewayDb.Model.GetDefaultSchema());
         Assert.Equal("ops", opsDb.Model.GetDefaultSchema());

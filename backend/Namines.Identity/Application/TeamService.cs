@@ -5,7 +5,6 @@ using Namines.BuildingBlocks.Application;
 using Namines.BuildingBlocks.Contracts;
 using Namines.Core.Analysis;
 using Namines.Core.Models.Auth;
-using Namines.Identity.Infrastructure.Persistence;
 
 namespace Namines.Identity.Application;
 
@@ -44,10 +43,10 @@ public interface ITeamService
 
 internal sealed class TeamService : ITeamService
 {
-    private readonly AuthDbContext _context;
+    private readonly IIdentityData _context;
     private readonly IBillingAccounts _billing;
 
-    public TeamService(AuthDbContext context, IBillingAccounts billing)
+    public TeamService(IIdentityData context, IBillingAccounts billing)
     {
         _context = context;
         _billing = billing;

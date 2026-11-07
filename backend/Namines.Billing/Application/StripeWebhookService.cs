@@ -62,6 +62,10 @@ internal sealed class StripeWebhookService : IStripeWebhookService
             return new WebhookResult(500, "Webhook secret not configured.");
         }
 
+        // Başlık hiç yoksa Stripe.net null üzerinde patlar (500); eksik imza geçersiz imzayla aynı: 400.
+        if (string.IsNullOrWhiteSpace(signatureHeader))
+            return new WebhookResult(400, new { error = "Invalid Stripe signature." });
+
         // İmza doğrulaması: başlık yoksa, geçersizse ya da zaman damgası eskiyse ConstructEvent atar ve hiçbir olay işlenmez.
         Event stripeEvent;
         try

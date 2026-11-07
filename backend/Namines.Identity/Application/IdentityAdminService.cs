@@ -1,15 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Namines.BuildingBlocks.Contracts;
-using Namines.Identity.Infrastructure.Persistence;
 
 namespace Namines.Identity.Application;
 
 /// <summary>Yönetim paneli kimlik okumaları. Plan ve kota Billing'den sözleşmeyle birleştirilir; burada yalnızca kimlik.</summary>
 internal sealed class IdentityAdminService : IIdentityAdmin
 {
-    private readonly AuthDbContext _db;
+    private readonly IIdentityData _db;
 
-    public IdentityAdminService(AuthDbContext db) => _db = db;
+    public IdentityAdminService(IIdentityData db) => _db = db;
 
     public Task<int> CountUsersAsync(CancellationToken ct = default) => _db.Users.AsNoTracking().CountAsync(ct);
 

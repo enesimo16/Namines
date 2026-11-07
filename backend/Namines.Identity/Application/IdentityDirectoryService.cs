@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Namines.BuildingBlocks.Contracts;
 using Namines.Core.Models.Auth;
-using Namines.Identity.Infrastructure.Persistence;
 
 namespace Namines.Identity.Application;
 
@@ -12,10 +11,10 @@ namespace Namines.Identity.Application;
 /// </summary>
 internal sealed class IdentityDirectoryService : IIdentityDirectory
 {
-    private readonly AuthDbContext _context;
+    private readonly IIdentityData _context;
     private readonly UserManager<ApplicationUser>? _users;
 
-    public IdentityDirectoryService(AuthDbContext context, UserManager<ApplicationUser>? users = null)
+    public IdentityDirectoryService(IIdentityData context, UserManager<ApplicationUser>? users = null)
     {
         _context = context;
         _users = users;
@@ -81,11 +80,14 @@ internal sealed class IdentityDirectoryService : IIdentityDirectory
     /// <summary>
     /// Yalnızca <c>Type</c> yazılır, SecurityStamp'a dokunulmaz: ödeme olayı kullanıcının açık oturumlarını düşürmemeli.
     /// </summary>
-    public async Task SetUserTypeAsync(string userId, UserType type, CancellationToken ct = default) =>
+    public async Task SetUserTypeAsync(string userId, UserType type, CancellationToken ct = default)
+    {
+        var stamp = Guid.NewGuid().ToString();
         await _context.Users.Where(u => u.Id == userId)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(u => u.Type, type)
-                .SetProperty(u => u.ConcurrencyStamp, Guid.NewGuid().ToString()), ct);
+                .SetProperty(u => u.ConcurrencyStamp, stamp), ct);
+    }
 
     public async Task<string?> GetPoolOrganizationIdAsync(string userId, CancellationToken ct = default) =>
         await _context.OrganizationMembers.AsNoTracking()

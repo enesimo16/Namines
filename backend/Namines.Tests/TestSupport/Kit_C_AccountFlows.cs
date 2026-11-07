@@ -19,15 +19,4 @@ internal static class Kit_C_AccountFlows
         new(kit.Billing, kit.Identity, kit.AiQuota(), NullLogger<BillingAccountService>.Instance, canceller,
             new ISubscriptionCancellationObserver[] { kit.GovernanceAudit });
 
-    public static AccountDeletionService AccountDeletion(
-        this ModuleKit kit, UserManager<ApplicationUser> users, ProjectDeletionService projects, ISubscriptionCanceller? canceller)
-    {
-        var billing = kit.BillingWithCanceller(canceller);
-        return new AccountDeletionService(
-            new AccountOrganizationsService(kit.Db, users), billing, billing, kit.GovernanceAudit, kit.GovernanceAudit,
-            projects, kit.HubService, kit.Transaction, NullLogger<AccountDeletionService>.Instance,
-            kit.Feedback, kit.Projects, kit.GatewayMaintenance);
-    }
-
-    public static IIdentityMaintenance IdentityMaintenance(this ModuleKit kit) => new IdentityMaintenanceService(kit.Db);
 }

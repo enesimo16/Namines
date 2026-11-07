@@ -44,7 +44,7 @@ GRANT CONNECT ON DATABASE :"dbname" TO namines_app;
 DO $$
 DECLARE s text;
 BEGIN
-  FOREACH s IN ARRAY ARRAY['public', 'flow', 'namines_vault', 'ground', 'desk', 'studio', 'hub', 'gateway', 'ops'] LOOP
+  FOREACH s IN ARRAY ARRAY['public', 'flow', 'namines_vault', 'ground', 'desk', 'studio', 'hub', 'gateway', 'ops', 'billing', 'governance'] LOOP
     EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I AUTHORIZATION namines_migrator', s);
     EXECUTE format('GRANT USAGE, CREATE ON SCHEMA %I TO namines_migrator', s);
     EXECUTE format('GRANT USAGE ON SCHEMA %I TO namines_app', s);
@@ -68,7 +68,7 @@ END $$;
 -- migration_quarantine yalnız sahiplik listesinde: uygulama rolü ona erişmez, ama 14.2C Down'ı onu okur.
 DO $$
 DECLARE
-  owned text[] := ARRAY['public','flow','namines_vault','ground','desk','studio','hub','gateway','ops','migration_quarantine'];
+  owned text[] := ARRAY['public','flow','namines_vault','ground','desk','studio','hub','gateway','ops','billing','governance','migration_quarantine'];
   r record;
 BEGIN
   -- Şemalar. public paylaşılır (PG15+ sahibi pg_database_owner), devredilmez; migrator'ın orada CREATE'i var.
