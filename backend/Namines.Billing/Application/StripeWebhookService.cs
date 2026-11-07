@@ -156,6 +156,14 @@ internal sealed class StripeWebhookService : IStripeWebhookService
 
         var apply = writesState && (isCheckout ? (!mapped || isLatest) : (mapped && isLatest));
         var newerStateSeen = isCheckout && !mapped && !isLatest;
+        // Daha yeni olay bir iptalse checkout durumu "iptal" olarak yazar (kullanıcı ücretli kalmaz, durum satırı da doğru olur).
+        var newerWasDeletion = false;
+        if (newerStateSeen)
+            newerWasDeletion = await _db.StripeWebhookEvents
+                .Where(e => e.StripeCustomerId == customerId && e.LatestProcessedForCustomer)
+                .OrderByDescending(e => e.EventCreatedAt)
+                .Select(e => e.EventType == "customer.subscription.deleted")
+                .FirstOrDefaultAsync(ct);
 
         // Kayıt işlemeden ÖNCE (ama aynı işlemde): birincil anahtar çakışması eşzamanlı ikinci isteği burada
         // durdurur, PostgreSQL ikincinin eklemesini birincinin commit/rollback'ine kadar bekletir.
@@ -166,8 +174,8 @@ internal sealed class StripeWebhookService : IStripeWebhookService
             EventCreatedAt = stripeEvent.Created,
             StripeCustomerId = customerId,
             // "Sıra hesabına girer": bağlı olmayan müşterinin güncelleme/silmesi de dahil (etkisiz olsa bile zamanı kalır).
-            // Eski olay zaten en büyük zamanı değiştiremez.
-            LatestProcessedForCustomer = writesState,
+            // Bağlı müşterinin eski (stale) olayı sayılmaz.
+            LatestProcessedForCustomer = writesState && (!mapped || isLatest),
         });
 
         try
@@ -192,7 +200,7 @@ internal sealed class StripeWebhookService : IStripeWebhookService
         switch (stripeEvent.Type)
         {
             case "checkout.session.completed":
-                await HandleCheckoutCompletedAsync(stripeEvent, newerStateSeen, ct);
+                await HandleCheckoutCompletedAsync(stripeEvent, newerStateSeen, newerWasDeletion, ct);
                 break;
             case "customer.subscription.deleted":
                 await HandleSubscriptionDeletedAsync(stripeEvent, ct);
@@ -237,7 +245,7 @@ internal sealed class StripeWebhookService : IStripeWebhookService
         return row;
     }
 
-    private async Task HandleCheckoutCompletedAsync(Event stripeEvent, bool newerStateSeen, CancellationToken ct)
+    private async Task HandleCheckoutCompletedAsync(Event stripeEvent, bool newerStateSeen, bool newerWasDeletion, CancellationToken ct)
     {
         if (stripeEvent.Data.Object is not Stripe.Checkout.Session session) return;
 
@@ -281,6 +289,19 @@ internal sealed class StripeWebhookService : IStripeWebhookService
         // Durum: abonelik okunabildiyse Stripe'ın gerçek durumu. Okunamadıysa (abonelik kimliği yok) ve bu müşteri için
         // daha yeni bir durum olayı zaten görüldüyse durum YAZILMAZ (bilinmiyor; eski checkout yeni iptali ezemez).
         // Yalnızca yeni olay görülmediyse ödeme oturumunun kendisi "aktif" anlamına gelir.
+        if (stripeStatus is null && newerStateSeen && newerWasDeletion)
+        {
+            var canceled = await SubscriptionOfAsync(userId, ct);
+            canceled.Status = "canceled";
+            canceled.StripeSubscriptionId = null;
+            canceled.CurrentPeriodEnd = null;
+            canceled.PlanCode = null;
+            canceled.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct);
+            await _identity.SetUserTypeAsync(userId, UserType.Individual, ct);
+            return;
+        }
+
         if (stripeStatus is null && newerStateSeen)
         {
             await _db.SaveChangesAsync(ct);

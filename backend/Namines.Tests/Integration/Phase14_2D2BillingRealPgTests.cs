@@ -516,7 +516,7 @@ public sealed class Phase14_2D2BillingRealPgTests : IClassFixture<Phase14_2BPost
         Assert.Equal(200, late.Status);
         var state = await StateOfAsync(cs);
         Assert.True(state.Mapped);
-        Assert.NotEqual("active", state.Status);
+        Assert.Equal("canceled", state.Status);
         Assert.Equal(UserType.Individual, state.Type);
     }
 
@@ -586,7 +586,7 @@ public sealed class Phase14_2D2BillingRealPgTests : IClassFixture<Phase14_2BPost
             }, TaskCreationOptions.LongRunning)));
             Assert.All(results, r => Assert.Equal(200, r.Status));
             var state = await StateOfAsync(cs);
-            if (!state.Mapped || state.Type != UserType.Individual || state.Status == "active") bad.Add($"{i}:{state}");
+            if (!state.Mapped || state.Type != UserType.Individual || state.Status != "canceled") bad.Add($"{i}:{state}");
         }
         Assert.True(bad.Count == 0, string.Join(" | ", bad));
     }
