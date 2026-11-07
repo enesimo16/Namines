@@ -1,6 +1,6 @@
 using System;
 
-namespace Namines.Core.Models.Auth;
+namespace Namines.Billing.Domain;
 
 /// <summary>
 /// Günlük paylaşımlı AI token havuzunun tüketim sayacı (tüm kullanıcılar ortak).

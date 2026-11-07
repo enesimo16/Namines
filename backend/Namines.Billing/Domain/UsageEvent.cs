@@ -1,24 +1,9 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace Namines.Core.Models.Auth;
+using Namines.Core.Models.Auth;
 
-/// <summary>
-/// Ölçülen kaynak türleri (new-phase/22-BUSINESS-MODEL.md §5).
-///
-/// Enum, serbest metin değil: kaynak adı faturaya giriyor ve her çağıranın kendi
-/// yazımını kullanması ("ai_call", "aiCall", "AI") aynı kullanımı farklı kalemler
-/// olarak sayıp faturayı sessizce yanlış çıkarırdı.
-/// </summary>
-public enum UsageResource
-{
-    AiCall = 0,
-    ApiRequest = 1,
-    BranchDatabase = 2,
-    StorageGigabyteMonth = 3,
-    ConsoleUser = 4,
-    DataTransferGigabyte = 5,
-}
+namespace Namines.Billing.Domain;
 
 /// <summary>
 /// Tek bir ölçüm kaydı.
@@ -34,7 +19,6 @@ public class UsageEvent
     public long Id { get; set; }
 
     public string? UserId { get; set; }
-    public ApplicationUser? User { get; set; }
 
     public UsageResource Resource { get; set; }
 
@@ -68,7 +52,6 @@ public class UserBillingSettings
 {
     [Key]
     public string UserId { get; set; } = null!;
-    public ApplicationUser User { get; set; } = null!;
 
     public bool OverageEnabled { get; set; }
 

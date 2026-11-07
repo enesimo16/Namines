@@ -1,6 +1,6 @@
 using System;
 
-namespace Namines.Core.Models.Auth;
+namespace Namines.Billing.Domain;
 
 /// <summary>
 /// İşlenmiş bir Stripe webhook olayı — <b>tekrar iletimi (redelivery) tanımak için</b>.

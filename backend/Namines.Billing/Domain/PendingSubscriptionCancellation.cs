@@ -1,6 +1,6 @@
 using System;
 
-namespace Namines.Core.Models.Auth;
+namespace Namines.Billing.Domain;
 
 /// <summary>
 /// Abonelik iptali outbox'ı: kullanıcı silmeyle aynı işlemde yazılır, tamamlanana kadar yeniden denenir.

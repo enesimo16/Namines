@@ -2,10 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Namines.Core.Models.Auth;
-using Namines.Infrastructure.Data;
+using Namines.Billing.Domain;
+using Namines.BuildingBlocks.Contracts;
 
-namespace Namines.Infrastructure.Services;
+namespace Namines.Billing.Application;
 
 /// <summary>
 /// Abonelik iptali outbox'ını işler. Satır, kullanıcı silmeyle aynı işlemde yazılır; bu yüzden süreç
@@ -15,7 +15,7 @@ namespace Namines.Infrastructure.Services;
 /// sürerken satır kilidi ve bağlantı tutulmaz. Ölen işçinin satırı süre dolunca yeniden alınır; iptal
 /// idempotent (<c>resource_missing</c> "tamam" sayılır), yani çift çağrı zarar vermez.
 /// </summary>
-public sealed class SubscriptionCancellationProcessor
+internal sealed class SubscriptionCancellationProcessor
 {
     /// <summary>Bu denemeden sonra her başarısızlık ERROR loglar ve Admin'de "takılı" görünür.</summary>
     public const int AlertAfterAttempts = 8;
@@ -25,15 +25,19 @@ public sealed class SubscriptionCancellationProcessor
 
     private static readonly TimeSpan MaxBackoff = TimeSpan.FromHours(6);
 
-    private readonly AuthDbContext _db;
+    private readonly IBillingData _db;
     private readonly ISubscriptionCanceller? _canceller;
     private readonly ILogger _logger;
+    private readonly IReadOnlyCollection<ISubscriptionCancellationObserver> _observers;
 
-    public SubscriptionCancellationProcessor(AuthDbContext db, ISubscriptionCanceller? canceller, ILogger logger)
+    public SubscriptionCancellationProcessor(
+        IBillingData db, ISubscriptionCanceller? canceller, ILogger logger,
+        IEnumerable<ISubscriptionCancellationObserver>? observers = null)
     {
         _db = db;
         _canceller = canceller;
         _logger = logger;
+        _observers = observers?.ToList() ?? new List<ISubscriptionCancellationObserver>();
     }
 
     /// <summary>Art arda başarısızlıkta 2, 4, 8... dakika, en fazla 6 saat.</summary>
@@ -50,7 +54,6 @@ public sealed class SubscriptionCancellationProcessor
         return claimed is not null && await RunAsync(claimed);
     }
 
-    /// <summary>Vadesi gelen satırları işler; denenen satır sayısını döndürür.</summary>
     public async Task<int> ProcessDueAsync(DateTime utcNow, int batchSize, CancellationToken ct)
     {
         var processed = 0;
@@ -67,8 +70,10 @@ public sealed class SubscriptionCancellationProcessor
     private Task<PendingSubscriptionCancellation?> ClaimAsync(string? id, DateTime utcNow, CancellationToken ct)
     {
         // SKIP LOCKED yalnızca PostgreSQL'de; SQLite testlerinde eşzamanlı işçi yok.
-        var lockClause = _db.Database.IsNpgsql() ? " FOR UPDATE SKIP LOCKED" : string.Empty;
-        const string open = """SELECT * FROM "PendingSubscriptionCancellations" WHERE "CompletedAt" IS NULL""";
+        var npgsql = _db.Database.IsNpgsql();
+        var lockClause = npgsql ? " FOR UPDATE SKIP LOCKED" : string.Empty;
+        var table = npgsql ? "billing.\"PendingSubscriptionCancellations\"" : "\"PendingSubscriptionCancellations\"";
+        var open = $"SELECT * FROM {table} WHERE \"CompletedAt\" IS NULL";
 
         var strategy = _db.Database.CreateExecutionStrategy();
         return strategy.ExecuteAsync(async () =>
@@ -78,10 +83,10 @@ public sealed class SubscriptionCancellationProcessor
 
             var rows = id is null
                 ? await _db.PendingSubscriptionCancellations
-                    .FromSqlRaw(open + """ AND "NextAttemptAt" <= {0} ORDER BY "NextAttemptAt" LIMIT 1""" + lockClause, utcNow)
+                    .FromSqlRaw(open + " AND \"NextAttemptAt\" <= {0} ORDER BY \"NextAttemptAt\" LIMIT 1" + lockClause, utcNow)
                     .ToListAsync(ct)
                 : await _db.PendingSubscriptionCancellations
-                    .FromSqlRaw(open + """ AND "Id" = {0} LIMIT 1""" + lockClause, id)
+                    .FromSqlRaw(open + " AND \"Id\" = {0} LIMIT 1" + lockClause, id)
                     .ToListAsync(ct);
 
             var row = rows.FirstOrDefault();
@@ -124,6 +129,17 @@ public sealed class SubscriptionCancellationProcessor
                 .Where(c => c.Id == row.Id)
                 .ExecuteUpdateAsync(s => s.SetProperty(c => c.CompletedAt, (DateTime?)now), CancellationToken.None);
             _db.ChangeTracker.Clear();
+
+            // Denetim izi başka modülün: tamamlanma haberi yeni satır olarak eklenir (satırlar değiştirilemez).
+            foreach (var observer in _observers)
+            {
+                try { await observer.OnCompletedAsync(row.Id, row.SubscriptionId, CancellationToken.None); }
+                catch (Exception ex)
+                {
+                    // İptal gerçekleşti; iz yazılamadıysa satırı geri açmak aboneliği ikinci kez iptale zorlardı.
+                    _logger.LogError(ex, "Abonelik iptali tamamlandi ama denetim izi yazilamadi (kayit {Id}).", row.Id);
+                }
+            }
             return true;
         }
 
@@ -137,8 +153,8 @@ public sealed class SubscriptionCancellationProcessor
     }
 }
 
-/// <summary>Outbox'ı dakikada bir tarar; ilk denemesi başarısız olan ya da süreci ölen iptalleri tamamlar.</summary>
-public sealed class SubscriptionCancellationWorker : BackgroundService
+/// <summary>Dakikada bir vadesi gelen iptalleri dener; bir tur patlarsa satırlar açık kalır, sonraki tur yeniden dener.</summary>
+internal sealed class SubscriptionCancellationWorker : BackgroundService
 {
     private const int BatchSize = 20;
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(1);
@@ -161,9 +177,10 @@ public sealed class SubscriptionCancellationWorker : BackgroundService
                 await Task.Delay(Interval, stoppingToken);
                 using var scope = _scopeFactory.CreateScope();
                 await new SubscriptionCancellationProcessor(
-                        scope.ServiceProvider.GetRequiredService<AuthDbContext>(),
+                        scope.ServiceProvider.GetRequiredService<IBillingData>(),
                         scope.ServiceProvider.GetService<ISubscriptionCanceller>(),
-                        _logger)
+                        _logger,
+                        scope.ServiceProvider.GetServices<ISubscriptionCancellationObserver>())
                     .ProcessDueAsync(DateTime.UtcNow, BatchSize, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -172,7 +189,6 @@ public sealed class SubscriptionCancellationWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                // Bir tur patlasa da satırlar açık kalır, sonraki tur yeniden dener.
                 _logger.LogError(ex, "Abonelik iptal kuyrugu islenemedi.");
             }
         }

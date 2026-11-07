@@ -5,105 +5,65 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Namines.Core.Analysis;
-using Namines.Core.Models.Auth;
-using Namines.Infrastructure.Data;
+using Namines.BuildingBlocks.Contracts;
 
 namespace Namines.API.Controllers;
 
 public sealed record UpdateBillingSettingsRequest(bool OverageEnabled, decimal? MonthlyCapUsd);
 
-/// <summary>
-/// Kullanım ve aşırı kullanım ayarları (new-phase/22-BUSINESS-MODEL.md §5).
-///
-/// Kullanıcı kendi kullanımını GÖREBİLMELİ. Bir limitin varlığını ancak ona
-/// çarpınca öğrenmek, hizmetin neden durduğunu anlamamak demek — ve aşırı
-/// kullanım açıkken bu, beklenmeyen bir fatura anlamına gelir.
-/// </summary>
+/// <summary>Kullanım ekranı ve aşırı kullanım tercihi. Karar ve kayıt Billing'de; burada yalnızca HTTP.</summary>
 [Authorize]
 [ApiController]
 [Route("api/usage")]
 public class UsageController : ControllerBase
 {
-    private readonly AuthDbContext _context;
+    private readonly IUsageMeter _usage;
 
-    public UsageController(AuthDbContext context) => _context = context;
+    public UsageController(IUsageMeter usage) => _usage = usage;
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-    /// <summary>Bu fatura dönemindeki kullanım, plana dahil miktar ve tahakkuk eden tutar.</summary>
     [HttpGet]
     public async Task<IActionResult> Current(CancellationToken ct)
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
-        var tier = PlanQuotas.Resolve(user?.SubscriptionStatus, user?.PlanCode, user?.IsDev ?? false);
-
-        var summary = await _context.PeriodSummaryAsync(userId, ct);
-        var settings = await _context.UserBillingSettings.FirstOrDefaultAsync(s => s.UserId == userId, ct);
-
-        // Kullanılmamış kaynaklar da listeleniyor: yalnızca kullanılanları
-        // göstermek, kullanıcının neyi ne kadar kullanabileceğini gizlerdi.
-        var resources = Enum.GetValues<UsageResource>().Select(resource =>
-        {
-            var used = summary.TryGetValue(resource, out var value) ? value : 0m;
-            var pricing = OveragePricing.For(tier, resource);
-
-            return new
-            {
-                resource = resource.ToString(),
-                used,
-                included = pricing.Included < 0 ? (decimal?)null : pricing.Included,
-                overageUnitPriceUsd = pricing.UnitPriceUsd,
-                overageUnitSize = pricing.UnitSize,
-                overageCostUsd = OveragePricing.Cost(tier, resource, used),
-            };
-        }).ToList();
+        var overview = await _usage.GetOverviewAsync(userId, ct);
 
         return Ok(new
         {
-            plan = tier.ToString(),
-            billingPeriod = UsageMeter.CurrentPeriod(),
-            overageEnabled = settings?.OverageEnabled ?? false,
-            monthlyCapUsd = settings?.MonthlyCapUsd,
-            totalOverageUsd = resources.Sum(r => r.overageCostUsd),
-            resources,
+            plan = overview.Plan.ToString(),
+            billingPeriod = overview.BillingPeriod,
+            overageEnabled = overview.OverageEnabled,
+            monthlyCapUsd = overview.MonthlyCapUsd,
+            totalOverageUsd = overview.TotalOverageUsd,
+            resources = overview.Resources.Select(r => new
+            {
+                resource = r.Resource.ToString(),
+                used = r.Used,
+                included = r.Included,
+                overageUnitPriceUsd = r.OverageUnitPriceUsd,
+                overageUnitSize = r.OverageUnitSize,
+                overageCostUsd = r.OverageCostUsd,
+            }).ToList(),
         });
     }
 
-    /// <summary>
-    /// Aşırı kullanım tercihini günceller.
-    ///
-    /// Açmak bilinçli bir eylem olmalı — varsayılan kapalı olduğu için kullanıcı
-    /// bu ucu çağırmadan asla beklemediği bir fatura almaz.
-    /// </summary>
     [HttpPut("billing")]
     public async Task<IActionResult> UpdateBilling([FromBody] UpdateBillingSettingsRequest request, CancellationToken ct)
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        // Negatif tavan "sınırsız" ile karışır; sıfır tavan aşırı kullanımı zaten
-        // imkânsız kılar ve "açtım ama çalışmıyor" şikâyetine yol açar.
-        if (request.MonthlyCapUsd is <= 0)
-            return BadRequest(new { error = "Monthly cap must be greater than zero, or omitted for no cap." });
-
-        var settings = await _context.UserBillingSettings.FirstOrDefaultAsync(s => s.UserId == userId, ct);
-        if (settings is null)
+        try
         {
-            settings = new UserBillingSettings { UserId = userId };
-            _context.UserBillingSettings.Add(settings);
+            var saved = await _usage.UpdateSettingsAsync(userId, request.OverageEnabled, request.MonthlyCapUsd, ct);
+            return Ok(new { saved.OverageEnabled, saved.MonthlyCapUsd });
         }
-
-        settings.OverageEnabled = request.OverageEnabled;
-        settings.MonthlyCapUsd = request.MonthlyCapUsd;
-        settings.UpdatedAt = DateTime.UtcNow;
-
-        await _context.SaveChangesAsync(ct);
-
-        return Ok(new { settings.OverageEnabled, settings.MonthlyCapUsd });
+        catch (ArgumentOutOfRangeException)
+        {
+            return BadRequest(new { error = "Monthly cap must be greater than zero, or omitted for no cap." });
+        }
     }
 }

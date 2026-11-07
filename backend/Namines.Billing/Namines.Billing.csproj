@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- MODÜL SINIRI, DERLEYİCİ TARAFINDAN ZORLANIYOR: Infrastructure ve başka modül referansı yok.
+         DbContext internal: API ve diğer modüller yalnızca Application sözleşmesini görür. -->
+    <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
+    <ProjectReference Include="..\Namines.BuildingBlocks\Namines.BuildingBlocks.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.8" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+    <!-- Webhook imza doğrulaması ve ödeme sayfası/portal oturumları yalnızca bu modülde. -->
+    <PackageReference Include="Stripe.net" Version="46.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Namines.Tests" />
+    <InternalsVisibleTo Include="Namines.Tests.RunTests" />
+  </ItemGroup>
+
+</Project>
