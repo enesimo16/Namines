@@ -1,10 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Namines.BuildingBlocks.Contracts;
 using Namines.Core.Analysis;
 using Namines.Core.Models.Auth;
-using Namines.Infrastructure.Data;
 using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -16,11 +14,13 @@ namespace Namines.API.Controllers
     [Route("api/user/policy")]
     public class PolicyController : ControllerBase
     {
-        private readonly AuthDbContext _context;
+        private readonly IAiPolicies _policies;
+        private readonly IIdentityDirectory _identity;
 
-        public PolicyController(AuthDbContext context)
+        public PolicyController(IAiPolicies policies, IIdentityDirectory identity)
         {
-            _context = context;
+            _policies = policies;
+            _identity = identity;
         }
 
         [HttpGet]
@@ -30,27 +30,12 @@ namespace Namines.API.Controllers
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
-            // Check if user actually exists in the database to prevent FOREIGN KEY crashes for legacy sessions
-            var userExists = await _context.Users.AnyAsync(u => u.Id == userId);
-            if (!userExists)
+            // Eski oturumlar silinmiş kullanıcıya ait olabilir: politika satırı kullanıcıya FK ile bağlı, çökmesin.
+            if (!(await _identity.GetSessionStateAsync(userId)).Exists)
                 return Unauthorized(new { Message = "User session is invalid. Please log in again." });
 
-            var policy = await _context.UserAIPolicies.FirstOrDefaultAsync(p => p.UserId == userId);
-            if (policy == null)
-            {
-                // Fallback / Auto-provision for pre-existing accounts
-                // Varsayilanlar UserAIPolicy'de tanimli (Flash agirlikli). Burada
-                // tekrar yazmak, iki yerin ayrismasi demekti: bir tarafi
-                // degistirip digerini unutmak, "ayarlara hic dokunmadim ama
-                // farkli davraniyor" seklinde ortaya cikardi.
-                policy = new UserAIPolicy
-                {
-                    UserId = userId,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                await _context.UserAIPolicies.AddAsync(policy);
-                await _context.SaveChangesAsync();
-            }
+            // Kayıt yoksa (önceden var olan hesaplar) varsayılanlarla açılır. Varsayılanlar UserAIPolicy'de tanımlı.
+            var policy = await _policies.EnsureAsync(userId);
 
             return Ok(new UserAIPolicyDto
             {
@@ -62,9 +47,7 @@ namespace Namines.API.Controllers
                 DbaAnalysis = (int)policy.DbaAnalysis,
                 Migration = (int)policy.Migration,
                 Voice = (int)policy.Voice,
-                // Kayitli deger yoksa VARSAYILANLAR donuyor, null degil: arayuz
-                // bos bir formla acilsaydi, kullanici kaydetmedigi surece hangi
-                // ayarin gecerli oldugunu goremezdi.
+                // Kayıtlı değer yoksa VARSAYILANLAR döner, null değil: arayüz boş formla açılmasın.
                 Advanced = AiAdvancedSettings.Parse(policy.AdvancedJson)
             });
         }
@@ -79,34 +62,16 @@ namespace Namines.API.Controllers
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
-            // Check if user actually exists in the database to prevent FOREIGN KEY crashes for legacy sessions
-            var userExists = await _context.Users.AnyAsync(u => u.Id == userId);
-            if (!userExists)
+            if (!(await _identity.GetSessionStateAsync(userId)).Exists)
                 return Unauthorized(new { Message = "User session is invalid. Please log in again." });
 
-            var policy = await _context.UserAIPolicies.FirstOrDefaultAsync(p => p.UserId == userId);
-            if (policy == null)
-            {
-                policy = new UserAIPolicy { UserId = userId };
-                await _context.UserAIPolicies.AddAsync(policy);
-            }
-
-            policy.SmartSeed = (AIMode)model.SmartSeed;
-            policy.Documentation = (AIMode)model.Documentation;
-            policy.Scaffolding = (AIMode)model.Scaffolding;
-            policy.SchemaGeneration = (AIMode)model.SchemaGeneration;
-            policy.SchemaRevision = (AIMode)model.SchemaRevision;
-            policy.DbaAnalysis = (AIMode)model.DbaAnalysis;
-            policy.Migration = (AIMode)model.Migration;
-            policy.Voice = (AIMode)model.Voice;
-            // Advanced null ise DOKUNULMUYOR: model secimlerini kaydeden eski bir
-            // istemci, farkinda olmadan gelismis ayarlari varsayilana dondururdu.
-            if (model.Advanced is not null)
-                policy.AdvancedJson = model.Advanced.ToJson();
-            policy.UpdatedAt = DateTime.UtcNow;
-
-            _context.UserAIPolicies.Update(policy);
-            await _context.SaveChangesAsync();
+            await _policies.SaveAsync(userId,
+                new AiPolicySnapshot(
+                    (AIMode)model.SmartSeed, (AIMode)model.Documentation, (AIMode)model.Scaffolding,
+                    (AIMode)model.SchemaGeneration, (AIMode)model.SchemaRevision, (AIMode)model.DbaAnalysis,
+                    (AIMode)model.Migration, (AIMode)model.Voice, null),
+                // Advanced null ise DOKUNULMUYOR: model seçimlerini kaydeden eski istemci gelişmiş ayarları sıfırlamasın.
+                model.Advanced?.ToJson());
 
             return Ok(new { Message = "AI Policy updated successfully." });
         }
@@ -123,7 +88,6 @@ namespace Namines.API.Controllers
         public int Migration { get; set; }
         public int Voice { get; set; }
 
-        /// <summary>Gelismis AI tercihleri. Null ise mevcut kayit korunur.</summary>
         public AiAdvancedSettings? Advanced { get; set; }
     }
 }

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Namines.Core.Enums;
 
-namespace Namines.Core.Models.Auth
+namespace Namines.Governance.Domain
 {
     /// <summary>
     /// "Database PR" — new-phase/29-DATABASE-CHANGE-REVIEW.md. İki <see cref="SchemaVersion"/>
@@ -40,7 +40,6 @@ namespace Namines.Core.Models.Auth
         public string ImpactReportJson { get; set; } = null!;
 
         public string? CreatedByUserId { get; set; }
-        public ApplicationUser? CreatedByUser { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? ResolvedAt { get; set; }
@@ -112,7 +111,6 @@ namespace Namines.Core.Models.Auth
         public ChangeRequest ChangeRequest { get; set; } = null!;
 
         public string? UserId { get; set; }
-        public ApplicationUser? User { get; set; }
 
         public ApprovalDecision Decision { get; set; }
         public string? Comment { get; set; }

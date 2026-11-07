@@ -1,21 +1,10 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.EntityFrameworkCore;
-using Namines.Core.Analysis;
+using Namines.BuildingBlocks.Application;
 using Namines.Core.Enums;
-using Namines.Core.Interfaces;
-using Namines.Core.Models;
-using Namines.Core.Models.Auth;
-using Namines.Infrastructure.Data;
+using Namines.Governance.Application;
 
 namespace Namines.API.Controllers;
 
@@ -50,193 +39,50 @@ public class SetAutoApproveSafeRequest
 }
 
 /// <summary>
-/// "Database PR" — new-phase/29-DATABASE-CHANGE-REVIEW.md. G8 (SchemaImpactAnalyzer),
-/// G9 (risk sınıflandırması) ve G10'un (Branch/SchemaVersion) hepsini birleştiren yüzey.
-///
-/// <see cref="CreateQuick"/> bilinçli bir kapsam sadeleştirmesi: doc, kullanıcının önce
-/// bir branch açıp üzerinde çalıştığı tam bir Git-benzeri akış varsayıyor. Faz 0'da
-/// frontend'de böyle bir branch-yönetim UI'ı yok (canvas'taki BranchControlPanel hâlâ
-/// TAMAMEN istemci-taraflı eski model — bkz. 30-SERVER-SIDE-BRANCHING.md §1, bağlanması
-/// G17'nin işi). Bu yüzden "Request Review" tek bir aksiyon: proje için sunucu-taraflı
-/// bir "main" branch'i yoksa oluşturur, mevcut canvas şemasını yeni bir SchemaVersion
-/// olarak commit'ler, ve bir önceki versiyona karşı otomatik CR açar. Kullanıcı hiçbir
-/// branch kavramıyla uğraşmaz — ama altyapı G10'un gerçek tabloları üzerinde çalışır.
+/// Veritabanı değişiklik incelemesi (Database PR). Yetki, durum geçişi ve eşzamanlılık Governance'ta
+/// (<see cref="IChangeRequestService"/>); burada yalnızca HTTP eşlemesi var.
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
 public class ChangeRequestController : ControllerBase
 {
-    private readonly AuthDbContext _context;
-    private readonly IMigrationService _migrationService;
-    private readonly IBranchTestRunner _testRunner;
-    private readonly IAIService _aiService;
-    private readonly AiQuotaService _quota;
-
-    // BranchController'daki aynı gerekçe: frontend enum'ları string yazıyor,
-    // dönüştürücü olmadan Deserialize<DatabaseSchema> patlıyor.
-    private static readonly JsonSerializerOptions SchemaJsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter() }
-    };
-
-    private readonly ITenantProjectAuthority _authority;
-    private readonly IStudioProjects _projects;
+    private readonly IChangeRequestService _changeRequests;
     private readonly Namines.Studio.Application.IProjectLifecycleService _lifecycle;
-    private readonly IStudioBranches _branches;
 
-    public ChangeRequestController(
-        AuthDbContext context,
-        IMigrationService migrationService,
-        IBranchTestRunner testRunner,
-        IAIService aiService,
-        AiQuotaService quota,
-        ITenantProjectAuthority authority,
-        IStudioProjects projects,
-        IStudioBranches branches,
-        Namines.Studio.Application.IProjectLifecycleService lifecycle)
+    public ChangeRequestController(IChangeRequestService changeRequests, Namines.Studio.Application.IProjectLifecycleService lifecycle)
     {
+        _changeRequests = changeRequests;
         _lifecycle = lifecycle;
-        _authority = authority;
-        _projects = projects;
-        _branches = branches;
-        _context = context;
-        _migrationService = migrationService;
-        _testRunner = testRunner;
-        _aiService = aiService;
-        _quota = quota;
     }
-
-    /// <summary>
-    /// Etki açıklaması + migration üretimi için tahmini token. Gerçek kullanım
-    /// sağlayıcıdan okunmuyor (bu iki çağrı token sayısı döndürmüyor), o yüzden
-    /// sabit bir tahminle rezerve ediliyor — ölçemediğimizde bütçenin LEHİNE
-    /// hata yapmak, hiç ölçmemekten iyidir (docs/last-review M-4).
-    /// </summary>
-    private const int ImpactExplanationTokenEstimate = 2_000;
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
+    private IActionResult Map<T>(ModuleOutcome<T> outcome, Func<T, object> ok) => outcome.Kind switch
+    {
+        ModuleOutcomeKind.Ok => Ok(ok(outcome.Value!)),
+        ModuleOutcomeKind.NotFound => NotFound(new { error = outcome.Error }),
+        ModuleOutcomeKind.Invalid => BadRequest(new { error = outcome.Error }),
+        ModuleOutcomeKind.Conflict => Conflict(new { error = outcome.Error }),
+        ModuleOutcomeKind.Forbidden => Forbid(),
+        _ => StatusCode(outcome.StatusCode ?? 500, new { error = outcome.Error }),
+    };
+
+    // POST /api/changerequest/quick — "Request Review": son şemayı sürüm olarak kaydeder ve bir istek açar.
     [HttpPost("quick")]
     [RequestSizeLimit(SchemaRequestLimits.SingleSchemaBytes)]
-    public async Task<IActionResult> CreateQuick([FromBody] QuickChangeRequestRequest request)
+    public async Task<IActionResult> CreateQuick([FromBody] QuickChangeRequestRequest request, CancellationToken ct)
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        if (string.IsNullOrWhiteSpace(request.ProjectId) || string.IsNullOrWhiteSpace(request.SchemaJson))
-            return BadRequest(new { error = "ProjectId and SchemaJson are required." });
-
-        // 05 §6: şema yazma/CR açma → Editor ve üstü.
-        if (!await _authority.CanEditAsync(request.ProjectId, userId))
-            return NotFound(new { error = "Project not found, or it does not belong to this user." });
-        var project = await _projects.GetHeaderAsync(request.ProjectId)
-            ?? throw new InvalidOperationException("Project disappeared after the access check.");
-
-        DatabaseSchema headSchema;
-        try
-        {
-            headSchema = JsonSerializer.Deserialize<DatabaseSchema>(request.SchemaJson,
-                SchemaJsonOptions) ?? new DatabaseSchema();
-        }
-        catch (JsonException)
-        {
-            return BadRequest(new { error = "SchemaJson is not a valid DatabaseSchema." });
-        }
-
-        // Yarışa karşı sertleştirilmiş tek kopya: Studio sözleşmesi.
-        var branch = await _branches.GetOrCreateDefaultAsync(request.ProjectId, userId);
-
-        // Taban, sürüm eklenmeden önceki son sürüm. Sürüm numarası yarışı sözleşmenin içinde: aynı anda
-        // iki "Request Review" ikisini de kaydeder; taban bir önceki numaraya ait olur.
-        var headVersion = await _branches.AddVersionAsync(
-            branch.Id, request.SchemaJson, request.Message, (short)headSchema.Tables.Count, userId);
-        var previousVersion = headVersion.Version > 1
-            ? await _branches.GetVersionAtAsync(branch.Id, headVersion.Version - 1)
-            : null;
-        var baseSchema = previousVersion is not null
-            ? JsonSerializer.Deserialize<DatabaseSchema>(previousVersion.SchemaJson, SchemaJsonOptions) ?? new DatabaseSchema()
-            : new DatabaseSchema();
-
-        var engine = Enum.TryParse<DatabaseType>(project.DbType, ignoreCase: true, out var parsedEngine)
-            ? parsedEngine
-            : DatabaseType.PostgreSQL;
-
-        var impact = SchemaImpactAnalyzer.Analyze(baseSchema, headSchema, engine);
-
-        // G16 — new-phase/29-DATABASE-CHANGE-REVIEW.md §3: Safe risk, proje bunu açıkça
-        // opt-in etmişse insan onayı beklemeden Approved olarak açılır. Diğer her risk
-        // seviyesi (Risky dahil) her zaman PendingReview'dan başlar.
-        //
-        // previousVersion KOŞULU ŞART: ilk talepte karşılaştırılacak bir taban yok,
-        // yani boş şemaya karşı diff alınıyor ve her şey "eklendi" görünüyor — tablo
-        // silen bir talep bile Safe çıkıyor. Otomatik onay açıkken bu, bir projedeki
-        // ilk yıkıcı değişikliğin insan görmeden onaylanması demekti.
-        //
-        // Taban yoksa risk seviyesi bir şey KANITLAMIYOR; kanıtlanmamış güvenliği
-        // onaya çevirmek bu ürünün tam olarak önlemek için var olduğu şey.
-        var autoApprove = previousVersion is not null
-                       && impact.OverallRisk == RiskLevel.Safe
-                       && project.AutoApproveSafeChanges;
-        var now = DateTime.UtcNow;
-
-        var changeRequest = new ChangeRequest
-        {
-            ProjectId = request.ProjectId,
-            BranchId = branch.Id,
-            BaseVersionId = previousVersion?.Id,
-            HeadVersionId = headVersion.Id,
-            Title = request.Title ?? $"Schema update — v{headVersion.Version}",
-            Status = autoApprove ? ChangeRequestStatus.Approved : ChangeRequestStatus.PendingReview,
-            RiskLevel = impact.OverallRisk,
-            ImpactReportJson = JsonSerializer.Serialize(impact),
-            CreatedByUserId = userId,
-            CreatedAt = now,
-            ResolvedAt = autoApprove ? now : null,
-            // Onay kuralının dayanağı BURADA sabitleniyor — bkz.
-            // ChangeRequest.VotingMembersAtCreation'ın notu (docs/last-review M-1).
-            VotingMembersAtCreation = await _authority.CountVotingMembersAsync(request.ProjectId),
-        };
-        await _context.ChangeRequests.AddAsync(changeRequest);
-
-        await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
-        {
-            ChangeRequestId = changeRequest.Id,
-            ProjectId = changeRequest.ProjectId,
-            ChangeRequestTitle = changeRequest.Title,
-            Action = ChangeRequestAuditAction.Created,
-            ActorUserId = userId,
-            Details = $"Risk={impact.OverallRisk}",
-            CreatedAt = now
-        });
-
-        if (autoApprove)
-        {
-            await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
-            {
-                ChangeRequestId = changeRequest.Id,
-                ProjectId = changeRequest.ProjectId,
-                ChangeRequestTitle = changeRequest.Title,
-                Action = ChangeRequestAuditAction.AutoApproved,
-                ActorUserId = null, // sistem-güdümlü — hiçbir insan onaylamadı
-                Details = "Safe risk + project.AutoApproveSafeChanges enabled",
-                // GetAuditLog'un tek sıralama anahtarı CreatedAt; Postgres eşit değerlerde
-                // sıra garanti etmez, o yüzden "Created"tan sonraya düşmesi ZORUNLU.
-                // 1 tick (100ns) YETMEZ: timestamptz mikrosaniye çözünürlüğünde saklanır,
-                // sub-mikrosaniye fark yazarken kırpılır ve iki satır aynı değere düşerdi
-                // (gerçek DB'ye karşı doğrulandı). 10 tick = tam 1 mikrosaniye.
-                CreatedAt = now.AddTicks(10)
-            });
-        }
-
-        await _context.SaveChangesAsync();
-
-        return Ok(new { changeRequest.Id });
+        return Map(
+            await _changeRequests.CreateQuickAsync(userId,
+                new QuickChangeRequestInput(request.ProjectId, request.SchemaJson, request.Title, request.Message), ct),
+            created => new { created.Id });
     }
 
-    /// <summary>G16 — proje sahibi, Safe risk'li değişikliklerin insan onayı beklemeden
-    /// otomatik onaylanıp onaylanmayacağını değiştirir.</summary>
+    // PUT /api/changerequest/project/{projectId}/auto-approve-safe
     [HttpPut("project/{projectId}/auto-approve-safe")]
     public async Task<IActionResult> SetAutoApproveSafe(string projectId, [FromBody] SetAutoApproveSafeRequest request)
     {
@@ -250,429 +96,78 @@ public class ChangeRequestController : ControllerBase
         return Ok(new { Id = projectId, AutoApproveSafeChanges = request.Enabled });
     }
 
-    /// <summary>G16 — bir CR'ın yaşam döngüsü boyunca durum geçişlerinin (kim/ne zaman/neden)
-    /// append-only kaydı. İnsan oyları için bkz. GetDetail'in Approvals alanı — bu ayrı
-    /// uç nokta, otomatik onay gibi insan oyu olmayan olayları da aynı zaman çizelgesinde
-    /// gösterir.</summary>
     [HttpGet("{id}/audit")]
-    public async Task<IActionResult> GetAuditLog(string id)
+    public async Task<IActionResult> GetAuditLog(string id, CancellationToken ct)
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var cr = await _context.ChangeRequests.FirstOrDefaultAsync(c => c.Id == id);
-        if (cr is null) return NotFound(new { error = "Change request not found." });
-
-        // 05 §6: okuma için Viewer dahil her org üyesi yeterli.
-        if (!await _authority.CanViewAsync(cr.ProjectId, userId))
-            return NotFound(new { error = "Change request not found." });
-
-        var entries = await _context.ChangeRequestAuditLogs
-            .Include(a => a.ActorUser)
-            .Where(a => a.ChangeRequestId == id)
-            .OrderBy(a => a.CreatedAt)
-            .Select(a => new
-            {
-                a.Id,
-                a.Action,
-                a.ActorUserId,
-                ActorUsername = a.ActorUser != null ? a.ActorUser.UserName : null,
-                a.Details,
-                a.CreatedAt
-            })
-            .ToListAsync();
-
-        return Ok(entries);
+        return Map(await _changeRequests.GetAuditAsync(userId, id, ct),
+            entries => entries.Select(a => new { a.Id, a.Action, a.ActorUserId, a.ActorUsername, a.Details, a.CreatedAt }).ToList());
     }
 
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetDetail(string id)
+    public async Task<IActionResult> GetDetail(string id, CancellationToken ct)
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var cr = await _context.ChangeRequests
-            .Include(c => c.Approvals).ThenInclude(a => a.User)
-            .FirstOrDefaultAsync(c => c.Id == id);
-        if (cr is null) return NotFound(new { error = "Change request not found." });
-
-        // 05 §6: okuma için Viewer dahil her org üyesi yeterli.
-        if (!await _authority.CanViewAsync(cr.ProjectId, userId))
-            return NotFound(new { error = "Change request not found." });
-        var project = await _projects.GetHeaderAsync(cr.ProjectId)
-            ?? throw new InvalidOperationException("Project disappeared after the access check.");
-
-        var impact = JsonSerializer.Deserialize<ImpactReport>(cr.ImpactReportJson);
-
-        // Sürüm ve branch Studio'nun: FK DB'de korunuyor, satır burada sözleşmeyle okunuyor.
-        var headVersion = await _branches.GetVersionAsync(cr.HeadVersionId)
-            ?? throw new InvalidOperationException("Head version is missing.");
-        var baseVersion = cr.BaseVersionId is null ? null : await _branches.GetVersionAsync(cr.BaseVersionId);
-        var branch = await _branches.GetAsync(cr.BranchId)
-            ?? throw new InvalidOperationException("Branch is missing.");
-
-        var headSchema = JsonSerializer.Deserialize<DatabaseSchema>(headVersion.SchemaJson,
-            SchemaJsonOptions) ?? new DatabaseSchema();
-        var baseSchema = baseVersion is not null
-            ? JsonSerializer.Deserialize<DatabaseSchema>(baseVersion.SchemaJson,
-                SchemaJsonOptions) ?? new DatabaseSchema()
-            : new DatabaseSchema();
-
-        var engine = Enum.TryParse<DatabaseType>(project.DbType, ignoreCase: true, out var parsedEngine)
-            ? parsedEngine
-            : DatabaseType.PostgreSQL;
-
-        // SQL sekmesi: elimizdeki tek gerçek "diff'ten kod üretimi" motoru EF Core migration
-        // üreticisi — ham ALTER-diff DDL üreten ayrı bir motor henüz yok (bilinçli, bkz. sınıf
-        // yorumu). Deterministik olduğu için burada yeniden hesaplanıyor, ayrıca saklanmıyor.
-        //
-        // Migration üretimi ve G15'in AI Impact Explainer'ı birbirinden bağımsız iki ayrı AI
-        // çağrısı — art arda await etmek yerine paralel çalıştırılır, sayfa yükleme süresi
-        // ikisinin TOPLAMI değil daha YAVAŞ olanı kadar sürer. Her biri kendi hatasını yutar
-        // (AI anahtarı/servis yoksa ilgili sekme boş görünür, diğerleri etkilenmez).
-        async Task<MigrationResult?> TryGenerateMigrationAsync()
+        return Map(await _changeRequests.GetDetailAsync(userId, id, ct), d => new
         {
-            try { return await _migrationService.GenerateMigrationAsync(baseSchema, headSchema, engine); }
-            catch { return null; }
-        }
-
-        async Task<string?> TryExplainImpactAsync()
-        {
-            try { return await _aiService.ExplainImpactAsync(impact!); }
-            catch { return null; }
-        }
-
-        // SAKLANMIŞ sonuç varsa MODEL HİÇ ÇAĞRILMIYOR.
-        //
-        // <b>Bulunan açık (docs/last-review M-4):</b> bu uç her görüntülemede İKİ
-        // LLM çağrısı yapıyordu, Viewer'a açıktı, hız sınırı yoktu ve çağrılar AI
-        // kotasına HİÇ yazılmıyordu — bir sekmeyi yenilemeye devam eden biri,
-        // kimsenin bütçesinden düşmeyen sınırsız model çağrısı üretebiliyordu.
-        // (Yukarıdaki eski yorum migration üreticisini "deterministik EF Core"
-        // sanıyordu; gerçekte o da `GroqAIService.GenerateMigrationCodeAsync`'e,
-        // yani modele gidiyor.)
-        //
-        // Girdi DEĞİŞMEZ — CR'ın base/head şemaları sabit — dolayısıyla yeniden
-        // hesaplamanın hiçbir faydası yok. Bir kez hesaplanıp kayda yazılıyor.
-        var migration = cr.MigrationResultJson is not null
-            ? JsonSerializer.Deserialize<MigrationResult>(cr.MigrationResultJson, SchemaJsonOptions)
-            : null;
-        var aiExplanation = cr.AiExplanation;
-
-        if (migration is null || aiExplanation is null)
-        {
-            // Hesaplama AI KOTASINA yazılıyor. Kota dolmuşsa sekmeler boş görünür —
-            // isteğin tamamı reddedilmiyor, çünkü CR'ın kendisi (risk, onaylar,
-            // şema diff'i) AI'dan bağımsız ve kullanıcı onu görebilmeli.
-            var reservation = await _quota.TryReserveAsync(userId, ImpactExplanationTokenEstimate);
-
-            if (reservation == AiQuotaDecision.Allowed)
+            d.Id,
+            d.ProjectId,
+            d.BranchId,
+            d.BranchName,
+            d.Title,
+            d.Status,
+            d.RiskLevel,
+            d.CreatedByUserId,
+            d.CreatedAt,
+            d.ResolvedAt,
+            HeadVersion = new { d.HeadVersion.Id, d.HeadVersion.Version, d.HeadVersion.TableCount, d.HeadVersion.CreatedAt },
+            BaseVersion = d.BaseVersion is null ? null : new { d.BaseVersion.Id, d.BaseVersion.Version, d.BaseVersion.TableCount, d.BaseVersion.CreatedAt },
+            Impact = d.Impact,
+            AiExplanation = d.AiExplanation,
+            Migration = d.Migration,
+            TestRun = d.TestRun is null ? null : new
             {
-                // İki çağrı bağımsız: art arda await etmek yerine paralel
-                // çalıştırılır, sayfa ikisinin TOPLAMI değil daha YAVAŞ olanı kadar
-                // sürer. Her biri kendi hatasını yutar (AI anahtarı/servis yoksa
-                // ilgili sekme boş görünür, diğerleri etkilenmez).
-                var needsMigration = migration is null;
-                var needsExplanation = aiExplanation is null;
-                var migrationTask = migration is null ? TryGenerateMigrationAsync() : Task.FromResult<MigrationResult?>(migration);
-                var explanationTask = aiExplanation is null ? TryExplainImpactAsync() : Task.FromResult<string?>(aiExplanation);
-                await Task.WhenAll(migrationTask, explanationTask);
-
-                migration = migrationTask.Result;
-                aiExplanation = explanationTask.Result;
-
-                // Başarısız (null dönen) çağrıların payı iade ediliyor: servis arızası
-                // kullanıcının günlük hakkından kesilmemeli. Rezervasyon iki çağrıyı
-                // birlikte kapsıyor; yalnızca gerçekten ÇAĞRILANLAR sayılır.
-                var attempted = (needsMigration ? 1 : 0) + (needsExplanation ? 1 : 0);
-                var failed = (needsMigration && migration is null ? 1 : 0)
-                           + (needsExplanation && aiExplanation is null ? 1 : 0);
-                if (failed > 0)
-                    await _quota.RefundAsync(userId, ImpactExplanationTokenEstimate * failed / attempted);
-
-                // YALNIZCA başarılı sonuç saklanıyor: null yazmak, geçici bir
-                // servis arızasını kalıcı bir "açıklama yok" hâline çevirirdi.
-                var changed = false;
-                if (migration is not null && cr.MigrationResultJson is null)
-                {
-                    cr.MigrationResultJson = JsonSerializer.Serialize(migration, SchemaJsonOptions);
-                    changed = true;
-                }
-                if (aiExplanation is not null && cr.AiExplanation is null)
-                {
-                    cr.AiExplanation = aiExplanation;
-                    changed = true;
-                }
-                if (changed) await _context.SaveChangesAsync();
-            }
-        }
-
-        // UI'ın gösterdiği sayı, Decide'ın uyguladığı sayıyla AYNI olmalı — yoksa
-        // "1/2 onay" yazarken CR onaylanmış görünür (kafa karıştırıcı ve güvensiz).
-        var teamSize = EffectiveTeamSize(cr, await _authority.CountVotingMembersAsync(cr.ProjectId));
-        var required = ChangeRequestApprovalPolicy.EffectiveRequiredApprovals(cr.RiskLevel, teamSize);
-        var approvedCount = cr.Approvals.Count(a => a.Decision == ApprovalDecision.Approved);
-        var rejectedCount = cr.Approvals.Count(a => a.Decision == ApprovalDecision.Rejected);
-
-        return Ok(new
-        {
-            cr.Id,
-            cr.ProjectId,
-            cr.BranchId,
-            BranchName = branch.Name,
-            cr.Title,
-            cr.Status,
-            cr.RiskLevel,
-            cr.CreatedByUserId,
-            cr.CreatedAt,
-            cr.ResolvedAt,
-            HeadVersion = new { headVersion.Id, headVersion.Version, headVersion.TableCount, headVersion.CreatedAt },
-            BaseVersion = baseVersion is null ? null : new { baseVersion.Id, baseVersion.Version, baseVersion.TableCount, baseVersion.CreatedAt },
-            Impact = impact,
-            AiExplanation = aiExplanation,
-            Migration = migration,
-            TestRun = cr.TestRunAt is null ? null : new
-            {
-                cr.TestRunSupported,
-                cr.TestRunSuccess,
-                cr.TestRunMessage,
-                cr.TestRunFailedStatement,
-                cr.TestRunDurationMs,
-                cr.TestRunAt
+                d.TestRun.TestRunSupported,
+                d.TestRun.TestRunSuccess,
+                d.TestRun.TestRunMessage,
+                d.TestRun.TestRunFailedStatement,
+                d.TestRun.TestRunDurationMs,
+                d.TestRun.TestRunAt,
             },
-            RequiredApprovals = required,
-            ApprovedCount = approvedCount,
-            RejectedCount = rejectedCount,
-            Approvals = cr.Approvals.Select(a => new
-            {
-                a.Id,
-                a.UserId,
-                // Hesabı silinen onaylayıcı (UserId/User null): çökmesin, "Deleted user" göster.
-                Username = a.User != null ? a.User.UserName : "Deleted user",
-                a.Decision,
-                a.Comment,
-                a.CreatedAt
-            })
+            d.RequiredApprovals,
+            d.ApprovedCount,
+            d.RejectedCount,
+            Approvals = d.Approvals.Select(a => new { a.Id, a.UserId, a.Username, a.Decision, a.Comment, a.CreatedAt }),
         });
     }
 
     [HttpGet("project/{projectId}")]
-    public async Task<IActionResult> ListForProject(string projectId)
+    public async Task<IActionResult> ListForProject(string projectId, CancellationToken ct)
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        if (!await _authority.CanViewAsync(projectId, userId))
-            return NotFound(new { error = "Project not found, or it does not belong to this user." });
-
-        var entities = await _context.ChangeRequests
-            .Include(c => c.Approvals)
-            .Where(c => c.ProjectId == projectId)
-            .OrderByDescending(c => c.CreatedAt)
-            .ToListAsync();
-
-        var listTeamSize = await _authority.CountVotingMembersAsync(projectId);
-
-        // Toplu: satır başına ayrı sorgu olmasın.
-        var listBranches = await _branches.GetManyAsync(entities.Select(c => c.BranchId).Distinct().ToList());
-        var listVersions = await _branches.GetVersionHeadersAsync(entities.Select(c => c.HeadVersionId).Distinct().ToList());
-
-        // ChangeRequestApprovalPolicy.EffectiveRequiredApprovals bir SQL çevirisi olmayan saf C#
-        // fonksiyonu — EF'in .Select() projeksiyonunda client-evaluation'a izin verilmediği
-        // için önce materialize edilip sonra bellek içinde eşleniyor.
-        var list = entities.Select(c => new
-        {
-            c.Id,
-            c.Title,
-            c.Status,
-            c.RiskLevel,
-            BranchName = listBranches[c.BranchId].Name,
-            TableCount = listVersions[c.HeadVersionId].TableCount,
-            c.CreatedAt,
-            c.ResolvedAt,
-            ApprovedCount = c.Approvals.Count(a => a.Decision == ApprovalDecision.Approved),
-            RequiredApprovals = ChangeRequestApprovalPolicy.EffectiveRequiredApprovals(c.RiskLevel, EffectiveTeamSize(c, listTeamSize))
-        });
-
-        return Ok(list);
+        return Map(await _changeRequests.ListForProjectAsync(userId, projectId, ct),
+            list => list.Select(c => new
+            {
+                c.Id, c.Title, c.Status, c.RiskLevel, c.BranchName, c.TableCount, c.CreatedAt, c.ResolvedAt, c.ApprovedCount, c.RequiredApprovals,
+            }).ToList());
     }
-
-    /// <summary>
-    /// Onay kuralının dayanağı olan ekip büyüklüğü — UI (liste/detay) ile
-    /// <see cref="Decide"/> AYNI değeri kullanmalı; yoksa ekip küçüldüğünde ekran
-    /// "1/1 onay" gösterirken oylama hâlâ 2 onay isteyebilir.
-    /// 0 = alan eklenmeden önce açılmış CR → canlı sayı.
-    /// </summary>
-    private static int EffectiveTeamSize(ChangeRequest cr, int liveTeamSize) =>
-        cr.VotingMembersAtCreation > 0
-            ? Math.Max(cr.VotingMembersAtCreation, liveTeamSize)
-            : liveTeamSize;
 
     [HttpPost("{id}/decide")]
-    public async Task<IActionResult> Decide(string id, [FromBody] DecideChangeRequestRequest request)
+    public async Task<IActionResult> Decide(string id, [FromBody] DecideChangeRequestRequest request, CancellationToken ct)
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var cr = await _context.ChangeRequests
-            .Include(c => c.Approvals)
-            .FirstOrDefaultAsync(c => c.Id == id);
-        if (cr is null) return NotFound(new { error = "Change request not found." });
-
-        // Oylama bir YAZMA eylemi — 05 §6'da viewer "yorum yapabilir" ama onaylayamaz.
-        // Bu kontrol sayesinde artık org'un BAŞKA bir Editor/Admin üyesi de buraya
-        // ulaşabiliyor; Destructive/Breaking'in "2 farklı kişi" kuralı ancak böyle
-        // uygulanabilir hâle geliyor (önceden yalnızca proje sahibi erişebildiği için
-        // kural matematiksel olarak imkânsızdı).
-        if (!await _authority.CanEditAsync(cr.ProjectId, userId))
-            return NotFound(new { error = "Change request not found." });
-
-        var approvedCountBefore = cr.Approvals.Count(a => a.Decision == ApprovalDecision.Approved);
-        var alreadyVoted = cr.Approvals.Any(a => a.UserId == userId);
-
-        // Onay kuralı ekip büyüklüğüne uyarlanır: 3+ kişide 2 onay, 2 kişide 1 onay,
-        // tek kişide yazarın kendi onayı (aksi hâlde CR sonsuza kadar kilitlenirdi).
-        //
-        // <b>Dayanak CR AÇILDIĞI ANDA sabitlenen sayı (docs/last-review M-1).</b>
-        // Canlı sayıyla EN BÜYÜKÜ alınıyor, en küçüğü değil:
-        //   • ekip BÜYÜMÜŞSE canlı sayı kazanır — ideal kural uygulanabilir hâle
-        //     gelmiştir ve onu görmezden gelmek kuralı gereksiz yere gevşetirdi.
-        //   • ekip KÜÇÜLMÜŞSE sabitlenen sayı kazanır — saldırı tam olarak budur.
-        //
-        // <b>Kabul edilen bedel, dürüstçe:</b> ekip GERÇEKTEN küçüldüğünde (biri
-        // işten ayrıldı) açık bir Destructive CR kilitlenebilir. Çıkış yolu var
-        // (CR'ı kapatıp yenisini açmak, ki o anın ekip büyüklüğüyle yeniden
-        // sabitlenir) ve bu, tersini seçmenin bedelinden çok daha küçük: tersi,
-        // yıkıcı bir değişikliğin yetkisiz onaylanması olurdu.
-        //
-        // 0 = bu alan eklenmeden ÖNCE açılmış CR → canlı sayıya düş.
-        var teamSize = EffectiveTeamSize(cr, await _authority.CountVotingMembersAsync(cr.ProjectId));
-
-        var evaluation = ChangeRequestApprovalPolicy.EvaluateVote(
-            cr.RiskLevel, cr.Status, cr.CreatedByUserId, userId, request.Decision,
-            approvedCountBefore, alreadyVoted, teamSize);
-
-        switch (evaluation.Outcome)
-        {
-            case ChangeRequestApprovalPolicy.VoteOutcome.RejectedAlreadyResolved:
-                return Conflict(new { error = "This change request has already been decided." });
-            case ChangeRequestApprovalPolicy.VoteOutcome.RejectedAlreadyVoted:
-                return Conflict(new { error = "You have already voted on this change request." });
-            case ChangeRequestApprovalPolicy.VoteOutcome.RejectedSelfApprovalNotAllowed:
-                return Forbid();
-        }
-
-        var approval = new ChangeRequestApproval
-        {
-            ChangeRequestId = cr.Id,
-            UserId = userId,
-            Decision = request.Decision,
-            Comment = request.Comment,
-            CreatedAt = DateTime.UtcNow
-        };
-        await _context.ChangeRequestApprovals.AddAsync(approval);
-
-        // Audit kaydı, oyun CR'ın DURUMUNU değiştirip değiştirmediğinden BAĞIMSIZ yazılır.
-        // Önceden bu blok `if (NewStatus is not null)` içindeydi: Destructive/Breaking bir
-        // CR'da 2 onay gerektiği için ilk onaylayan durumu değiştirmiyor, dolayısıyla
-        // audit'e hiç girmiyordu — tam da iki-kişi kuralının uygulandığı en riskli
-        // kategoride onaylayanların yarısı görünmez oluyordu.
-        await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
-        {
-            ChangeRequestId = cr.Id,
-            ProjectId = cr.ProjectId,
-            ChangeRequestTitle = cr.Title,
-            Action = request.Decision == ApprovalDecision.Approved
-                ? ChangeRequestAuditAction.Approved
-                : ChangeRequestAuditAction.Rejected,
-            ActorUserId = userId,
-            Details = request.Comment,
-            CreatedAt = DateTime.UtcNow
-        });
-
-        if (evaluation.NewStatus is not null)
-        {
-            cr.Status = evaluation.NewStatus.Value;
-            cr.ResolvedAt = DateTime.UtcNow;
-        }
-
-        try
-        {
-            await _context.SaveChangesAsync();
-        }
-        catch (Exception ex) when (DbUniqueViolation.IsUniqueViolation(ex))
-        {
-            // Aynı kullanıcının eşzamanlı ikinci oyu: (ChangeRequestId, UserId)
-            // benzersiz indeksine çarptı. Ön kontrol (alreadyVoted) yarışı
-            // kapatamaz, bu yüzden 500 yerine ilk oyla aynı 409 dönüyor.
-            return Conflict(new { error = "You have already voted on this change request." });
-        }
-
-        // OYLAR SAYILDIKTAN SONRA YENİDEN UZLAŞTIRMA (docs/last-review L-2).
-        //
-        // <b>Bulunan açık:</b> <c>approvedCountBefore</c> yüklenen nesneden okunuyor
-        // ve durum kararı o BAYAT sayıya göre veriliyordu. İki farklı kullanıcı aynı
-        // anda onayladığında ikisi de "0 onay var" görüyor, ikisi de "henüz yetmedi"
-        // diyor ve iki onay yazılıyor — sonuç: quorum DOLU ama CR
-        // <c>PendingReview</c>'da asılı. Onaylayanlar işi bitti sanıyor, CR hiç
-        // ilerlemiyor ve kimse sebebini görmüyor.
-        //
-        // Çözüm kilit değil: oy YAZILDIKTAN sonra veritabanından yeniden saymak ve
-        // gerekirse geçişi KOŞULLU bir <c>UPDATE</c> ile uygulamak. Yarışın her iki
-        // tarafı da bunu yapıyor, yani hangisi son yazarsa doğru sonuca varıyor;
-        // koşullu güncelleme de iki tarafın aynı geçişi iki kez uygulamasını
-        // engelliyor.
-        if (cr.Status == ChangeRequestStatus.PendingReview
-            && request.Decision == ApprovalDecision.Approved)
-        {
-            var approvedNow = await _context.ChangeRequestApprovals
-                .CountAsync(a => a.ChangeRequestId == cr.Id
-                                 && a.Decision == ApprovalDecision.Approved);
-
-            var required = ChangeRequestApprovalPolicy.EffectiveRequiredApprovals(cr.RiskLevel, teamSize);
-
-            if (approvedNow >= required)
-            {
-                var promoted = await _context.ChangeRequests
-                    .Where(c => c.Id == cr.Id && c.Status == ChangeRequestStatus.PendingReview)
-                    .ExecuteUpdateAsync(u => u
-                        .SetProperty(c => c.Status, ChangeRequestStatus.Approved)
-                        .SetProperty(c => c.ResolvedAt, DateTime.UtcNow));
-
-                if (promoted > 0)
-                {
-                    await _context.Entry(cr).ReloadAsync();
-
-                    // Geçiş denetim kaydına da yazılıyor: quorum'un NE ZAMAN dolduğu,
-                    // tek tek oylardan ayrı bir bilgi.
-                    await _context.ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
-                    {
-                        ChangeRequestId = cr.Id,
-                        ProjectId = cr.ProjectId,
-                        ChangeRequestTitle = cr.Title,
-                        Action = ChangeRequestAuditAction.Approved,
-                        ActorUserId = userId,
-                        Details = $"Quorum reached ({approvedNow}/{required}).",
-                        CreatedAt = DateTime.UtcNow,
-                    });
-                    await _context.SaveChangesAsync();
-                }
-            }
-        }
-
-        return Ok(new { cr.Id, cr.Status });
+        return Map(await _changeRequests.DecideAsync(userId, id, request.Decision, request.Comment, ct),
+            r => new { r.Id, r.Status });
     }
 
-    /// <summary>
-    /// "Run Tests" — new-phase/29-DATABASE-CHANGE-REVIEW.md §4. Impact Analysis'in
-    /// TAHMİN ettiğini burada gerçek bir ephemeral motor container'ında ÇALIŞTIRIP kanıtlıyoruz.
-    /// Senkron: container açılışı ~5-20sn sürebilir, MVP için bir job kuyruğu kurmuyoruz
-    /// (bkz. new-phase/30-SERVER-SIDE-BRANCHING.md §3 Adım 3 — "ucuz, hızlı bir MVP köprüsü").
-    /// </summary>
-    // Her çağrı 2-2.5 GB'lık bir DB container'ı açıyor — sınırsız eşzamanlılık Docker
-    // host'unu tüketir. DatabaseExecutorController/GatewayController ile aynı politika
-    // (kullanıcı başına dakikada 5). Controller'ın TAMAMINA değil sadece bu pahalı
-    // aksiyona uygulanır; liste/detay okumaları normal hızda kalmalı.
     [EnableRateLimiting("sensitive")]
     [HttpPost("{id}/run-tests")]
     public async Task<IActionResult> RunTests(string id, CancellationToken cancellationToken)
@@ -680,66 +175,17 @@ public class ChangeRequestController : ControllerBase
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var cr = await _context.ChangeRequests
-            .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
-        if (cr is null) return NotFound(new { error = "Change request not found." });
-
-        // Gerçek container açıyor (pahalı) — Viewer tetikleyemez.
-        if (!await _authority.CanEditAsync(cr.ProjectId, userId, cancellationToken))
-            return NotFound(new { error = "Change request not found." });
-        var project = await _projects.GetHeaderAsync(cr.ProjectId, cancellationToken)
-            ?? throw new InvalidOperationException("Project disappeared after the access check.");
-
-        var headVersion = await _branches.GetVersionAsync(cr.HeadVersionId, cancellationToken)
-            ?? throw new InvalidOperationException("Head version is missing.");
-        var headSchema = JsonSerializer.Deserialize<DatabaseSchema>(headVersion.SchemaJson, SchemaJsonOptions) ?? new DatabaseSchema();
-        var engine = Enum.TryParse<DatabaseType>(project.DbType, ignoreCase: true, out var parsedEngine)
-            ? parsedEngine
-            : DatabaseType.PostgreSQL;
-
-        var result = await _testRunner.RunAsync(headSchema, engine, cancellationToken);
-
-        cr.TestRunSupported = result.Supported;
-        cr.TestRunSuccess = result.Success;
-        cr.TestRunMessage = result.EngineMessage;
-        cr.TestRunFailedStatement = result.FailedStatement;
-        cr.TestRunDurationMs = result.DurationMs;
-        cr.TestRunAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return Ok(result);
+        return Map(await _changeRequests.RunTestsAsync(userId, id, cancellationToken), result => result);
     }
 
-    /// <summary>
-    /// G13 — "Etkilenen API/UI statik tahmini" (new-phase/28-IMPACT-ANALYSIS-ENGINE.md §5).
-    /// Kullanıcının yapıştırdığı/yüklediği dosyaları, bu CR'ın ImpactReport'undaki değişen
-    /// tablo/kolon adlarına karşı tarar. TAHMİNDİR — kesin değil (bkz. AffectedCodeScanner
-    /// sınıf yorumu). Kalıcı değil: sonuç saklanmaz, her çağrıda yeniden hesaplanır.
-    /// </summary>
     [HttpPost("{id}/scan-affected-code")]
-    public async Task<IActionResult> ScanAffectedCode(string id, [FromBody] ScanAffectedCodeRequest request)
+    public async Task<IActionResult> ScanAffectedCode(string id, [FromBody] ScanAffectedCodeRequest request, CancellationToken ct)
     {
         var userId = CurrentUserId;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-        var cr = await _context.ChangeRequests.FirstOrDefaultAsync(c => c.Id == id);
-        if (cr is null) return NotFound(new { error = "Change request not found." });
-
-        // 05 §6: okuma için Viewer dahil her org üyesi yeterli.
-        if (!await _authority.CanViewAsync(cr.ProjectId, userId))
-            return NotFound(new { error = "Change request not found." });
-        var project = await _projects.GetHeaderAsync(cr.ProjectId)
-            ?? throw new InvalidOperationException("Project disappeared after the access check.");
-
-        var impact = JsonSerializer.Deserialize<ImpactReport>(cr.ImpactReportJson)
-            ?? throw new InvalidOperationException("Stored ImpactReport could not be deserialized.");
-
-        var identifiers = AffectedCodeScanner.ExtractCandidateIdentifiers(impact);
-        var files = request.Files
-            .Where(f => !string.IsNullOrWhiteSpace(f.FileName))
-            .ToDictionary(f => f.FileName, f => f.Content);
-        var matches = AffectedCodeScanner.Scan(identifiers, files);
-
-        return Ok(new { candidateIdentifiers = identifiers, matches, filesScanned = files.Count });
+        return Map(
+            await _changeRequests.ScanAffectedCodeAsync(userId, id, request.Files.Select(f => new AffectedCodeFile(f.FileName, f.Content)).ToList(), ct),
+            scan => new { candidateIdentifiers = scan.CandidateIdentifiers, matches = scan.Matches, filesScanned = scan.FilesScanned });
     }
 }
