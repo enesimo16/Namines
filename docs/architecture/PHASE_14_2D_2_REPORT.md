@@ -16,7 +16,7 @@
 | API compatibility | PASS | Yetki matrisi 829 karşılaştırma, 0 fark; yeni duman betiği 46 etiketin şekli tabanla 0 fark (§7) |
 | Documentation | PASS | Bu rapor, `IMPLEMENTATION_STATUS`, `MODULE_OWNERSHIP`, `DATABASE_NORMALIZATION`, `MIGRATION_PLAN`, `docs/deploy/MIGRATION-VE-GERI-ALMA.md` §5.4 |
 | Performans | PASS | §9 |
-| Independent audit | CONDITIONALLY ACCEPTED, bulgular düzeltildi, yeniden denetim BEKLİYOR | `PHASE_14_2D_2_INDEPENDENT_AUDIT.md`; kapanış §12 |
+| Independent audit | 2. tur CONDITIONALLY ACCEPTED, R2-m1..m3 düzeltildi, yeniden denetim BEKLİYOR | `PHASE_14_2D_2_INDEPENDENT_AUDIT.md`; kapanış §12 ve §13 |
 
 ## 2. Son durum
 
@@ -141,11 +141,11 @@ Geçici değişiklik, derleme, `Phase14_2D1ModuleArchitectureTests`+`BoundarySca
 
 | Komut | Proje | Toplam | Geçen | Kalan | Atlanan | Süre | Ortam |
 |---|---|---|---|---|---|---|---|
-| `dotnet test -c Release --no-build` | `Namines.Tests` | 3347 | 3347 | 0 | 0 | 24 dk 05 sn | Windows, Docker PG17 |
+| `dotnet test -c Release --no-build` | `Namines.Tests` | 3351 | 3351 | 0 | 0 | 22 dk 28 sn | Windows, Docker PG17 |
 | `dotnet test -c Release --no-build` | `Namines.Tests.RunTests` | 19 | 19 | 0 | 0 | 1 dk 09 sn | Aynı |
 | `dotnet build ... --no-incremental` | çözüm | | | 0 hata | | | 0 uyarı |
 
-Taban 3184 → 3331 (+147) → denetim düzeltmeleriyle 3347 (+16: 4 webhook, 2 migration, 1 denetim izi rolü, 4 kota ara katmanı, 2 kimlik sınırı, 3 yeni taranan derleme). Yeniden adlandırılan/kaldırılan 5 test vardı ve burada ilk yazılan "hiçbiri" cümlesi yanlıştı; liste §12 m-5'te. Derleme `--no-incremental`: 0 uyarı, 0 hata.
+Taban 3184 → 3331 (+147) → 1. tur düzeltmeleriyle 3347 (+16: 4 webhook, 2 migration, 1 denetim izi rolü, 4 kota ara katmanı, 2 kimlik sınırı, 3 yeni taranan derleme). Yeniden adlandırılan/kaldırılan 5 test vardı ve burada ilk yazılan "hiçbiri" cümlesi yanlıştı; liste §12 m-5'te. 2. tur (R2-m1, R2-m2) sonrası 3351 (+4 yeni webhook testi; paralel test baştan yazıldı, sayıya girmez). Derleme `--no-incremental`: 0 uyarı, 0 hata.
 
 ## 12. Bağımsız denetim bulgularının kapanışı
 
@@ -216,3 +216,30 @@ Taşınmadı: ~250 dosyada geçen ad alanı ve migration anlık görüntüleri t
 - Down sonra eski ikili ile veri kontrolü yapılmadı (ucuz değil: eski derleme, `dotnet ef` Down ve HTTP turu gerekir). Down'ın veriyi geri koyduğu migration testleri (`Padded_and_blank_...` dahil) yerine geçer; açık madde.
 - Eski JWT canlı kontrolünü denetçi yaptı; yeniden yapılmadı.
 - Frontend dosyası değişmedi; `tsc`/`eslint`/`vitest`/`next build` çalıştırılmadı.
+
+## 13. 2. tur denetim bulgularının kapanışı (R2-m1, R2-m2, R2-m3)
+
+2. tur kararı CONDITIONALLY ACCEPTED (`PHASE_14_2D_2_INDEPENDENT_AUDIT.md` §10-11, `70b3e93`); üç küçük madde aynı fazda kapandı.
+
+### R2-m1 Bağlı olmayan müşterinin iptal/güncellemesi sıra hesabında kalır
+- Neden: M-1 düzeltmesi bağlı olmayan müşterinin `updated/deleted` olayını sıra hesabından çıkarıyordu; sonra gelen daha eski `checkout.session.completed` kullanıcıyı sabit `"active"` ile yükseltiyordu.
+- Düzeltme (`StripeWebhookService`):
+  1. Bağlı olmayan müşterinin güncelleme/silme olayı da sıra hesabına girer (`LatestProcessedForCustomer`); bağlı müşterinin stale olayı girmez (eskisi gibi).
+  2. Checkout eşlemeyi her zaman kurar. Daha yeni bir durum olayı görülmüşse (`newerStateSeen`): abonelik kimliği varsa durum Stripe'tan okunan GERÇEK durumdur (kilit altında, yani o olaydan sonra okunur); yoksa, en yeni olay bir iptalse `canceled` yazılır ve kullanıcı ücretsiz kalır; en yeni olay güncelleme ise durum değiştirilmez.
+  3. Sabit `"active"` kalktı: `StripeSubscriptionInfo` artık `Status` taşır (gerçek geçit `subscription.Status` doldurur). `canceled`/`unpaid`/`incomplete_expired` kullanıcıyı ücretsize indirir, diğer durumlar (deneme dahil) eskisi gibi ücretli yapar. Yalnızca abonelik kimliği olmayan ve daha yeni olay görülmemiş bir oturum "active" varsayar (eski davranış).
+- Testler (gerçek PG, `Phase14_2D2BillingRealPgTests`): `An_unmapped_customers_deleted_event_is_remembered_so_an_older_checkout_cannot_resurrect_the_user` (deleted -> daha eski checkout), `A_checkout_older_than_an_unmapped_update_writes_the_real_stripe_state_not_a_hard_coded_active` (updated -> daha eski checkout; iptal ve past_due durumları Stripe'tan gelir), `A_deleted_event_older_than_an_applied_checkout_is_stale` (checkout -> daha eski deleted), `A_checkout_and_a_newer_deleted_event_arriving_in_parallel_never_leave_the_user_paid` (30 tur paralel, başlangıç kapısı, ayrı bağlamlar). Sıra hesabını eski haline çevirince (`LatestProcessedForCustomer = apply`) ilk test ve paralel test düşüyor.
+- Canlı HTTP (`wh2.js`): önce `v1 checkout @+40 after deleted@+50 ... state= type=0` (düzeltmeden önce kullanıcı ücretli); sonra `state=canceled type=1`. 30 turlu paralel checkout/updated/deleted: "canceled olmayan ya da 5xx" 14 (ilk düzeltme denemesinde, iptal durumu yazılmadan) -> **0**; deadlock/500 yok.
+
+### R2-m2 Paralel test artık ayırt edici
+- `Different_events_of_one_customer_arriving_in_parallel_always_end_at_the_newest_state` baştan yazıldı: aynı müşterinin dört olayı (`active`, `past_due`, `active`, en yenisi `deleted`) ayrı `AuthDbContext`/bağlantı/işlemlerle, bir `Barrier` başlangıç kapısından `LongRunning` görevlerle aynı anda teslim edilir; 40 tur; yanıtlar 200 olmalı ve son durum `canceled` olmalı. (Eski tasarımdaki satır kilidi tutucusu ve gecikmeler kaldırıldı; asıl fark: aynı anda dört olay.)
+- Kanıt: müşteri kilidi (`pg_advisory_xact_lock`) geçici olarak `if (false && ...)` ile kapatıldı: 3 koşumda test düştü (**28/40, 17/40, 14/40** yanlış tur), paralel checkout/deleted testi de düştü; kilit geri konuldu: testler geçiyor.
+
+### R2-m3 Runbook
+- `docs/deploy/MIGRATION-VE-GERI-ALMA.md` §5.4: müşteri kimliği için kırpılmış yinelenme sorgusu, yeni `StripeSubscriptionId` yinelenme ön kontrolü (iki hata iletisi), filtreli benzersiz indeks, kırpma ve boş = NULL davranışı ve Down'daki karşılığı eklendi; denetim izi maddesi artık `namines.audit_retention = on` ile silmeyi değil, tek yol olan `governance.purge_change_request_audit` işlevini (90 gün tabanı, `EXECUTE` yalnız sahip ve `namines_app`, ayar tek başına yetmez) anlatıyor.
+
+### R2-m5 (kabul edilen borç, yapılmadı)
+Checkout sırasında Stripe HTTP çağrısı müşteri kilidi ve işlem altında kalıyor. Kilit dışına almak, R2-m1'in doğruluğunu bozar: gerçek durum, daha yeni olayın kaydından SONRA okunmalıdır (kilit bunu sağlıyor). Yalnızca aynı müşterinin olaylarını ve bir bağlantıyı bekletir; yavaş Stripe için ayrı bir zaman aşımı sonraki iş.
+
+### Sayılar (bu tur)
+- 2. tur (R2-m1, R2-m2) sonrası 3351 (+4 yeni webhook testi; paralel test baştan yazıldı, sayıya girmez). Derleme `--no-incremental`: 0 uyarı, 0 hata. `Namines.Tests` 3351/3351 geçti (22 dk 28 sn), `Namines.Tests.RunTests` 19/19 geçti (1 dk 09 sn; ilk koşuda `Valid_schema_succeeds_against_real_postgres` bir kez Docker konteyneri hazır olmadan `psql` bağlantı hatasıyla düştü, aynı komut yeniden koşulunca geçti).
+- `smoke-d1` 95/95, `smoke-d2` 44/44 (yanıt şekilleri önceki çalıştırmayla `cmp` birebir aynı); yetki matrisi 829 karşılaştırma, 0 fark; `has-pending-model-changes` 11 bağlamın hepsi "No changes".
