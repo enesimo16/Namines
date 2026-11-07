@@ -2,7 +2,11 @@
 
 > Kapsam: `arch/phase-14-2`, `00c287b..1cc4ad8` (D-1 ACCEPTED tabanı ile D-2 sonu). Denetçi üretim kodu yazmadı ve değiştirmedi; yalnızca bu belge eklendi. Uygulayıcının raporu (`PHASE_14_2D_2_REPORT.md`) çalıştırılarak yeniden üretilmeden kabul edilmedi.
 
-## Son karar (2. tur): CONDITIONALLY ACCEPTED
+## Son karar (3. tur): ACCEPTED
+
+3. turda R2-m1..m3 ve açıklanamayan 500 çalıştırılarak yeniden denetlendi (§12): kapsamda açık madde kalmadı; bütün seri değerlendirmesi ve kabul edilen borç §13'te.
+
+## 2. tur kararı: CONDITIONALLY ACCEPTED
 
 2. turda M-1..M-4 ve m-1..m-8 çalıştırılarak yeniden denetlendi (§10): hepsi kapandı ya da gerekçeli kabul edildi. Üç küçük madde açık (R2-m1 ters sıra kalıntısı, R2-m2 ayırt edici olmayan regresyon testi, R2-m3 eski runbook). Bütün seri değerlendirmesi §11'de.
 
@@ -284,3 +288,87 @@ Kalan borç (sahibin bilmesi gerekenler):
 
 - **Blocker (D-2 kapanışı için):** R2-m1, R2-m2, R2-m3 (küçük, aynı fazda).
 - **Kabul edilen borç:** (1) Kimlik varlıkları ve Vault/Ground/Flow/Desk varlıkları `Namines.Core/Models/Auth` altında, Identity'nin ayrı Domain'i yok; tarihsel DDL Auth geçmişinde. (2) Başlangıç tohumlayıcıları ve `PwnedPasswordValidator` API derlemesinde `UserManager` kullanıyor. (3) `Namines.Core` hâlâ hem paylaşılan sözleşme hem varlık deposu. (4) `schema/generate` dışındaki AI uçlarında rezervasyon tahmini token ile yapılıyor, gerçek ölçümle uzlaştırma yok. (5) 90 günden eski denetim satırlarını uygulama rolü işlev yoluyla silebilir. (6) Geçmiş: `fea5610..e00b95f` API'yi derlemiyor; squash birleştirme önerilir. (7) R2-m4..m6. (8) Gerçek Stripe, canlı AI sağlayıcısı, üretim DB ve hacimli kilit penceresi hiç sınanmadı.
+
+---
+
+## 12. 3. tur (`70b3e93..227258d`: `b740703`, `4ba75a0`, `4f60e69`, `227258d`)
+
+Yöntem aynı: `227258d` için ayrı temiz worktree, taban `00c287b` ikilisi, gerçek PG; uygulayıcının sayılarına değil kendi koşumlarıma dayanıyor.
+
+### 12.1 Faz sonu tablosu (3. tur)
+
+| Alan | Sonuç | Kanıt |
+|---|---|---|
+| Build | PASS | `--no-incremental` Release: 0 uyarı, 0 hata, 40,1 sn |
+| Unit | PASS | Tam süit içinde |
+| Integration | PASS | `Namines.Tests` 3351/3351 gerçek PG |
+| Architecture | PASS | 2. turdaki mutasyon sonuçları geçerli (bu turda mimari kod değişmedi) |
+| Migration | PASS | §12.3 |
+| Data integrity | PASS | 57 tablo md5 birebir Up, Down, yeniden Up |
+| Security | PASS | §12.2; kalan yalnız küçük notlar |
+| API compatibility | PASS | 829/0 fark; smoke şekli 46 etiket 0 fark (taze + yükseltilmiş) |
+| Documentation | PASS | Runbook §5.4 son koda uyuyor |
+| Independent audit | **ACCEPTED** | Bu belge |
+
+### 12.2 Test sayıları (3. tur, çalıştırıldı)
+
+| Komut | Proje | Toplam | Geçen | Kalan | Atlanan | Süre |
+|---|---|---|---|---|---|---|
+| `dotnet test -c Release --no-build` (paralel kapalı) | `Namines.Tests` | 3351 | 3351 | 0 | 0 | 31 dk 29 sn |
+| Aynı | `Namines.Tests.RunTests` | 19 | 19 | 0 | 0 | 1 dk 9 sn |
+| `has-pending-model-changes` | 11 bağlam | 11 | 11 temiz | | | |
+| `smoke-d1.js` / `smoke-d2.js` | taze DB; D-1'den yükseltilmiş DB | 95/95 ve 44/44, iki ortamda | | 0 | | |
+| `aud/matrix.js` taban ve yeni | | 829 karşılaştırma | | 0 fark | | |
+| `npx tsc --noEmit` / `vitest` / `next build --webpack` | frontend (diff boş) | tsc 0 hata; vitest 282/282 (40 dosya); build rc=0 | | | | |
+
+Ortam: Windows 11, .NET 8, Testcontainers `postgres:17-alpine`, senaryolar `postgres:16-alpine`; süit benim probalarımla aynı anda koştu. TRX: 3347 -> 3351, 4 eklendi, 0 silindi/yeniden adlandırıldı.
+
+### 12.3 Madde madde
+
+| ID | Sonuç | Kanıt |
+|---|---|---|
+| R2-m1 | **Kapandı** | Nihai ikilide `wh.js` (80 tur yarış: yanlış 0; imza matrisi, tekrar, 30 paralel yineleme, yaşam döngüsü hepsi önceki gibi) yeniden koşuldu. Ek: `wh4.js` ile `{checkout, updated, deleted}` olaylarının 6 oluşturma-zamanı sıralamasının her teslim sırası (6) x bağlı/bağlı değil = 72 ardışık senaryo: en yeni olay `deleted` iken kullanıcı hiçbir durumda ücretli kalmadı (0 yanlış), 5xx yok. 60 paralel tur (3 olay aynı anda, bağlı ve bağlı değil): 0 yanlış, 0 5xx, 0 deadlock (`40P01`). `wh5.js`: `canceled`, `unpaid` -> Individual; `active` -> Corporate; `trialing`, `past_due`, `incomplete`, `paused` Corporate kullanıcıyı düşürmüyor (bilinçli yumuşak davranış); ödemesi hiç alınmamış (Individual) kullanıcıyı da yükseltmiyor. Hiç kimse haksız yere ücretli erişimini yitirmiyor. Bağlı olmayan müşteride aboneliği olmayan checkout, daha yeni bir `updated` görmüşse eşlemeyi kurup durumu değiştirmiyor (`type=0`): gerçek Stripe checkout'ında abonelik kimliği hep var ve gerçek durum Stripe'tan okunuyor, bu yol yalnız abonelik kimliksiz kıyıdır. Stripe'tan gerçek durumu okuma yolu bu ikiliyle sınanamadı (ağ yok); süit testi sahte geçitle kapsıyor |
+| R2-m2 | **Kapandı** | Yeniden yazılmış paralel test (4 olay, ayrı bağlam/bağlantı, `Barrier` kapısı, 40 tur). Müşteri kilidini ben kapattım (`if (false)`): 3/3 koşumda DÜŞTÜ (17/40, 20/40, 19/40 tur yanlış); kilit geri konunca geçti. Test artık ayırt edici |
+| R2-m3 | **Kapandı** | Runbook §5.4 son koda göre okundu: iki yinelenme ön kontrolü (müşteri ve abonelik kimliği, kırpılmış), kırpma ve boş=NULL, `purge_change_request_audit` ve 90 gün tabanı, `EXECUTE` yetkileri hep migration kaynağıyla (`Billing_01`, `Governance_01`) uyuşuyor. Küçük kalıntı: "JWT/yenileme jetonları" ifadesi (uygulamada yenileme jetonu yok) |
+| Açıklanamayan 500 | **Sınıflandırıldı: Minor, saldırıyla ulaşılamaz** | Yeniden üretildi: aynı Stripe müşterisi için ikinci kullanıcıya ait `checkout.session.completed` 500 döner (`23505`, `IX_customers_StripeCustomerId`), işlem geri alınır, kayıt kalmaz, aynı olay her yeniden denemede 500. **Taban `00c287b` ile aynı koşul regresyon değil davranış farkı:** tabanda `StripeCustomerId` indeksi benzersiz değildi, ikinci kullanıcı sessizce aynı müşteriye bağlanırdı (iki hesap tek faturayı paylaşır, aramada rastgele biri seçilir); yeni benzersiz indeks bunu kapatıyor. Saldırgan açısından: webhook imzalı (Stripe sırrı olmadan olay üretilemez), `ClientReferenceId` ve müşteri sunucu tarafında `BillingSubscriptionService.cs:80-82` ile kullanıcıya göre belirleniyor, kullanıcı başkasının müşterisini seçemez; bu yüzden hesap devralma ya da webhook DoS'u yok. Etki: gürültülü yeniden deneme (Stripe birkaç gün dener) ve olay geri alındığı için ödeme yapan ikinci hesap yükseltilmez. Öneri: `DuplicateCustomer` durumunu yakalayıp loglayıp 200 ile (ya da 409) güvenli kabul etmek |
+| R2-m5 | **Kabul edilebilir borç (Minor)** | Gerekçe geçerli: Stripe'tan okuma, daha yeni olay kaydedildikten SONRA ve kilit içinde olmalı; kilit dışında okunan durum, aradaki yeni olayın üzerine bayat yazar. Ama `StripeGateway.GetSubscriptionAsync` (`StripeWebhookService.cs`) açık zaman aşımı koymuyor (Stripe.net varsayılanı ~80 sn ve yeniden deneme): Stripe yavaşken her checkout bir DB bağlantısı + müşteri kilidi tutar. Yalnız imzalı `checkout.session.completed` tetikler, hacim düşük, kilit müşteri bazlı; havuz tükenmesi için yüzlerce eşzamanlı checkout ve Stripe kesintisi gerekir. Öneri: 10-15 sn `CancellationTokenSource` (başarısızlık zaten 500 + yeniden deneme + geri alma) |
+
+### 12.4 Yeni küçük notlar (3. tur)
+
+| ID | Not | Kanıt |
+|---|---|---|
+| R3-n1 | `customer.subscription.updated` işleyicisi yalnız `canceled`/`unpaid` için Individual yapıyor; `incomplete_expired` ve `paused` ücretli kullanıcıyı düşürmüyor (checkout yolu `incomplete_expired`'ı düşürüyor). Taban davranışı, etkin kademe `PlanQuotas.Resolve` ile duruma da bakıyor | `wh5.js` çıktısı |
+| R3-n2 | Runbook'ta kalan "JWT/yenileme jetonları" ifadesi | okuma |
+
+İkisi de not: faz kabulünü etkilemiyor.
+
+## 13. Son karar ve bütün seri (3. tur)
+
+**14.2D-2: ACCEPTED.** Kapsamda açık madde kalmadı: M-1..M-4, m-1..m-8 ve R2-m1..m3 çalıştırılarak kapandı; açıklanamayan 500 sınıflandırıldı (Minor, ulaşılamaz, tabandan daha güvenli). Kabul edilen borç aşağıda.
+
+### Bütün seri, master prompt son hâli (`227258d`)
+
+| Madde | Durum |
+|---|---|
+| 11 gerçek modül | Evet: 11 zincir ve geçmiş tablosu, her biri kendi bağlamı, Application ve Infrastructure; Identity için ayrı Domain ad alanı yok (kabul edilen borç) |
+| `AuthDbContext` yalnız Identity | Evet (reflection testi, katalog, `internal`) |
+| `CloudProject` God Entity değil | Evet (`studio.projects` 10 kolon) |
+| Sırlar güvenli | Evet: bağlantı dizesi şifreli + AAD, paylaşım jetonu ve API anahtarı hash, webhook gövdesi saklanmıyor |
+| CSV ilişkiler normalize, eski kolonlar düştü | Evet (14.2B/C/D-1 denetimleri) |
+| Modüller arası DbContext yok; controller'da DbContext ve kimlik yöneticisi yok | Evet |
+| Sözleşmeyle iletişim, tenant izolasyonu | Evet (matris 829/0) |
+| Gerçek PG testleri, mimari testler, 0 uyarı build | Evet (3351/3351, 19/19, mutasyonla sınanmış) |
+| Belgeler | Evet |
+| Dört bağımsız denetim ACCEPTED | 14.2B, 14.2C, 14.2D-1 ve 14.2D-2 ACCEPTED |
+
+Kalan borç, hepsi **kabul edilen borç**; hiçbiri blocker değil:
+
+1. Kimlik varlıkları ve Vault/Ground/Flow/Desk varlıkları `Namines.Core/Models/Auth` altında; Identity'nin ayrı Domain'i yok; tarihsel DDL Auth geçmişinde; `Namines.Core` hem sözleşme hem varlık deposu.
+2. Başlangıç tohumlayıcıları ve `PwnedPasswordValidator` API derlemesinde `UserManager` kullanıyor (controller değil).
+3. `schema/generate` dışındaki AI uçlarında rezervasyon tahmini token ile yapılıyor, gerçek ölçümle uzlaştırma yok.
+4. Uygulama rolü 90 günden eski denetim satırlarını işlev yoluyla silebilir (saklama tasarımı).
+5. Geçmiş: `fea5610..e00b95f` API'yi derlemiyor, bisect bozuk; squash birleştirme önerilir.
+6. İkinci kullanıcının aynı Stripe müşterisini talep etmesi 500 + yeniden deneme (ulaşılamaz, güvenli); Stripe HTTP çağrısı zaman aşımsız ve kilit altında (Minor); kimlik-yöneticisi testi hizmet bulucuyu görmüyor; SQL/tablo sahipliği taramasında Vault/Ground/Flow/Desk yok; R3-n1, R3-n2.
+7. Hiç sınanmayanlar: gerçek Stripe (ağ), canlı AI sağlayıcısı, üretim DB, PgBouncer/Redis, `AspNetUsers` kilit penceresi izole ölçümü, eski `roles.sql`'den yükseltme, MFA etkinleştirme/hesap silme başarı yollarının taban/yeni HTTP eşliği (süit testlerine dayanıyor).
+
+Not: bu turda geçici dizin `scratchpad/D2r3` içinde yalnız derleme çıktısı (`frontend/.next`) kaldı; depo ve `$V` temiz.
