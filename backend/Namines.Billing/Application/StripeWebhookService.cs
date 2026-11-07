@@ -279,11 +279,24 @@ internal sealed class StripeWebhookService : IStripeWebhookService
 
         if (!string.IsNullOrEmpty(session.CustomerId))
         {
-            var customer = await _db.Customers.FirstOrDefaultAsync(c => c.UserId == userId, ct);
-            if (customer is null)
-                _db.Customers.Add(new BillingCustomer { UserId = userId, StripeCustomerId = session.CustomerId });
+            // Aynı Stripe müşterisi başka bir kullanıcıya bağlıysa benzersizlik ihlali 500 üretir ve Stripe sonsuza
+            // kadar yeniden dener; çakışma kayda geçer, bağlantı kurulmaz (yeniden deneme bu durumu düzeltmez).
+            var heldByOther = await _db.Customers.AsNoTracking()
+                .AnyAsync(c => c.StripeCustomerId == session.CustomerId && c.UserId != userId, ct);
+            if (heldByOther)
+            {
+                _logger.LogError(
+                    "[STRIPE WEBHOOK] Stripe customer {Customer} is already linked to another user; link for {User} skipped.",
+                    session.CustomerId, userId);
+            }
             else
-                customer.StripeCustomerId = session.CustomerId;
+            {
+                var customer = await _db.Customers.FirstOrDefaultAsync(c => c.UserId == userId, ct);
+                if (customer is null)
+                    _db.Customers.Add(new BillingCustomer { UserId = userId, StripeCustomerId = session.CustomerId });
+                else
+                    customer.StripeCustomerId = session.CustomerId;
+            }
         }
 
         // Durum: abonelik okunabildiyse Stripe'ın gerçek durumu. Okunamadıysa (abonelik kimliği yok) ve bu müşteri için
@@ -416,6 +429,7 @@ internal sealed class StripeWebhookService : IStripeWebhookService
 /// <summary>Stripe SDK sınırı: abonelik ayrıntısı. Anahtar yoksa çağrı başarısız olur ve webhook yeniden denenir.</summary>
 internal sealed class StripeGateway : IStripeGateway
 {
+    private static readonly TimeSpan CallTimeout = TimeSpan.FromSeconds(15);
     private readonly IConfiguration _config;
 
     public StripeGateway(IConfiguration config) => _config = config;
@@ -424,7 +438,11 @@ internal sealed class StripeGateway : IStripeGateway
     {
         var key = _config["Stripe:SecretKey"];
         var service = string.IsNullOrWhiteSpace(key) ? new SubscriptionService() : new SubscriptionService(new StripeClient(key));
-        var subscription = await service.GetAsync(subscriptionId, cancellationToken: ct);
+        // Bu çağrı müşteri başına advisory kilit altında yapılır; Stripe yavaşlarsa kilit süresiz tutulmasın.
+        // Zaman aşımında istek iptal olur, webhook 5xx döner ve Stripe olayı yeniden gönderir.
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(CallTimeout);
+        var subscription = await service.GetAsync(subscriptionId, cancellationToken: timeoutCts.Token);
         return new StripeSubscriptionInfo(subscription.CurrentPeriodEnd, subscription.Items?.Data?.FirstOrDefault()?.Price?.Id, subscription.Status);
     }
 }

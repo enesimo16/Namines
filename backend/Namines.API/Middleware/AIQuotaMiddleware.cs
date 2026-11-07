@@ -200,7 +200,14 @@ namespace Namines.API.Middleware
 
             // Yalnızca BAŞARILI istek harcanmış sayılır.
             if (context.Response.StatusCode < 200 || context.Response.StatusCode >= 300)
+            {
                 await quotaService.RefundAsync(userId, estTokens, CancellationToken.None);
+            }
+            else if (context.Items["AiQuotaActualTokens"] is int actualTokens && actualTokens >= 0 && actualTokens != estTokens)
+            {
+                // Uç gerçek kullanımı biliyorsa tahmin gerçeğe çekilir (fazla ayrılan iade, eksik ayrılan eklenir).
+                await quotaService.ReconcileAsync(userId, estTokens, actualTokens, CancellationToken.None);
+            }
         }
     }
 }
