@@ -20,16 +20,16 @@ public class DocumentationController : ControllerBase
 {
     private readonly IDocumentationGenerator _docGenerator;
     private readonly IAIService _aiService;
-    private readonly AuthDbContext _context;
+    private readonly Namines.BuildingBlocks.Contracts.IAiPolicies _policies;
 
     public DocumentationController(
         IDocumentationGenerator docGenerator, 
         IAIService aiService,
-        AuthDbContext context)
+        Namines.BuildingBlocks.Contracts.IAiPolicies policies)
     {
         _docGenerator = docGenerator;
         _aiService = aiService;
-        _context = context;
+        _policies = policies;
     }
 
     /// <summary>
@@ -53,7 +53,7 @@ public class DocumentationController : ControllerBase
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!string.IsNullOrEmpty(userId))
             {
-                var policy = await _context.UserAIPolicies.FirstOrDefaultAsync(p => p.UserId == userId);
+                var policy = await _policies.FindAsync(userId);
                 if (policy != null && policy.Documentation == AIMode.DefaultNamines)
                 {
                     forceDeterministic = true;

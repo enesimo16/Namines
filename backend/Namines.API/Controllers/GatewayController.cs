@@ -1,3 +1,4 @@
+using Namines.BuildingBlocks.Contracts;
 using System;
 using Microsoft.Extensions.Logging;
 using Namines.Infrastructure.AI;
@@ -134,7 +135,7 @@ public class GatewayController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly GroqAIService _groq;
     private readonly ILogger<GatewayController> _logger;
-    private readonly AiQuotaService _quota;
+    private readonly IAiQuota _quota;
     private readonly IProjectConnectionSecretProvider _secrets;
     private readonly IStudioApplicationService _studio;
     private readonly IDbIntrospectionService _introspection;
@@ -155,7 +156,7 @@ public class GatewayController : ControllerBase
 
     public GatewayController(
         IGatewayService gateway, IGatewayRequestGate gate, IGatewayAuditLog audit, IUsageMeter usage, IConfiguration configuration,
-        GroqAIService groq, ILogger<GatewayController> logger, AiQuotaService quota,
+        GroqAIService groq, ILogger<GatewayController> logger, IAiQuota quota,
         IProjectConnectionSecretProvider secrets, IStudioApplicationService studio, IDbIntrospectionService introspection,
         ISqlWorkbenchService workbench,
         ITenantProjectAuthority authority,
@@ -1163,7 +1164,7 @@ public class GatewayController : ControllerBase
             return BadRequest(new { message = $"Unknown database engine '{request.DbType}'." });
 
         // AI bütçesi, Studio'nunkiyle AYNI kaptan harcanıyor: kural
-        // AiQuotaService'te, burada tekrarlanmıyor. Kendi kopyasını yazdığında üç
+        // IAiQuota'te, burada tekrarlanmıyor. Kendi kopyasını yazdığında üç
         // şey birden yanlıştı — kota token sayarken çağrı başına 1 artırılıyordu,
         // paylaşılan havuza hiç dokunulmuyordu ve gün sınırı middleware'inkinden
         // farklıydı. Fatura anahtarı ÜRETEN kullanıcıya yazılıyor: isteği yapan

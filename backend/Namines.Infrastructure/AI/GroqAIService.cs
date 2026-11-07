@@ -167,14 +167,8 @@ public class GroqAIService : IAIService, IDbaSchemaAnalyzer, IAgentChatClient
 
         try
         {
-            var db = httpContext.RequestServices.GetRequiredService<Namines.Infrastructure.Data.AuthDbContext>();
-            var account = await db.Users.AsNoTracking()
-                .Where(u => u.Id == userId)
-                .Select(u => new { u.SubscriptionStatus, u.PlanCode, u.IsDev })
-                .FirstOrDefaultAsync();
-
-            return UpstreamModel(NaiCatalog.ClampToPlan(
-                requested, PlanQuotas.Resolve(account?.SubscriptionStatus, account?.PlanCode, account?.IsDev ?? false)));
+            var quota = httpContext.RequestServices.GetRequiredService<Namines.BuildingBlocks.Contracts.IAiQuota>();
+            return UpstreamModel(NaiCatalog.ClampToPlan(requested, await quota.TierAsync(userId)));
         }
         catch
         {
@@ -226,7 +220,7 @@ public class GroqAIService : IAIService, IDbaSchemaAnalyzer, IAgentChatClient
         try
         {
             var quota = httpContext!.RequestServices
-                .GetRequiredService<Namines.Infrastructure.Data.AiQuotaService>();
+                .GetRequiredService<Namines.BuildingBlocks.Contracts.IAiQuota>();
             return await quota.TierAsync(userId);
         }
         catch
@@ -243,11 +237,8 @@ public class GroqAIService : IAIService, IDbaSchemaAnalyzer, IAgentChatClient
 
         try
         {
-            var db = httpContext!.RequestServices.GetRequiredService<Namines.Infrastructure.Data.AuthDbContext>();
-            var json = await db.UserAIPolicies.AsNoTracking()
-                .Where(p => p.UserId == userId).Select(p => p.AdvancedJson).FirstOrDefaultAsync();
-
-            return AiAdvancedSettings.Parse(json);
+            var policies = httpContext!.RequestServices.GetRequiredService<Namines.BuildingBlocks.Contracts.IAiPolicies>();
+            return AiAdvancedSettings.Parse((await policies.FindAsync(userId))?.AdvancedJson);
         }
         catch
         {
@@ -294,11 +285,10 @@ public class GroqAIService : IAIService, IDbaSchemaAnalyzer, IAgentChatClient
 
             try
             {
-                var db = httpContext.RequestServices.GetRequiredService<Namines.Infrastructure.Data.AuthDbContext>();
-                if (db != null)
+                var policies = httpContext.RequestServices.GetRequiredService<Namines.BuildingBlocks.Contracts.IAiPolicies>();
+                if (policies != null)
                 {
-                    // FirstOrDefaultAsync: thread pool'u bloklamaz
-                    var policy = await db.UserAIPolicies.FirstOrDefaultAsync(p => p.UserId == userId);
+                    var policy = await policies.FindAsync(userId);
                     if (policy != null)
                     {
                         AIMode mode = AIMode.Medium;

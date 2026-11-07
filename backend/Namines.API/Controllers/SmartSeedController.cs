@@ -20,18 +20,18 @@ namespace Namines.API.Controllers;
 public class SmartSeedController : ControllerBase
 {
     private readonly ISmartSeedService _smartSeedService;
-    private readonly AuthDbContext _context;
+    private readonly Namines.BuildingBlocks.Contracts.IAiPolicies _policies;
     private readonly SemanticCacheService _cacheService;
     private readonly ILogger<SmartSeedController> _logger;
 
     public SmartSeedController(
         ISmartSeedService smartSeedService, 
-        AuthDbContext context,
+        Namines.BuildingBlocks.Contracts.IAiPolicies policies,
         SemanticCacheService cacheService,
         ILogger<SmartSeedController> logger)
     {
         _smartSeedService = smartSeedService;
-        _context = context;
+        _policies = policies;
         _cacheService = cacheService;
         _logger = logger;
     }
@@ -62,7 +62,7 @@ public class SmartSeedController : ControllerBase
         {
             if (!string.IsNullOrEmpty(userId))
             {
-                var policy = await _context.UserAIPolicies.FirstOrDefaultAsync(p => p.UserId == userId);
+                var policy = await _policies.FindAsync(userId);
                 if (policy != null && policy.SmartSeed == AIMode.DefaultNamines)
                 {
                     forceDeterministic = true;

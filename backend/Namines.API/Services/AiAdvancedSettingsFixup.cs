@@ -48,45 +48,24 @@ public static class AiAdvancedSettingsFixup
     /// </summary>
     private const int StaleDefaultThreshold = 4096;
 
-    public static async Task RunAsync(AuthDbContext db, ILogger logger, CancellationToken ct = default)
+    public static async Task RunAsync(Namines.BuildingBlocks.Contracts.IAiPolicies policies, ILogger logger, CancellationToken ct = default)
     {
-        // Yalnızca kayıtlı bir tercih JSON'u OLAN satırlar aday — null/boş
-        // olan zaten kod içi varsayılanı (32000) kullanıyor, dokunmaya gerek yok.
-        var candidates = await db.UserAIPolicies
-            .Where(p => p.AdvancedJson != null && p.AdvancedJson != "")
-            .ToListAsync(ct);
-
-        var fixedCount = 0;
-
-        foreach (var policy in candidates)
+        // Yalnızca kayıtlı bir tercih JSON'u OLAN satırlar aday: null/boş zaten kod içi varsayılanı (32000) kullanıyor.
+        var fixedCount = await policies.RewriteAdvancedJsonAsync(json =>
         {
             AiAdvancedSettings settings;
-            try
-            {
-                settings = AiAdvancedSettings.Parse(policy.AdvancedJson);
-            }
-            catch
-            {
-                // Bozuk JSON zaten Parse içinde Default'a düşüyor normalde;
-                // buraya düşerse (beklenmez) bu satırı atla — bir düzeltme
-                // kaydın tamamını riske atmamalı.
-                continue;
-            }
+            try { settings = AiAdvancedSettings.Parse(json); }
+            catch { return null; } // bozuk JSON: bu satırı atla, bir düzeltme kaydın tamamını riske atmasın
 
             if (settings.MaxTokensValue > StaleDefaultThreshold)
-                continue; // zaten düzeltilmiş ya da kullanıcı yüksek bir değer seçmiş.
+                return null; // zaten düzeltilmiş ya da kullanıcı yüksek bir değer seçmiş
 
-            // Yalnızca maxTokens değişiyor; diğer tüm alanlar (namingConvention,
-            // fkAction, temperature, ...) aynı `settings` nesnesinden AYNEN
-            // korunuyor.
-            var corrected = settings with { MaxTokens = AiAdvancedSettings.Default.MaxTokens };
-            policy.AdvancedJson = corrected.ToJson();
-            fixedCount++;
-        }
+            // Yalnızca maxTokens değişiyor; diğer tüm alanlar aynı `settings` nesnesinden AYNEN korunuyor.
+            return (settings with { MaxTokens = AiAdvancedSettings.Default.MaxTokens }).ToJson();
+        }, ct);
 
         if (fixedCount > 0)
         {
-            await db.SaveChangesAsync(ct);
             logger.LogWarning(
                 "{Count} kullanıcının kalıcı 'maxTokens' tercihi eski varsayılana ({Threshold}) sıkışmıştı; " +
                 "kod içi varsayılana ({New}) sıfırlandı.",

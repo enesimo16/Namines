@@ -104,10 +104,9 @@ namespace Namines.API.Middleware
             }
 
             // Get DB context from request services
-            var db = context.RequestServices.GetRequiredService<AuthDbContext>();
 
             // Ensure user exists before performing database operations to avoid foreign key errors on orphaned sessions
-            var userExists = await db.Users.AnyAsync(u => u.Id == userId);
+            var userExists = (await context.RequestServices.GetRequiredService<Namines.BuildingBlocks.Contracts.IIdentityDirectory>().GetSessionStateAsync(userId)).Exists;
             if (!userExists)
             {
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -125,14 +124,14 @@ namespace Namines.API.Middleware
             // Kota kuralının TEK sahibi AiQuotaService. Havuz/tavan okuma, gün
             // sıfırlama ve tavan normalizasyonu orada; burada tekrarlanmıyor ki
             // Gateway'in /query/nl ucuyla ayrışmasın (bkz. AiQuotaService).
-            var quotaService = context.RequestServices.GetRequiredService<AiQuotaService>();
-            var quota = await quotaService.EnsureQuotaAsync(userId);
+            var quotaService = context.RequestServices.GetRequiredService<Namines.BuildingBlocks.Contracts.IAiQuota>();
+            await quotaService.EnsureAsync(userId);
 
             // ── Özellik başına tahmini token maliyeti + kullanıcı politikası ──
             AIMode selectedMode = AIMode.Medium; // policy yoksa varsayılan
             int estTokens = 2500;
 
-            var policy = await db.UserAIPolicies.FirstOrDefaultAsync(p => p.UserId == userId);
+            var policy = await context.RequestServices.GetRequiredService<Namines.BuildingBlocks.Contracts.IAiPolicies>().FindAsync(userId);
             if (path.StartsWith("/api/aidba")) { estTokens = 3500; if (policy != null) selectedMode = policy.DbaAnalysis; }
             else if (path.StartsWith("/api/schema/revise")) { estTokens = 2500; if (policy != null) selectedMode = policy.SchemaRevision; }
             else if (path.StartsWith("/api/smartseed") || path.StartsWith("/api/schema/mockdata")) { estTokens = 2000; if (policy != null) selectedMode = policy.SmartSeed; }
@@ -153,13 +152,13 @@ namespace Namines.API.Middleware
 
             // ── Havuz VEYA kullanıcı tavanı dolarsa → minimum AI'ya düş (BLOKLAMA YOK) ──
             var decision = await quotaService.CheckAsync(userId, estTokens);
-            if (decision != AiQuotaDecision.Allowed)
+            if (decision != Namines.BuildingBlocks.Contracts.AiQuotaDecision.Allowed)
             {
                 context.Items["FallbackToLocal"] = true;
                 context.Response.Headers["X-AI-Fallback"] = decision switch
                 {
-                    AiQuotaDecision.PoolExhausted => "pool-exhausted",
-                    AiQuotaDecision.TeamExhausted => "team-exhausted",
+                    Namines.BuildingBlocks.Contracts.AiQuotaDecision.PoolExhausted => "pool-exhausted",
+                    Namines.BuildingBlocks.Contracts.AiQuotaDecision.TeamExhausted => "team-exhausted",
                     _ => "quota-exhausted",
                 };
                 await _next(context);

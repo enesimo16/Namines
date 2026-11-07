@@ -277,7 +277,7 @@ public class AdminTelemetryService
     internal static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(3);
 
     public async Task<SystemBotAuditReport> RunSystemAuditAsync(
-        AuthDbContext dbContext,
+        Namines.BuildingBlocks.Contracts.IIdentityDirectory identity,
         IConfiguration configuration,
         ILogger logger,
         IServiceProvider? services = null)
@@ -296,7 +296,7 @@ public class AdminTelemetryService
         {
             RunProbeAsync("PostgreSQL Control DB", logger, async ct =>
             {
-                await dbContext.Database.ExecuteSqlRawAsync("SELECT 1;", ct);
+                await identity.GetSessionStateAsync("__probe__", ct); // Identity bağlamı üzerinden gerçek bir sorgu
                 return ("pass", "Veritabanı bağlantısı ve EF Core kontrol sorgusu başarılı.");
             }),
             RunProbeAsync("SignalR Canvas Hub & Redis", logger, ct => ProbeRedisBackplaneAsync(

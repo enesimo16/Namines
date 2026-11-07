@@ -9,6 +9,9 @@
     <ProjectReference Include="..\Namines.Hub\Namines.Hub.csproj" />
     <ProjectReference Include="..\Namines.Gateway\Namines.Gateway.csproj" />
     <ProjectReference Include="..\Namines.Ops\Namines.Ops.csproj" />
+    <ProjectReference Include="..\Namines.Billing\Namines.Billing.csproj" />
+    <ProjectReference Include="..\Namines.Governance\Namines.Governance.csproj" />
+    <ProjectReference Include="..\Namines.Identity\Namines.Identity.csproj" />
     <ProjectReference Include="..\Namines.Vault\Namines.Vault.csproj" />
     <!-- Ayni tek yonlu kural: Ground da Infrastructure'i GORMEZ. -->
     <ProjectReference Include="..\Namines.Ground\Namines.Ground.csproj" />

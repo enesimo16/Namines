@@ -209,6 +209,9 @@ public interface IStudioAdminQueries
 /// <summary>Kimlik tablolarının Studio'ya gereken dar görünümü. D-2'de Identity modülü uygular.</summary>
 public sealed record OrgMembership(string OrganizationId, Namines.Core.Models.Auth.OrgRole Role);
 
+/// <summary>Faturalamanın ve izin kararlarının ihtiyaç duyduğu dar kullanıcı bilgisi.</summary>
+public sealed record IdentityUserFacts(string Id, string? UserName, string? Email, bool IsDev, Namines.Core.Models.Auth.UserType Type);
+
 public interface IIdentityDirectory
 {
     Task<Namines.Core.Models.Auth.OrgRole?> GetRoleAsync(string organizationId, string userId, CancellationToken ct = default);
@@ -222,7 +225,19 @@ public interface IIdentityDirectory
 
     Task<IReadOnlyDictionary<string, string?>> GetUserEmailsAsync(IReadOnlyCollection<string> userIds, CancellationToken ct = default);
 
-    Task<Namines.BuildingBlocks.Security.UserPlanSnapshot?> GetUserPlanSnapshotAsync(string userId, CancellationToken ct = default);
+    /// <summary>E-posta ile kullanıcı (UserManager yolu: depolamadaki şifreleme çözülür). Yoksa null.</summary>
+    Task<IdentityUserFacts?> FindUserByEmailAsync(string email, CancellationToken ct = default);
+
+    Task<UserSessionState> GetSessionStateAsync(string userId, CancellationToken ct = default);
+
+    Task<IdentityUserFacts?> GetUserFactsAsync(string userId, CancellationToken ct = default);
+
+    Task SetUserTypeAsync(string userId, Namines.Core.Models.Auth.UserType type, CancellationToken ct = default);
+
+    /// <summary>Ekip havuzunun organizasyonu: önce kişisel olmayan, sonra en eski üyelik. Üyelik yoksa null.</summary>
+    Task<string?> GetPoolOrganizationIdAsync(string userId, CancellationToken ct = default);
+
+    Task<IReadOnlyList<string>> ListDevUserIdsAsync(CancellationToken ct = default);
 
     /// <summary>Kullanıcı adı ya da kimlikten kullanıcı kimliği; yoksa null.</summary>
     Task<string?> ResolveUserIdAsync(string userNameOrId, CancellationToken ct = default);
@@ -241,17 +256,6 @@ public sealed record ProjectDeletionResult(bool Ok, int StatusCode, string? Code
 public interface IProjectDeletion
 {
     Task<ProjectDeletionResult> DeleteAsync(string projectId, string? actorUserId, CancellationToken ct, bool recordName = true);
-}
-
-/// <summary>
-/// Kullanım ölçümü: faturalama tabloları Billing'in (D-2). Modüller ve controller'lar DbContext görmeden
-/// tüketimi yazar ve kota kararını alır.
-/// </summary>
-public interface IUsageMeter
-{
-    Task RecordAsync(string userId, Namines.Core.Models.Auth.UsageResource resource, decimal quantity = 1, string? contextLabel = null, CancellationToken ct = default);
-
-    Task<Namines.Core.Analysis.UsageDecision> EvaluateAsync(string userId, Namines.Core.Models.Auth.UsageResource resource, decimal requested = 1, CancellationToken ct = default);
 }
 
 /// <summary>Hub vitrininin değişiklik isteği sayacı; Governance verisine başka kapı yok.</summary>

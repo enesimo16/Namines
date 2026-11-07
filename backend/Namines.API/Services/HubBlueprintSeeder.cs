@@ -29,7 +29,7 @@ public static class HubBlueprintSeeder
     private const string ShowcaseEmail = "architect@namines.app";
 
     public static async Task SeedAsync(
-        AuthDbContext context,
+        Namines.BuildingBlocks.Contracts.IIdentityDirectory identity,
         IStudioProjects studioProjects,
         IStudioBranches studioBranches,
         UserManager<ApplicationUser> userManager,
@@ -83,7 +83,7 @@ public static class HubBlueprintSeeder
             await userManager.UpdateAsync(architect);
         }
 
-        var personalOrg = await context.GetOrCreatePersonalOrgAsync(architect.Id, ShowcaseUsername, ct);
+        var personalOrgId = await identity.GetOrCreatePersonalOrganizationAsync(architect.Id, ShowcaseUsername, ct);
 
         // 2. Blueprints tanımları
         var blueprints = HubBlueprintCatalog.All;
@@ -106,7 +106,7 @@ public static class HubBlueprintSeeder
             var project = new ProjectWrite(
                 Guid.NewGuid().ToString(), bp.Name, "PostgreSQL",
                 JsonSerializer.Serialize(bp.Schema, SchemaJsonOptions.Default), "{}",
-                architect.Id, personalOrg.Id, null, seededAt, seededAt);
+                architect.Id, personalOrgId, null, seededAt, seededAt);
             newProjects.Add(project);
 
             // Katalogdaki StarCount/ForkCount uydurma rakamlardı; Hub gerçek etkileşim

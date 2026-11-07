@@ -1,3 +1,4 @@
+using Namines.BuildingBlocks.Contracts;
 using Namines.API.Filters;
 using System;
 using System.Collections.Generic;
@@ -37,7 +38,7 @@ public sealed record CreateCrossDatabaseRelationRequest(
 public class CrossDatabaseController : ControllerBase
 {
     private readonly ICrossDatabaseRelationService _relations;
-    private readonly AiQuotaService _quota;
+    private readonly IAiQuota _quota;
 
     private static readonly JsonSerializerOptions SchemaJsonOptions = new()
     {
@@ -45,7 +46,7 @@ public class CrossDatabaseController : ControllerBase
         Converters = { new JsonStringEnumConverter() }
     };
 
-    public CrossDatabaseController(ICrossDatabaseRelationService relations, AiQuotaService quota)
+    public CrossDatabaseController(ICrossDatabaseRelationService relations, IAiQuota quota)
     {
         _relations = relations;
         _quota = quota;

@@ -71,13 +71,15 @@ public class DataRetentionService : BackgroundService
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
                 var deskApp = scope.ServiceProvider.GetService<IDeskApplicationService>()
                               ?? scope.ServiceProvider.GetService<IDeskModule>()?.Application;
-                await PurgeAsync(db, RetentionOptions.From(_configuration), _logger, DateTime.UtcNow,
+                await PurgeAsync(RetentionOptions.From(_configuration), _logger, DateTime.UtcNow,
                     TimeSpan.FromMilliseconds(200), stoppingToken,
                     scope.ServiceProvider.GetRequiredService<IOpsRetentionService>(),
-                    scope.ServiceProvider.GetRequiredService<Namines.Gateway.Application.IGatewayMaintenance>(), deskApp);
+                    scope.ServiceProvider.GetRequiredService<Namines.Gateway.Application.IGatewayMaintenance>(),
+                    scope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Contracts.IBillingMaintenance>(),
+                    scope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Contracts.IGovernanceMaintenance>(),
+                    scope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Contracts.IIdentityMaintenance>(), deskApp);
 
                 // İptal edilmiş paylaşım satırı yalnızca "ne zaman kapatıldı" izi: sınırsız birikmesin.
                 var shareDays = _configuration.GetValue("Retention:RevokedShareDays", DefaultRevokedShareDays);
@@ -131,21 +133,12 @@ public class DataRetentionService : BackgroundService
 
     /// <summary>Test edilebilir temizlik adımı; tablo başına silinen satır sayısını döndürür.</summary>
     public static async Task<IReadOnlyDictionary<string, int>> PurgeAsync(
-        AuthDbContext db, RetentionOptions o, ILogger logger, DateTime nowUtc,
-        TimeSpan pause, CancellationToken ct, IOpsRetentionService ops, Namines.Gateway.Application.IGatewayMaintenance gateway, IDeskApplicationService? deskApp = null)
+        RetentionOptions o, ILogger logger, DateTime nowUtc,
+        TimeSpan pause, CancellationToken ct, IOpsRetentionService ops, Namines.Gateway.Application.IGatewayMaintenance gateway,
+        Namines.BuildingBlocks.Contracts.IBillingMaintenance billing, Namines.BuildingBlocks.Contracts.IGovernanceMaintenance governance,
+        Namines.BuildingBlocks.Contracts.IIdentityMaintenance identity, IDeskApplicationService? deskApp = null)
     {
         var result = new Dictionary<string, int>();
-
-        async Task Run<T>(string name, int days, Func<DateTime, Expression<Func<T, bool>>> expired,
-            Expression<Func<T, object?>> orderKey) where T : class
-        {
-            if (days <= 0) return;
-            var cutoff = nowUtc.AddDays(-days);
-            var n = await DeleteInBatchesAsync(db.Set<T>().Where(expired(cutoff)), orderKey, pause, ct);
-            result[name] = n;
-            if (n > 0)
-                logger.LogInformation("Veri saklama: {Table} tablosundan {Rows} satir silindi (> {Days} gun).", name, n, days);
-        }
 
         async Task RunModule(string name, int days, Func<Task<int>> purge)
         {
@@ -158,12 +151,13 @@ public class DataRetentionService : BackgroundService
 
         await RunModule("GatewayAuditEntries", o.GatewayAuditDays, () => gateway.PurgeAuditAsync(o.GatewayAuditDays, nowUtc, pause, ct));
         await RunModule("SqlExecutionAudits", o.SqlExecutionAuditDays, () => ops.PurgeSqlExecutionAuditsAsync(o.SqlExecutionAuditDays, nowUtc, pause, ct));
-        await Run<UsageEvent>("UsageEvents", o.UsageEventDays, c => e => e.OccurredAt < c, e => e.Id);
-        await Run<ChangeRequestAuditLog>("ChangeRequestAuditLogs", o.ChangeRequestAuditDays, c => e => e.CreatedAt < c, e => e.Id);
-        await Run<StripeWebhookEvent>("StripeWebhookEvents", o.StripeWebhookDays, c => e => e.ProcessedAt < c, e => e.Id);
+        await RunModule("UsageEvents", o.UsageEventDays, () => billing.PurgeUsageEventsAsync(nowUtc.AddDays(-o.UsageEventDays), pause, ct));
+        // Denetim satırları değiştirilemez; yalnızca saklama süresi dolanlar, Governance'ın silme izniyle gider.
+        await RunModule("ChangeRequestAuditLogs", o.ChangeRequestAuditDays, () => governance.PurgeAuditAsync(nowUtc.AddDays(-o.ChangeRequestAuditDays), pause, ct));
+        await RunModule("StripeWebhookEvents", o.StripeWebhookDays, () => billing.PurgeStripeWebhookEventsAsync(nowUtc.AddDays(-o.StripeWebhookDays), pause, ct));
         // Yalnızca TAMAMLANANLAR: açık satır, henüz iptal edilmemiş bir abonelik demek; ne kadar eski olursa olsun silinmez.
-        await Run<PendingSubscriptionCancellation>("PendingSubscriptionCancellations", o.CompletedSubscriptionCancellationDays,
-            c => e => e.CompletedAt != null && e.CompletedAt < c, e => e.Id);
+        await RunModule("PendingSubscriptionCancellations", o.CompletedSubscriptionCancellationDays,
+            () => billing.PurgeCompletedCancellationsAsync(nowUtc.AddDays(-o.CompletedSubscriptionCancellationDays), pause, ct));
         await RunModule("Feedbacks", o.FeedbackDays, () => ops.PurgeFeedbacksAsync(o.FeedbackDays, nowUtc, pause, ct));
 
         // Süresi dolmuş tek kullanımlık jetonlar: Desk modülü üzerinden temizlenir.
@@ -173,8 +167,7 @@ public class DataRetentionService : BackgroundService
             : 0;
         result["desk_handoff_tokens"] = handoff;
         // Kabul edilmiş davetler üyelik geçmişi olarak kalır; yalnızca kabul EDİLMEMİŞ ve süresi dolanlar silinir.
-        var invites = await DeleteInBatchesAsync(
-            db.TeamInvites.Where(i => i.AcceptedAt == null && i.ExpiresAt < tokenCutoff), i => i.Id, pause, ct);
+        var invites = await identity.PurgeExpiredInvitesAsync(tokenCutoff, pause, ct);
         result["TeamInvites"] = invites;
         if (handoff > 0 || invites > 0)
             logger.LogInformation("Veri saklama: desk_handoff_tokens={Handoff}, TeamInvites={Invites} silindi.", handoff, invites);
@@ -182,18 +175,4 @@ public class DataRetentionService : BackgroundService
         return result;
     }
 
-    private static async Task<int> DeleteInBatchesAsync<T>(
-        IQueryable<T> expired, Expression<Func<T, object?>> orderKey, TimeSpan pause, CancellationToken ct)
-        where T : class
-    {
-        var total = 0;
-        while (true)
-        {
-            ct.ThrowIfCancellationRequested();
-            var n = await expired.OrderBy(orderKey).Take(BatchSize).ExecuteDeleteAsync(ct);
-            total += n;
-            if (n < BatchSize) return total;
-            if (pause > TimeSpan.Zero) await Task.Delay(pause, ct);
-        }
-    }
 }

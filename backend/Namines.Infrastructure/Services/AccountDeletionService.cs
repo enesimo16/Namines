@@ -4,26 +4,17 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Namines.BuildingBlocks.Application;
 using Namines.BuildingBlocks.Persistence;
 using Namines.Core.Models.Auth;
 using Namines.BuildingBlocks.Contracts;
 using Namines.Hub.Application;
-using Namines.Infrastructure.Data;
 using Namines.Ops.Application;
 
 namespace Namines.Infrastructure.Services;
 
 /// <summary>Stripe aboneliğini iptal eder. API katmanı gerçek Stripe SDK ile uygular; burada soyut ki servis test edilebilsin.</summary>
-public interface ISubscriptionCanceller
-{
-    /// <summary>İptal edildiyse (ya da zaten iptalse) true; yapılandırma yok/çağrı başarısızsa false (elle iptal gerekir).</summary>
-    Task<bool> CancelAsync(string subscriptionId, CancellationToken ct);
-}
-
 public sealed record BlockingOrganization(string Id, string Name);
 
 public sealed record AccountDeletionResult(
@@ -55,31 +46,38 @@ public sealed record AccountDeletionResult(
 /// </summary>
 public class AccountDeletionService
 {
-    private readonly AuthDbContext _context;
-    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IAccountOrganizations _orgs;
+    private readonly IBillingAccounts _billing;
+    private readonly IBillingMaintenance _billingMaintenance;
+    private readonly IGovernanceAudit _audit;
+    private readonly IGovernanceMaintenance _governance;
     private readonly ProjectDeletionService _projects;
     private readonly IHubApplicationService _hub;
     private readonly IStudioProjects _studio;
     private readonly Namines.Gateway.Application.IGatewayMaintenance _gateway;
     private readonly IFeedbackService _feedback;
     private readonly ICrossModuleTransaction _transaction;
-    private readonly ISubscriptionCanceller? _stripe;
     private readonly ILogger<AccountDeletionService> _logger;
 
     public AccountDeletionService(
-        AuthDbContext context,
-        UserManager<ApplicationUser> userManager,
+        IAccountOrganizations orgs,
+        IBillingAccounts billing,
+        IBillingMaintenance billingMaintenance,
+        IGovernanceAudit audit,
+        IGovernanceMaintenance governance,
         ProjectDeletionService projects,
         IHubApplicationService hub,
         ICrossModuleTransaction transaction,
         ILogger<AccountDeletionService> logger,
         IFeedbackService feedback,
         IStudioProjects studio,
-        Namines.Gateway.Application.IGatewayMaintenance gateway,
-        ISubscriptionCanceller? stripe = null)
+        Namines.Gateway.Application.IGatewayMaintenance gateway)
     {
-        _context = context;
-        _userManager = userManager;
+        _orgs = orgs;
+        _billing = billing;
+        _billingMaintenance = billingMaintenance;
+        _audit = audit;
+        _governance = governance;
         _projects = projects;
         _hub = hub;
         _studio = studio;
@@ -87,18 +85,13 @@ public class AccountDeletionService
         _feedback = feedback;
         _transaction = transaction;
         _logger = logger;
-        _stripe = stripe;
     }
 
-    public async Task<AccountDeletionResult> DeleteAsync(ApplicationUser user, CancellationToken ct)
+    public async Task<AccountDeletionResult> DeleteAsync(string userId, CancellationToken ct)
     {
-        var userId = user.Id;
 
         // ── 1. Plan (hiçbir şeye dokunmadan) ─────────────────────────────────
-        var memberships = await _context.OrganizationMembers
-            .Include(m => m.Organization)
-            .Where(m => m.UserId == userId)
-            .ToListAsync(ct);
+        var memberships = await _orgs.GetMembershipsAsync(userId, ct);
 
         var blocked = new List<BlockingOrganization>();
         var orgsToDelete = new HashSet<string>();
@@ -108,11 +101,7 @@ public class AccountDeletionService
 
         foreach (var m in memberships)
         {
-            var others = await _context.OrganizationMembers
-                .Where(x => x.OrganizationId == m.OrganizationId && x.UserId != userId)
-                .OrderBy(x => x.JoinedAt)
-                .Select(x => new { x.UserId, x.Role })
-                .ToListAsync(ct);
+            var others = await _orgs.GetOtherMembersAsync(m.OrganizationId, userId, ct);
 
             if (others.Count == 0)
             {
@@ -126,7 +115,7 @@ public class AccountDeletionService
 
             if (m.Role == OrgRole.Owner && !others.Any(x => x.Role == OrgRole.Owner))
             {
-                blocked.Add(new BlockingOrganization(m.OrganizationId, m.Organization.Name));
+                blocked.Add(new BlockingOrganization(m.OrganizationId, m.OrganizationName));
                 continue;
             }
 
@@ -158,12 +147,7 @@ public class AccountDeletionService
 
             if (!heirByOrg.TryGetValue(p.OrganizationId, out var heirId))
             {
-                heirId = await _context.OrganizationMembers
-                    .Where(x => x.OrganizationId == p.OrganizationId && x.UserId != userId)
-                    .OrderByDescending(x => x.Role == OrgRole.Owner)
-                    .ThenBy(x => x.JoinedAt)
-                    .Select(x => x.UserId)
-                    .FirstOrDefaultAsync(ct);
+                heirId = await _orgs.FindHeirAsync(p.OrganizationId, userId, ct);
                 heirByOrg[p.OrganizationId] = heirId;
             }
 
@@ -183,20 +167,12 @@ public class AccountDeletionService
         // kurucunun hesabından okunuyor (TeamController.OrgTierAsync); FK SET NULL ile boşalsaydı
         // org sessizce Free'ye düşerdi.
         var orgHeirs = new List<(string OrgId, string NewCreator)>();
-        var createdOrgIds = await _context.Organizations
-            .Where(o => o.CreatedByUserId == userId && !orgsToDelete.Contains(o.Id))
-            .Select(o => o.Id)
-            .ToListAsync(ct);
+        var createdOrgIds = await _orgs.ListCreatedOrganizationIdsAsync(userId, orgsToDelete, ct);
         foreach (var orgId in createdOrgIds)
         {
             if (!heirByOrg.TryGetValue(orgId, out var heirId))
             {
-                heirId = await _context.OrganizationMembers
-                    .Where(x => x.OrganizationId == orgId && x.UserId != userId)
-                    .OrderByDescending(x => x.Role == OrgRole.Owner)
-                    .ThenBy(x => x.JoinedAt)
-                    .Select(x => x.UserId)
-                    .FirstOrDefaultAsync(ct);
+                heirId = await _orgs.FindHeirAsync(orgId, userId, ct);
             }
             if (heirId is not null) orgHeirs.Add((orgId, heirId));
         }
@@ -219,8 +195,6 @@ public class AccountDeletionService
         // iptal edilmiş kalırdı. İptal isteği ise işlemin İÇİNDE outbox satırı olarak yazılır: süreç commit
         // ile Stripe arasında ölürse işçi tamamlar. Projeler bilinçli olarak önce: kullanıcı satırı silinirse
         // FK cascade blob/sağlayıcı temizliğini atlardı. İşlem düşerse yeniden deneme kaldığı yerden sürer.
-        var hasSubscription = !string.IsNullOrWhiteSpace(user.StripeSubscriptionId);
-        var subscriptionId = user.StripeSubscriptionId;
         string? auditId = null;
         string? outboxId = null;
         var revokedKeys = 0;
@@ -244,12 +218,10 @@ public class AccountDeletionService
 
             foreach (var (orgId, newCreator) in orgHeirs)
             {
-                await _context.Organizations.Where(o => o.Id == orgId)
-                    .ExecuteUpdateAsync(s => s.SetProperty(o => o.CreatedByUserId, newCreator), ct);
+                await _orgs.SetOrganizationCreatorAsync(orgId, newCreator, ct);
             }
 
-            if (orgsToDelete.Count > 0)
-                await _context.Organizations.Where(o => orgsToDelete.Contains(o.Id)).ExecuteDeleteAsync(ct);
+            await _orgs.DeleteOrganizationsAsync(orgsToDelete, ct);
 
             var now = DateTime.UtcNow;
             revokedKeys = await _gateway.RevokeKeysByCreatorAsync(userId, ct);
@@ -257,39 +229,26 @@ public class AccountDeletionService
             // Geri bildirim metni kalır (ürün geri bildirimi), kişiyi tanımlayan alanlar gider.
             await _feedback.AnonymizeByUserAsync(userId, ct);
 
-            // ExecuteUpdate/Delete izlenen varlıkları güncellemez: eski bir CloudProject örneği hâlâ
-            // takipteyse kullanıcı silinirken EF onu (cascade) yeniden silmeye çalışıp devredilmiş
-            // satırda eşzamanlılık hatası alırdı. Kullanıcıyı silmeden önce izleyiciyi temizle.
-            _context.ChangeTracker.Clear();
+            // Abonelik iptali ve kisisel faturalama verisi: iptal outbox kaydi ONCE yazilir (abonelik kimligi silinecek satirda).
+            outboxId = await _billing.QueueSubscriptionCancellationAsync(userId, ct);
+            await _billingMaintenance.ErasePersonalDataAsync(userId, ct);
+            await _governance.ErasePersonalDataAsync(userId, ct);
 
-            // Oturumlar: kullanıcı silinince SecurityStamp doğrulaması kullanıcıyı bulamaz → tüm jetonlar düşer.
-            var deleted = await _userManager.DeleteAsync(user);
+            // Oturumlar: kullanıcı silinince güvenlik damgası doğrulaması kullanıcıyı bulamaz → tüm jetonlar düşer.
+            var deleted = await _orgs.DeleteUserAsync(userId, ct);
             if (!deleted.Succeeded)
             {
-                _logger.LogError("Kullanici silinemedi: {Errors}", string.Join(", ", deleted.Errors.Select(e => e.Code)));
+                _logger.LogError("Kullanici silinemedi: {Errors}", string.Join(", ", deleted.ErrorCodes));
                 failure = new AccountDeletionResult(false, 500, "ACCOUNT_DELETE_FAILED", "The account could not be deleted. Try again.");
                 // İstisna işlemi geri alır; işleme açık kalıp commit edilmesin diye dönüş yeterli değil.
                 throw new AccountDeletionAbortedException();
             }
 
-            if (hasSubscription)
-            {
-                var outbox = new PendingSubscriptionCancellation { SubscriptionId = subscriptionId! };
-                _context.PendingSubscriptionCancellations.Add(outbox);
-                outboxId = outbox.Id;
-            }
-
-            var accountAudit = new ChangeRequestAuditLog
-            {
-                ChangeRequestId = userId,
-                ProjectId = string.Empty,
-                Action = ChangeRequestAuditAction.AccountDeleted,
-                // "queued": iptal outbox'ta; doğruluk kaynağı PendingSubscriptionCancellations satırı.
-                Details = AuditDetails(hasSubscription ? "queued" : "none"),
-            };
-            _context.ChangeRequestAuditLogs.Add(accountAudit);
-            auditId = accountAudit.Id;
-            await _context.SaveChangesAsync(ct);
+            // Degistirilemez iz: sonuc sonradan guncellenmez, iptal tamamlaninca yeni satir eklenir (BL-4). Outbox kimligi
+            // detayda; tamamlanma satiri ayni kimlikle eslesir.
+            auditId = await _audit.AppendAsync(new GovernanceAuditEntry(
+                userId, string.Empty, null, ChangeRequestAuditAction.AccountDeleted, null,
+                AuditDetails(outboxId is not null ? "queued" : "none", outboxId)), ct);
             }, ct);
         }
         catch (AccountDeletionAbortedException)
@@ -315,14 +274,8 @@ public class AccountDeletionService
             // bozmamalı, hesap artık yok; satır açık kaldığı için iş kaybolmaz.
             try
             {
-                var processor = new SubscriptionCancellationProcessor(_context, _stripe, _logger);
-                if (await processor.AttemptAsync(outboxId, DateTime.UtcNow))
-                {
-                    var details = AuditDetails("canceled");
-                    await _context.ChangeRequestAuditLogs.Where(a => a.Id == auditId)
-                        .ExecuteUpdateAsync(s => s.SetProperty(a => a.Details, details), CancellationToken.None);
-                }
-                else
+                // Tamamlanirsa Billing, denetim izine yeni satir ekleyen dinleyiciyi cagirir (SubscriptionCancellationCompleted).
+                if (!await _billing.TryCancelNowAsync(outboxId, CancellationToken.None))
                 {
                     _logger.LogWarning("Hesap silindi, Stripe iptali kuyrukta yeniden denenecek (kayit {Id}).", outboxId);
                 }
@@ -335,8 +288,9 @@ public class AccountDeletionService
 
         return AccountDeletionResult.Success();
 
-        string AuditDetails(string stripeOutcome) => JsonSerializer.Serialize(new
+        string AuditDetails(string stripeOutcome, string? outbox) => JsonSerializer.Serialize(new
         {
+            outboxId = outbox,
             deletedProjects = deleteIds.Count,
             reassignedProjects = reassign.Count,
             deletedOrganizations = orgsToDelete.Count,

@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Namines.API.Extensions;
+using Namines.Identity.DependencyInjection;
 using Namines.API.Middleware;
 using Namines.API.Security;
 using Namines.Core.Models.Auth;
@@ -150,28 +151,11 @@ try
         builder.Configuration.GetConnectionString("DefaultConnection")
             ?? "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres",
         builder.Configuration);
-    var controlDbCommandTimeout = new Npgsql.NpgsqlConnectionStringBuilder(controlDbConnectionString).CommandTimeout;
-    builder.Services.AddDbContext<AuthDbContext>(options =>
-        options.UseNpgsql(controlDbConnectionString, npgsql =>
-            // Gecici ag hatalari bulut ortamlarinda olagan; bunlarda istegi
-            // dusurmek yerine yeniden denemek dogru.
-            //
-            // YALNIZCA control DB icin. Kullanicinin veritabanina giden
-            // yollarda (DatabaseExecutorService, GatewayService) bu ISTENMEZ:
-            // yarim uygulanmis bir DDL'i yeniden denemek, "zaten var"
-            // hatalarina ya da daha kotusune yol acar. O yollar EF Core
-            // kullanmadigi icin bu ayar oralara sizmiyor.
-            {
-                npgsql.CommandTimeout(controlDbCommandTimeout);
-                npgsql.EnableRetryOnFailure(
-                    maxRetryCount: 3,
-                    maxRetryDelay: TimeSpan.FromSeconds(5),
-                    errorCodesToAdd: null);
-            }));
     builder.Services.AddHostedService<Namines.Infrastructure.Services.DataRetentionService>();
 
     // Configure Identity Core
-    builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+    // Kimlik (kullanici, rol, jeton, organizasyon) Identity modulunde; API baglama hic gormez.
+    builder.Services.AddIdentityModule(controlDbConnectionString, options =>
     {
         // NIST SP 800-63B: karmaşıklık kuralları yerine UZUNLUK.
         // Karmaşıklık zorunlulukları kullanıcıyı `Parola1!` gibi tahmin
@@ -193,10 +177,6 @@ try
         // yinelenen e-postayı DuplicateEmail olarak reddetsin ki istemci 500 yerine net hata alsın.
         options.User.RequireUniqueEmail = true;
     })
-    .AddEntityFrameworkStores<AuthDbContext>()
-    // TOTP anahtarı + kurtarma kodları AspNetUserTokens'ta şifreli saklansın (DB-35).
-    .AddUserStore<Namines.Infrastructure.Security.EncryptedUserStore>()
-    .AddDefaultTokenProviders()
     // Sizdirilmis parola kontrolu. IPasswordValidator olarak kayitli oldugu
     // icin Identity'nin BUTUN parola yollarinda (kayit, parola degistirme,
     // sifirlama) kendiliginden calisiyor -- her cagri noktasina elle eklemek
@@ -795,7 +775,7 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
         try
         {
             await Namines.API.Services.AiAdvancedSettingsFixup.RunAsync(
-                fixupScope.ServiceProvider.GetRequiredService<AuthDbContext>(),
+                fixupScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Contracts.IAiPolicies>(),
                 fixupScope.ServiceProvider.GetRequiredService<ILoggerFactory>()
                     .CreateLogger(nameof(Namines.API.Services.AiAdvancedSettingsFixup)));
         }
@@ -836,7 +816,8 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
             try
             {
                 await Namines.API.Services.DevSandboxSeeder.SeedAsync(
-                    ownerScope.ServiceProvider.GetRequiredService<AuthDbContext>(),
+                    ownerScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
+                    ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Contracts.IIdentityDirectory>(),
                     app.Configuration,
                     ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Security.IProjectConnectionSecretProvider>(),
                     ownerScope.ServiceProvider.GetRequiredService<Namines.Hub.Application.IHubApplicationService>(),
@@ -856,7 +837,7 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
         try
         {
             await Namines.API.Services.HubBlueprintSeeder.SeedAsync(
-                ownerScope.ServiceProvider.GetRequiredService<AuthDbContext>(),
+                ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Contracts.IIdentityDirectory>(),
                 ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Contracts.IStudioProjects>(),
                 ownerScope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Contracts.IStudioBranches>(),
                 ownerScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),

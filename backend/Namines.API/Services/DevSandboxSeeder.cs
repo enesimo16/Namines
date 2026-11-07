@@ -43,7 +43,8 @@ public static class DevSandboxSeeder
     private const string DatabaseName = "namines_dev_sandbox";
 
     public static async Task SeedAsync(
-        AuthDbContext context,
+        Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> userManager,
+        Namines.BuildingBlocks.Contracts.IIdentityDirectory identity,
         IConfiguration configuration,
         IProjectConnectionSecretProvider secrets,
         IHubApplicationService hub,
@@ -68,7 +69,7 @@ public static class DevSandboxSeeder
             return;
         }
 
-        var owner = await context.Users.FirstOrDefaultAsync(u => u.Email == devEmail, ct);
+        var owner = await userManager.FindByEmailAsync(devEmail);
         if (owner is null)
         {
             logger.LogDebug("Dev hesabı ({Email}) bulunamadı, deneme projesi tohumlanmadı.", devEmail);
@@ -79,7 +80,7 @@ public static class DevSandboxSeeder
 
         await EnsureDatabaseAsync(controlConnection, logger, ct);
         await EnsureTablesAsync(sandboxConnection, logger, ct);
-        await EnsureProjectAsync(context, secrets, hub, studioProjects, gateway, owner, sandboxConnection, logger, ct);
+        await EnsureProjectAsync(identity, secrets, hub, studioProjects, gateway, owner, sandboxConnection, logger, ct);
     }
 
     /// <summary>
@@ -179,7 +180,7 @@ public static class DevSandboxSeeder
     }
 
     private static async Task EnsureProjectAsync(
-        AuthDbContext context,
+        Namines.BuildingBlocks.Contracts.IIdentityDirectory identity,
         IProjectConnectionSecretProvider secrets,
         IHubApplicationService hub,
         IStudioProjects studioProjects,
@@ -189,7 +190,7 @@ public static class DevSandboxSeeder
         ILogger logger,
         CancellationToken ct)
     {
-        var org = await context.GetOrCreatePersonalOrgAsync(owner.Id, owner.UserName ?? "Personal", ct);
+        var orgId = await identity.GetOrCreatePersonalOrganizationAsync(owner.Id, owner.UserName ?? "Personal", ct);
 
         var project = await studioProjects.GetAsync(ProjectId, ct);
         var isNew = project is null;
@@ -199,7 +200,7 @@ public static class DevSandboxSeeder
         await studioProjects.SaveAsync(new[]
         {
             new ProjectWrite(ProjectId, project?.Name ?? ProjectName, project?.DbType ?? "PostgreSQL", schemaJson,
-                project?.NodePositionsJson ?? "{}", project?.UserId ?? owner.Id, org.Id, project?.RowVersion),
+                project?.NodePositionsJson ?? "{}", project?.UserId ?? owner.Id, orgId, project?.RowVersion),
         }, ct);
         var ownerUserId = project?.UserId ?? owner.Id;
         var effectiveName = project?.Name ?? ProjectName;

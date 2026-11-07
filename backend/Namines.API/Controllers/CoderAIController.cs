@@ -103,8 +103,7 @@ public class CoderAIController : ControllerBase
                 bool forceLocal = fallbackToLocal;
                 if (!forceLocal && !string.IsNullOrEmpty(userId))
                 {
-                    var db = sp.GetRequiredService<AuthDbContext>();
-                    var policy = await db.UserAIPolicies.FirstOrDefaultAsync(p => p.UserId == userId);
+                    var policy = await sp.GetRequiredService<Namines.BuildingBlocks.Contracts.IAiPolicies>().FindAsync(userId);
                     if (policy != null && policy.Scaffolding == AIMode.DefaultNamines)
                     {
                         forceLocal = true;

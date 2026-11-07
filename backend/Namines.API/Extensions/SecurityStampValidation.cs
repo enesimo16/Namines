@@ -78,11 +78,8 @@ public static class SecurityStampValidation
 
             if (!cache.TryGetValue(cacheKey, out string? currentStamp))
             {
-                var db = ctx.HttpContext.RequestServices.GetRequiredService<AuthDbContext>();
-                currentStamp = await db.Users
-                    .Where(u => u.Id == userId)
-                    .Select(u => u.SecurityStamp)
-                    .FirstOrDefaultAsync(ctx.HttpContext.RequestAborted);
+                var identity = ctx.HttpContext.RequestServices.GetRequiredService<Namines.BuildingBlocks.Contracts.IIdentityDirectory>();
+                currentStamp = (await identity.GetSessionStateAsync(userId, ctx.HttpContext.RequestAborted)).SecurityStamp;
 
                 // Kullanıcı silinmişse sorgu null döner ve o da önbelleğe
                 // alınır. Silinmiş bir kullanıcının jetonu, içindeki gerçek

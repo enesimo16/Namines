@@ -32,7 +32,9 @@ namespace Namines.API.Controllers;
 public class AdminController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly AuthDbContext _context;
+    private readonly IIdentityAdmin _users;
+    private readonly IBillingAccounts _billing;
+    private readonly IGovernanceAdminQueries _governance;
     private readonly ILogger<AdminController> _logger;
     private readonly AdminTelemetryService _telemetry;
     private readonly IConfiguration _configuration;
@@ -48,7 +50,9 @@ public class AdminController : ControllerBase
 
     public AdminController(
         UserManager<ApplicationUser> userManager,
-        AuthDbContext context,
+        IIdentityAdmin users,
+        IBillingAccounts billing,
+        IGovernanceAdminQueries governance,
         ILogger<AdminController> logger,
         AdminTelemetryService telemetry,
         IConfiguration configuration,
@@ -63,7 +67,9 @@ public class AdminController : ControllerBase
         IDeskModule? desk = null)
     {
         _userManager = userManager;
-        _context = context;
+        _users = users;
+        _billing = billing;
+        _governance = governance;
         _logger = logger;
         _telemetry = telemetry;
         _configuration = configuration;
@@ -180,20 +186,22 @@ public class AdminController : ControllerBase
         var admin = await EnsureAdminAsync();
         if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
-        var totalUsers = await _userManager.Users.CountAsync();
+        var totalUsers = await _users.CountUsersAsync();
         var totalProjects = await _studio.CountProjectsAsync();
         var totalFeedbacks = await _ops.CountFeedbacksAsync(admin.Id);
         var activeDatabases = _ground != null ? await _ground.Databases.CountTotalDatabasesAsync() : 0;
 
-        var freeUsers = await _userManager.Users.CountAsync(u => !u.IsDev && (u.PlanCode == null || u.PlanCode == "" || u.PlanCode == "free"));
-        var proUsers = await _userManager.Users.CountAsync(u => !u.IsDev && u.PlanCode == "pro");
-        var teamUsers = await _userManager.Users.CountAsync(u => !u.IsDev && u.PlanCode == "team");
-        var devUsers = await _userManager.Users.CountAsync(u => u.IsDev);
+        var devIds = (await _identity.ListDevUserIdsAsync()).ToHashSet();
+        var devUsers = devIds.Count;
+        var (proUsers, teamUsers) = await _billing.CountPaidPlansAsync(devIds);
+        // free: dev olmayan ve ücretli plan kodu taşımayanlar (plan kodu boş ya da "free")
+        var paidNonDev = (await _billing.ListUserIdsWithPaidPlanAsync()).Count(id => !devIds.Contains(id));
+        var freeUsers = totalUsers - devUsers - paidNonDev;
 
         long totalQuotaUsedToday = 0;
         try
         {
-            totalQuotaUsedToday = await _context.UserAIQuotas.SumAsync(q => (long)q.DailyUsageCount);
+            totalQuotaUsedToday = await _billing.SumQuotaUsedTodayAsync();
         }
         catch
         {
@@ -227,24 +235,15 @@ public class AdminController : ControllerBase
         var admin = await EnsureAdminAsync();
         if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
-        var open = await _context.PendingSubscriptionCancellations.AsNoTracking()
-            .Where(c => c.CompletedAt == null)
-            .OrderByDescending(c => c.Attempts)
-            .ThenBy(c => c.CreatedAt)
-            .Take(200)
-            .Select(c => new
-            {
-                c.Id,
-                c.SubscriptionId,
-                c.CreatedAt,
-                c.Attempts,
-                c.LastAttemptAt,
-                c.NextAttemptAt,
-                stuck = c.Attempts >= Namines.Infrastructure.Services.SubscriptionCancellationProcessor.AlertAfterAttempts,
-            })
-            .ToListAsync(ct);
+        var backlog = await _billing.GetCancellationBacklogAsync(200, ct);
 
-        return Ok(new { total = open.Count, stuck = open.Count(c => c.stuck), items = open });
+        // total ve stuck listenin degil kuyrugun GERCEK sayisi: 200'den fazla acik satir varsa da dogru gorunur.
+        return Ok(new
+        {
+            total = backlog.Total,
+            stuck = backlog.Stuck,
+            items = backlog.Items.Select(c => new { c.Id, c.SubscriptionId, c.CreatedAt, c.Attempts, c.LastAttemptAt, c.NextAttemptAt, stuck = c.Stuck }).ToList(),
+        });
     }
 
     /// <summary>
@@ -264,48 +263,25 @@ public class AdminController : ControllerBase
         if (pageSize < 5) pageSize = 5;
         if (pageSize > 100) pageSize = 100;
 
-        var query = _userManager.Users.AsNoTracking().AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(q))
-        {
-            var search = q.Trim().ToLowerInvariant();
-            query = query.Where(u =>
-                (u.Email != null && u.Email.ToLowerInvariant().Contains(search)) ||
-                (u.UserName != null && u.UserName.ToLowerInvariant().Contains(search)) ||
-                (u.CompanyName != null && u.CompanyName.ToLowerInvariant().Contains(search)));
-        }
-
+        // Plan Billing'de, kimlik Identity'de: plan suzgeci once Billing'den kimlik kumesine cevrilir.
+        IReadOnlyCollection<string>? restrict = null, exclude = null;
+        bool? devOnly = null;
+        var excludeDev = false;
         if (!string.IsNullOrWhiteSpace(plan) && plan != "all")
         {
             var p = plan.Trim().ToLowerInvariant();
-            if (p == "dev")
-            {
-                query = query.Where(u => u.IsDev);
-            }
-            else if (p == "free")
-            {
-                query = query.Where(u => !u.IsDev && (u.PlanCode == null || u.PlanCode == "" || u.PlanCode == "free"));
-            }
-            else
-            {
-                query = query.Where(u => !u.IsDev && u.PlanCode == p);
-            }
+            if (p == "dev") devOnly = true;
+            else if (p == "free") { excludeDev = true; exclude = await _billing.ListUserIdsWithPaidPlanAsync(); }
+            else { excludeDev = true; restrict = await _billing.ListUserIdsByPlanAsync(p); }
         }
 
-        var totalCount = await query.CountAsync();
-
-        var users = await query
-            .OrderByDescending(u => u.CreatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
-
+        var found = await _users.QueryUsersAsync(new AdminUserQuery(q, restrict, exclude, devOnly, excludeDev, (page - 1) * pageSize, pageSize));
+        var totalCount = found.Total;
+        var users = found.Users;
         var userIds = users.Select(u => u.Id).ToList();
 
-        // İlgili kullanıcıların kota ve proje sayılarını çek
-        var quotas = await _context.UserAIQuotas
-            .Where(q => userIds.Contains(q.UserId))
-            .ToDictionaryAsync(q => q.UserId);
+        var quotas = await _billing.GetQuotaRowsAsync(userIds);
+        var subscriptions = await _billing.GetSubscriptionsAsync(userIds);
 
         var projectCounts = await _studio.CountByOwnerAsync(userIds);
 
@@ -313,8 +289,9 @@ public class AdminController : ControllerBase
         {
             quotas.TryGetValue(u.Id, out var quota);
             projectCounts.TryGetValue(u.Id, out var projCount);
+            subscriptions.TryGetValue(u.Id, out var sub);
 
-            var resolvedPlan = u.IsDev ? "dev" : (string.IsNullOrWhiteSpace(u.PlanCode) ? "free" : u.PlanCode.ToLowerInvariant());
+            var resolvedPlan = u.IsDev ? "dev" : (string.IsNullOrWhiteSpace(sub?.PlanCode) ? "free" : sub!.PlanCode!.ToLowerInvariant());
 
             return new
             {
@@ -325,8 +302,8 @@ public class AdminController : ControllerBase
                 createdAt = u.CreatedAt,
                 isDev = u.IsDev,
                 planCode = resolvedPlan,
-                subscriptionStatus = u.SubscriptionStatus,
-                currentPeriodEnd = u.CurrentPeriodEnd,
+                subscriptionStatus = sub?.Status,
+                currentPeriodEnd = sub?.CurrentPeriodEnd,
                 projectsCount = projCount,
                 dailyLimit = quota?.DailyLimit ?? (u.IsDev ? int.MaxValue : 100),
                 dailyUsageCount = quota?.DailyUsageCount ?? 0,
@@ -356,8 +333,8 @@ public class AdminController : ControllerBase
         var user = await _userManager.FindByIdAsync(id);
         if (user == null) return NotFound(new { error = "User not found." });
 
-        var quota = await _context.UserAIQuotas.FirstOrDefaultAsync(q => q.UserId == id);
-        var policy = await _context.UserAIPolicies.FirstOrDefaultAsync(p => p.UserId == id);
+        var quota = await _billing.GetQuotaRowAsync(id);
+        var sub = await _billing.GetSubscriptionAsync(id);
 
         var projects = (await _studio.ListByOwnerAsync(id))
             .OrderByDescending(p => p.Id, StringComparer.Ordinal)
@@ -379,9 +356,9 @@ public class AdminController : ControllerBase
             companyName = user.CompanyName,
             createdAt = user.CreatedAt,
             isDev = user.IsDev,
-            planCode = user.IsDev ? "dev" : (user.PlanCode ?? "free"),
-            subscriptionStatus = user.SubscriptionStatus,
-            currentPeriodEnd = user.CurrentPeriodEnd,
+            planCode = user.IsDev ? "dev" : (sub?.PlanCode ?? "free"),
+            subscriptionStatus = sub?.Status,
+            currentPeriodEnd = sub?.CurrentPeriodEnd,
             dailyLimit = quota?.DailyLimit ?? (user.IsDev ? int.MaxValue : 100),
             dailyUsageCount = quota?.DailyUsageCount ?? 0,
             lastResetDate = quota?.LastResetDate,
@@ -420,46 +397,15 @@ public class AdminController : ControllerBase
         }
 
         // IsDev'e DOKUNULMAZ: plan değişikliği hesabın dev/admin durumunu ne yükseltir ne düşürür.
-        user.PlanCode = targetPlan;
-
-        var quota = await _context.UserAIQuotas.FirstOrDefaultAsync(q => q.UserId == id);
-        if (quota == null)
-        {
-            quota = new UserAIQuota
-            {
-                UserId = id,
-                DailyUsageCount = 0,
-                LastResetDate = DateTime.UtcNow
-            };
-            await _context.UserAIQuotas.AddAsync(quota);
-        }
-
-        quota.DailyLimit = user.IsDev ? int.MaxValue : targetPlan switch
-        {
-            "team" => 2000,
-            "pro" => 500,
-            _ => 100
-        };
-
-        var updateResult = await _userManager.UpdateAsync(user);
-        if (!updateResult.Succeeded)
-        {
-            _logger.LogWarning("Admin plan update failed for User {UserId}: {Errors}",
-                user.Id, string.Join("; ", updateResult.Errors.Select(e => e.Code)));
-            return BadRequest(new
-            {
-                error = "Plan could not be updated.",
-                details = updateResult.Errors.Select(e => e.Description).ToArray()
-            });
-        }
-        await _context.SaveChangesAsync();
+        var quota = await _billing.AdminSetPlanAsync(id, targetPlan, user.IsDev);
 
         _logger.LogInformation("Admin {AdminEmail} updated User {UserEmail} plan to {Plan}", admin.Email, user.Email, targetPlan);
 
         // Etkin plan, kayıtlı plan kodundan farklı olabilir: PlanQuotas.Resolve aktif abonelik
         // yoksa plan kodunu okumaz. Admin "Pro yaptım" derken kullanıcının hâlâ Free
         // olduğunu görebilmeli.
-        var effective = PlanQuotas.Resolve(user.SubscriptionStatus, user.PlanCode, user.IsDev);
+        var subscription = await _billing.GetSubscriptionAsync(id);
+        var effective = PlanQuotas.Resolve(subscription?.Status, subscription?.PlanCode, user.IsDev);
         var effectivePlan = effective.ToString().ToLowerInvariant();
         var message = $"User plan updated to {targetPlan.ToUpperInvariant()} successfully.";
         if (!string.Equals(effectivePlan, targetPlan, StringComparison.Ordinal))
@@ -496,37 +442,7 @@ public class AdminController : ControllerBase
         var user = await _userManager.FindByIdAsync(id);
         if (user == null) return NotFound(new { error = "User not found." });
 
-        var quota = await _context.UserAIQuotas.FirstOrDefaultAsync(q => q.UserId == id);
-        if (quota == null)
-        {
-            quota = new UserAIQuota
-            {
-                UserId = id,
-                DailyLimit = user.IsDev ? int.MaxValue : 100,
-                DailyUsageCount = 0,
-                LastResetDate = DateTime.UtcNow
-            };
-            await _context.UserAIQuotas.AddAsync(quota);
-        }
-
-        if (dto.ResetToZero)
-        {
-            quota.DailyUsageCount = 0;
-            quota.LastResetDate = DateTime.UtcNow;
-        }
-
-        if (dto.BonusPoints.HasValue && dto.BonusPoints.Value > 0)
-        {
-            if (quota.DailyLimit != int.MaxValue)
-            {
-                // int taşması limiti negatife çevirip kullanıcıyı kilitlerdi; int.MaxValue ise
-                // "sınırsız" işaretidir, bonusla ona ulaşılmamalı.
-                var bonus = Math.Min(dto.BonusPoints.Value, MaxBonusPoints);
-                quota.DailyLimit = (int)Math.Min((long)quota.DailyLimit + bonus, int.MaxValue - 1);
-            }
-        }
-
-        await _context.SaveChangesAsync();
+        var quota = await _billing.AdminAdjustQuotaAsync(id, user.IsDev, dto.ResetToZero, dto.BonusPoints, MaxBonusPoints);
         _logger.LogInformation("Admin {AdminEmail} reset quota for User {UserEmail}", admin.Email, user.Email);
 
         return Ok(new
@@ -603,16 +519,11 @@ public class AdminController : ControllerBase
         var totalAiCalls = 0;
         try
         {
-            var perDay = await _context.UsageEvents
-                .AsNoTracking()
-                .Where(e => e.Resource == UsageResource.AiCall && e.OccurredAt >= filterStartDate && e.OccurredAt <= filterEndDate)
-                .GroupBy(e => e.OccurredAt.Date)
-                .Select(g => new { Day = g.Key, Count = g.Count() })
-                .ToListAsync();
+            var perDay = await _billing.ListUsageCallsPerDayAsync(filterStartDate, filterEndDate);
             foreach (var row in perDay)
             {
-                requestsByDay[row.Day.ToString("yyyy-MM-dd")] = row.Count;
-                totalAiCalls += row.Count;
+                requestsByDay[row.Date.ToString("yyyy-MM-dd")] = (int)row.Tokens;
+                totalAiCalls += (int)row.Tokens;
             }
         }
         catch (Exception ex)
@@ -621,12 +532,7 @@ public class AdminController : ControllerBase
         }
 
         // Geçmiş günler: GlobalAiUsages
-        var historicalRaw = await _context.GlobalAiUsages
-            .AsNoTracking()
-            .Where(g => g.Date >= filterStartDate && g.Date <= filterEndDate)
-            .OrderBy(g => g.Date)
-            .Select(g => new { g.Date, g.TokensUsed })
-            .ToListAsync();
+        var historicalRaw = await _billing.ListGlobalUsageAsync(filterStartDate, filterEndDate);
 
         var timeline = historicalRaw
             .Select(g =>
@@ -635,7 +541,7 @@ public class AdminController : ControllerBase
                 return new
                 {
                     date,
-                    tokens = g.TokensUsed,
+                    tokens = g.Tokens,
                     requests = requestsByDay.GetValueOrDefault(date, 0)
                 };
             })
@@ -645,7 +551,7 @@ public class AdminController : ControllerBase
         long todayTokens = 0;
         try
         {
-            todayTokens = await _context.UserAIQuotas.SumAsync(q => (long)q.DailyUsageCount);
+            todayTokens = await _billing.SumQuotaUsedTodayAsync();
         }
         catch { }
 
@@ -678,21 +584,20 @@ public class AdminController : ControllerBase
         var advancedUsed = 0;
 
         // En çok tüketen kullanıcılar
-        var topUsers = await _context.UserAIQuotas
-            .AsNoTracking()
-            .Include(q => q.User)
-            .OrderByDescending(q => q.DailyUsageCount)
-            .Take(5)
-            .Select(q => new
-            {
-                id = q.UserId,
-                email = q.User.Email,
-                username = q.User.UserName,
-                dailyUsage = q.DailyUsageCount,
-                dailyLimit = q.DailyLimit,
-                plan = q.User.PlanCode ?? "free"
-            })
-            .ToListAsync();
+        var topQuotas = await _billing.ListTopQuotaUsersAsync(5);
+        var topIds = topQuotas.Select(t => t.UserId).ToList();
+        var topNames = await _identity.GetUserNamesAsync(topIds);
+        var topEmails = await _identity.GetUserEmailsAsync(topIds);
+        var topSubs = await _billing.GetSubscriptionsAsync(topIds);
+        var topUsers = topQuotas.Select(t => new
+        {
+            id = t.UserId,
+            email = topEmails.GetValueOrDefault(t.UserId),
+            username = topNames.GetValueOrDefault(t.UserId),
+            dailyUsage = t.DailyUsageCount,
+            dailyLimit = t.DailyLimit,
+            plan = topSubs.TryGetValue(t.UserId, out var ts) && ts.PlanCode is not null ? ts.PlanCode : "free",
+        }).ToList();
 
         return Ok(new
         {
@@ -860,7 +765,7 @@ public class AdminController : ControllerBase
         var report = _telemetry.GetLastAuditReport();
         if (report == null)
         {
-            report = await _telemetry.RunSystemAuditAsync(_context, _configuration, _logger, HttpContext.RequestServices);
+            report = await _telemetry.RunSystemAuditAsync(_identity, _configuration, _logger, HttpContext.RequestServices);
         }
 
         return Ok(report);
@@ -878,7 +783,7 @@ public class AdminController : ControllerBase
             if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
             _logger.LogInformation("Admin {AdminEmail} triggered on-demand autonomous bot audit", admin.Email);
-            var freshReport = await _telemetry.RunSystemAuditAsync(_context, _configuration, _logger, HttpContext.RequestServices);
+            var freshReport = await _telemetry.RunSystemAuditAsync(_identity, _configuration, _logger, HttpContext.RequestServices);
             return Ok(freshReport);
         }
         catch (Exception ex)
@@ -1044,10 +949,9 @@ public class AdminController : ControllerBase
             : (0, (DateTime?)null);
 
         // Compile: Change request sayısı
-        var ddlGenerated = await _context.ChangeRequests.AsNoTracking()
-            .CountAsync(c => c.ProjectId == id);
-        var hasActiveMigrations = await _context.ChangeRequests.AsNoTracking()
-            .AnyAsync(c => c.ProjectId == id && (c.Status == ChangeRequestStatus.Approved || c.Status == ChangeRequestStatus.PendingReview));
+        var crFlags = await _governance.GetProjectFlagsAsync(id);
+        var ddlGenerated = crFlags.Total;
+        var hasActiveMigrations = crFlags.HasActiveMigrations;
 
         return Ok(new
         {
@@ -1185,15 +1089,8 @@ public class AdminController : ControllerBase
             sb.AppendLine("Date,TokensUsed,EstimatedRequests,PromptTokens,CompletionTokens");
             var now = DateTime.UtcNow.Date;
             var from = now.AddDays(-30);
-            var usages = await _context.GlobalAiUsages.AsNoTracking()
-                .Where(g => g.Date >= from)
-                .ToDictionaryAsync(g => g.Date.Date, g => g.TokensUsed);
-            var callsPerDay = (await _context.UsageEvents.AsNoTracking()
-                .Where(e => e.Resource == UsageResource.AiCall && e.OccurredAt >= from)
-                .GroupBy(e => e.OccurredAt.Date)
-                .Select(g => new { Day = g.Key, Count = g.Count() })
-                .ToListAsync())
-                .ToDictionary(x => x.Day.Date, x => x.Count);
+            var usages = (await _billing.ListGlobalUsageAsync(from, DateTime.MaxValue)).ToDictionary(g => g.Date.Date, g => g.Tokens);
+            var callsPerDay = (await _billing.ListUsageCallsPerDayAsync(from, DateTime.MaxValue)).ToDictionary(x => x.Date.Date, x => (int)x.Tokens);
 
             for (int i = 29; i >= 0; i--)
             {
@@ -1206,15 +1103,18 @@ public class AdminController : ControllerBase
         else
         {
             sb.AppendLine("ID,UserName,Email,Plan,DailyUsage,DailyLimit,CreatedAt");
-            var users = await _context.Users.AsNoTracking().Take(500).ToListAsync();
-            var quotas = await _context.UserAIQuotas.AsNoTracking().ToDictionaryAsync(q => q.UserId, q => q);
+            var users = await _users.ListRecentUsersAsync(500);
+            var csvIds = users.Select(u => u.Id).ToList();
+            var quotas = await _billing.GetQuotaRowsAsync(csvIds);
+            var csvSubs = await _billing.GetSubscriptionsAsync(csvIds);
             foreach (var u in users)
             {
                 quotas.TryGetValue(u.Id, out var quota);
+                csvSubs.TryGetValue(u.Id, out var csvSub);
                 var dailyUsage = quota?.DailyUsageCount ?? 0;
                 // Kota satırı yoksa GetUsers ile aynı varsayılan (dev sınırsız, diğerleri 100).
                 var dailyLimit = quota?.DailyLimit ?? (u.IsDev ? int.MaxValue : 100);
-                var plan = u.IsDev ? "dev" : (string.IsNullOrWhiteSpace(u.PlanCode) ? "free" : u.PlanCode);
+                var plan = u.IsDev ? "dev" : (string.IsNullOrWhiteSpace(csvSub?.PlanCode) ? "free" : csvSub!.PlanCode!);
                 sb.AppendLine(AdminCsv.Row(u.Id, u.UserName, u.Email, plan, dailyUsage, dailyLimit, u.CreatedAt));
             }
         }

@@ -78,13 +78,13 @@ internal sealed class GatewayKeyService : IGatewayKeyService, IGatewayMaintenanc
 
     private readonly IGatewayData _db;
     private readonly ITenantProjectAuthority _authority;
-    private readonly IIdentityDirectory _identity;
+    private readonly IBillingAccounts _billing;
 
-    public GatewayKeyService(IGatewayData db, ITenantProjectAuthority authority, IIdentityDirectory identity)
+    public GatewayKeyService(IGatewayData db, ITenantProjectAuthority authority, IBillingAccounts billing)
     {
         _db = db;
         _authority = authority;
-        _identity = identity;
+        _billing = billing;
     }
 
     public async Task<bool> CanManageAsync(string actorUserId, string projectId, CancellationToken ct = default) =>
@@ -95,7 +95,7 @@ internal sealed class GatewayKeyService : IGatewayKeyService, IGatewayMaintenanc
 
     private async Task<(PlanTier Tier, int Ceiling)> PlanCeilingAsync(string userId, CancellationToken ct)
     {
-        var account = await _identity.GetUserPlanSnapshotAsync(userId, ct);
+        var account = await _billing.GetPlanSnapshotAsync(userId, ct);
         var tier = PlanQuotas.Resolve(account?.SubscriptionStatus, account?.PlanCode, account?.IsDev ?? false);
         return (tier, PlanQuotas.For(tier).GatewayRequestsPerMinute);
     }

@@ -81,11 +81,11 @@ public sealed class LiveConnectionAuthSweeper : BackgroundService
         var connections = _registry.Snapshot();
         if (connections.Count == 0) return;
 
-        // Her tarama KENDİ kapsamını açıyor: AuthDbContext scoped ve uzun ömürlü
+        // Her tarama KENDİ kapsamını açıyor: Bağlamlar scoped ve uzun ömürlü
         // bir arka plan servisinde tutmak, değişiklik izleyicisini süresiz
         // büyütüp bayat veri okumak demekti.
         using var scope = _scopes.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var identity = scope.ServiceProvider.GetRequiredService<Namines.BuildingBlocks.Contracts.IIdentityDirectory>();
 
         var aborted = 0;
 
@@ -96,12 +96,9 @@ public sealed class LiveConnectionAuthSweeper : BackgroundService
         {
             ct.ThrowIfCancellationRequested();
 
-            var currentStamp = await db.Users.AsNoTracking()
-                .Where(u => u.Id == byUser.Key)
-                .Select(u => u.SecurityStamp)
-                .FirstOrDefaultAsync(ct);
-
-            var userExists = await db.Users.AsNoTracking().AnyAsync(u => u.Id == byUser.Key, ct);
+            var session = await identity.GetSessionStateAsync(byUser.Key, ct);
+            var currentStamp = session.SecurityStamp;
+            var userExists = session.Exists;
 
             foreach (var entry in byUser)
             {

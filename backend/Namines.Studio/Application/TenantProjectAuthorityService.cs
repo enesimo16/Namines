@@ -19,6 +19,7 @@ namespace Namines.Studio.Application;
 internal sealed class TenantProjectAuthorityService : ITenantProjectAuthority, IProjectConnectionSecretProvider
 {
     private readonly IIdentityDirectory _identity;
+    private readonly IBillingAccounts _billing;
     private readonly IConnectionSecretProtector _protector;
     private readonly IConnectionHostInspector? _hostInspector;
     private readonly IStudioData _studio;
@@ -26,11 +27,13 @@ internal sealed class TenantProjectAuthorityService : ITenantProjectAuthority, I
     public TenantProjectAuthorityService(
         IStudioData studio,
         IIdentityDirectory identity,
+        IBillingAccounts billing,
         IConnectionSecretProtector protector,
         IConnectionHostInspector? hostInspector = null)
     {
         _studio = studio ?? throw new ArgumentNullException(nameof(studio));
         _identity = identity ?? throw new ArgumentNullException(nameof(identity));
+        _billing = billing ?? throw new ArgumentNullException(nameof(billing));
         _protector = protector ?? throw new ArgumentNullException(nameof(protector));
         _hostInspector = hostInspector;
     }
@@ -83,7 +86,7 @@ internal sealed class TenantProjectAuthorityService : ITenantProjectAuthority, I
         if (string.IsNullOrWhiteSpace(userId))
             return null;
 
-        return await _identity.GetUserPlanSnapshotAsync(userId, ct);
+        return await _billing.GetPlanSnapshotAsync(userId, ct);
     }
 
     public async Task<OrgRole?> GetRoleAsync(

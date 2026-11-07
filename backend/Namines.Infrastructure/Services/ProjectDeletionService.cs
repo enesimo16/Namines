@@ -3,7 +3,6 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Namines.BuildingBlocks.Application;
 using Namines.BuildingBlocks.Contracts;
@@ -11,7 +10,6 @@ using Namines.Hub.Application;
 using Namines.BuildingBlocks.Persistence;
 using Namines.Core.Models.Auth;
 using Namines.Ground.Application;
-using Namines.Infrastructure.Data;
 using Namines.Vault.Application;
 
 namespace Namines.Infrastructure.Services;
@@ -33,7 +31,8 @@ namespace Namines.Infrastructure.Services;
 /// </summary>
 public class ProjectDeletionService : IProjectDeletion
 {
-    private readonly AuthDbContext _context;
+    private readonly IGovernanceAudit _audit;
+    private readonly IGovernanceMaintenance _governance;
     private readonly IVaultApplicationService _vault;
     private readonly IGroundApplicationService _ground;
     private readonly IHubApplicationService _hub;
@@ -45,7 +44,8 @@ public class ProjectDeletionService : IProjectDeletion
     private readonly ILogger<ProjectDeletionService> _logger;
 
     public ProjectDeletionService(
-        AuthDbContext context,
+        IGovernanceAudit audit,
+        IGovernanceMaintenance governance,
         IVaultApplicationService vault,
         IGroundApplicationService ground,
         ILogger<ProjectDeletionService> logger,
@@ -56,7 +56,8 @@ public class ProjectDeletionService : IProjectDeletion
         IStudioRelations relations,
         Namines.Gateway.Application.IGatewayMaintenance gateway)
     {
-        _context = context;
+        _audit = audit;
+        _governance = governance;
         _vault = vault;
         _ground = ground;
         _logger = logger;
@@ -81,7 +82,7 @@ public class ProjectDeletionService : IProjectDeletion
             groundDatabases = await _ground.CountActiveProjectDatabasesAsync(projectId, ct),
             branches = await _branches.CountBranchesAsync(projectId, ct),
             schemaVersions = await _branches.CountVersionsAsync(projectId, ct),
-            changeRequests = await _context.ChangeRequests.CountAsync(c => c.ProjectId == projectId, ct),
+            changeRequests = await _governance.CountChangeRequestsAsync(projectId, ct),
             crossDatabaseRelations = await _relations.CountForProjectAsync(projectId, ct),
         };
 
@@ -113,18 +114,17 @@ public class ProjectDeletionService : IProjectDeletion
         // (e) Satırlar: ilişkiler Restrict olduğu için önce; her modül kendi satırını sözleşmesiyle siler.
         // DB'deki şemalar arası FK'ler güvence olarak duruyor: bir modül unutsa da yetim satır oluşamaz.
         // "Silindi" denetim satırı silmeyle AYNI işlemde: biri olmadan diğeri olmaz.
-        AddAudit(ChangeRequestAuditAction.ProjectDeleted, project, actorUserId, counts, null, recordName);
         await _transaction.ExecuteAsync(async c =>
         {
             await _relations.RemoveForProjectAsync(projectId, c);
             await _hub.DetachFromForkSourceAsync(projectId, c);
             await _hub.PurgeProjectAsync(projectId, c);
-            await _context.ChangeRequests.Where(r => r.ProjectId == projectId).ExecuteDeleteAsync(c);
+            await _governance.DeleteProjectChangeRequestsAsync(projectId, c);
             await _gateway.PurgeProjectAsync(projectId, c);
             await _projects.DeleteAsync(projectId, c);
-            await _context.SaveChangesAsync(acceptAllChangesOnSuccess: false, c);
+            // "Silindi" denetim satırı silmeyle AYNI işlemde: biri olmadan diğeri olmaz.
+            await WriteAuditAsync(ChangeRequestAuditAction.ProjectDeleted, project, actorUserId, counts, null, recordName, c);
         }, ct);
-        _context.ChangeTracker.AcceptAllChanges();
 
         _logger.LogInformation("Proje silindi: {ProjectId} (aktör {Actor}).", projectId, actorUserId);
         return ProjectDeletionResult.Success();
@@ -136,26 +136,13 @@ public class ProjectDeletionService : IProjectDeletion
     /// <paramref name="recordName"/> false ise (hesap silme) ad ve aktör de yazılmaz: denetim izi
     /// silinen kişiye geri götüren bilgi taşımamalı.
     /// </summary>
-    private void AddAudit(
-        ChangeRequestAuditAction action, StudioProjectHeader project, string? actorUserId, object counts, string? failedStep, bool recordName)
-    {
-        _context.ChangeRequestAuditLogs.Add(new ChangeRequestAuditLog
-        {
-            ChangeRequestId = project.Id,
-            ProjectId = project.Id,
-            ChangeRequestTitle = recordName ? project.Name : null,
-            Action = action,
-            ActorUserId = recordName ? actorUserId : null,
-            Details = JsonSerializer.Serialize(new { counts, failedStep }),
-        });
-    }
-
     private async Task WriteAuditAsync(
         ChangeRequestAuditAction action, StudioProjectHeader project, string? actorUserId, object counts,
         string? failedStep, bool recordName, CancellationToken ct)
     {
-        AddAudit(action, project, actorUserId, counts, failedStep, recordName);
-        // Silme başarısız olursa denetim satırı yine de kalmalı: ayrı kaydediliyor.
-        await _context.SaveChangesAsync(ct);
+        // Silme başarısız olursa denetim satırı yine de kalmalı: kendi kaydıyla yazılır (silme işlemindeyse ona katılır).
+        await _audit.AppendAsync(new GovernanceAuditEntry(
+            project.Id, project.Id, recordName ? project.Name : null, action,
+            recordName ? actorUserId : null, JsonSerializer.Serialize(new { counts, failedStep })), ct);
     }
 }

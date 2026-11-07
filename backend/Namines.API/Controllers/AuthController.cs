@@ -48,7 +48,8 @@ namespace Namines.API.Controllers
         };
 
         private readonly UserManager<ApplicationUser> _userManager;
-        private readonly AuthDbContext _context;
+        private readonly Namines.BuildingBlocks.Contracts.IBillingAccounts _billing;
+        private readonly Namines.BuildingBlocks.Contracts.IAiPolicies _policies;
         private readonly IConfiguration _configuration;
         private readonly IMigrationService _migrationService;
         private readonly IAutomationJobQueue _automationQueue;
@@ -65,7 +66,8 @@ namespace Namines.API.Controllers
 
         public AuthController(
             UserManager<ApplicationUser> userManager,
-            AuthDbContext context,
+            Namines.BuildingBlocks.Contracts.IBillingAccounts billing,
+            Namines.BuildingBlocks.Contracts.IAiPolicies policies,
             IConfiguration configuration,
             IMigrationService migrationService,
             IAutomationJobQueue automationQueue,
@@ -84,7 +86,8 @@ namespace Namines.API.Controllers
             _lifecycle = lifecycle;
             _workspace = workspace;
             _userManager = userManager;
-            _context = context;
+            _billing = billing;
+            _policies = policies;
             _configuration = configuration;
             _migrationService = migrationService;
             _automationQueue = automationQueue;
@@ -138,26 +141,9 @@ namespace Namines.API.Controllers
                 return BadRequest(new { Message = $"Registration failed: {errors}" });
             }
 
-            // Automatically provision a default UserAIPolicy for this user
-            var defaultPolicy = new UserAIPolicy
-            {
-                UserId = user.Id,
-                // Varsayilanlar UserAIPolicy'de; burada tekrar yazilmiyor ki
-                // iki yer birbirinden ayrismasin.
-                UpdatedAt = DateTime.UtcNow
-            };
-            await _context.UserAIPolicies.AddAsync(defaultPolicy);
-
-            // Automatically provision a default UserAIQuota for this user
-            var defaultQuota = new UserAIQuota
-            {
-                UserId = user.Id,
-                DailyLimit = 100, // 100% percentage-based credits
-                DailyUsageCount = 0,
-                LastResetDate = DateTime.UtcNow
-            };
-            await _context.UserAIQuotas.AddAsync(defaultQuota);
-            await _context.SaveChangesAsync();
+            // Varsayilan AI politikasi ve gunluk kota satiri; varsayilanlar ilgili modullerde tanimli.
+            await _policies.EnsureAsync(user.Id);
+            var defaultQuota = await _billing.ProvisionDefaultQuotaAsync(user.Id);
 
             var quotaInfo = new
             {
@@ -260,41 +246,10 @@ namespace Namines.API.Controllers
                 await _userManager.UpdateAsync(user);
             }
 
-            var tier = Namines.Core.Analysis.PlanQuotas.Resolve(user.SubscriptionStatus, user.PlanCode, user.IsDev);
-            var defaultLimit = user.IsDev ? int.MaxValue : 100;
+            var plan = await _billing.GetPlanSnapshotAsync(user.Id);
+            var tier = Namines.Core.Analysis.PlanQuotas.Resolve(plan?.SubscriptionStatus, plan?.PlanCode, user.IsDev);
 
-            var quota = await _context.UserAIQuotas.FirstOrDefaultAsync(q => q.UserId == user.Id);
-            if (quota == null)
-            {
-                quota = new UserAIQuota
-                {
-                    UserId = user.Id,
-                    DailyLimit = defaultLimit,
-                    DailyUsageCount = 0,
-                    LastResetDate = DateTime.UtcNow
-                };
-                await _context.UserAIQuotas.AddAsync(quota);
-                await _context.SaveChangesAsync();
-            }
-            else
-            {
-                if (user.IsDev)
-                {
-                    quota.DailyLimit = int.MaxValue;
-                }
-                else if (quota.DailyLimit < 100)
-                {
-                    quota.DailyLimit = 100;
-                }
-
-                if (quota.LastResetDate.AddHours(3).Date < DateTime.UtcNow.AddHours(3).Date)
-                {
-                    quota.DailyUsageCount = 0;
-                    quota.LastResetDate = DateTime.UtcNow;
-                }
-                _context.UserAIQuotas.Update(quota);
-                await _context.SaveChangesAsync();
-            }
+            var quota = await _billing.SyncQuotaOnLoginAsync(user.Id, user.IsDev);
 
             var quotaInfo = new
             {
@@ -561,14 +516,16 @@ namespace Namines.API.Controllers
                 catch { }
             }
 
+            var subscription = await _billing.GetSubscriptionAsync(user.Id);
+
             return Ok(new
             {
                 username    = user.UserName,
                 email       = user.Email,
                 type        = user.Type.ToString().ToLowerInvariant(),
                 companyName = user.CompanyName,
-                subscriptionStatus = user.SubscriptionStatus ?? "none",
-                currentPeriodEnd   = user.CurrentPeriodEnd,
+                subscriptionStatus = subscription?.Status ?? "none",
+                currentPeriodEnd   = subscription?.CurrentPeriodEnd,
                 // Extended profile
                 profile.FullName,
                 profile.GithubUrl,
@@ -765,7 +722,7 @@ namespace Namines.API.Controllers
                 });
             }
 
-            var result = await _accountDeletion.DeleteAsync(user, ct);
+            var result = await _accountDeletion.DeleteAsync(user.Id, ct);
             if (!result.Ok)
                 return StatusCode(result.StatusCode, new
                 {
@@ -1383,22 +1340,8 @@ namespace Namines.API.Controllers
                     return BadRequest(new { Message = $"Could not create user account: {errors}" });
                 }
 
-                var defaultPolicy = new UserAIPolicy
-                {
-                    UserId = user.Id,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                await _context.UserAIPolicies.AddAsync(defaultPolicy);
-
-                var defaultQuota = new UserAIQuota
-                {
-                    UserId = user.Id,
-                    DailyLimit = 100,
-                    DailyUsageCount = 0,
-                    LastResetDate = DateTime.UtcNow
-                };
-                await _context.UserAIQuotas.AddAsync(defaultQuota);
-                await _context.SaveChangesAsync();
+                await _policies.EnsureAsync(user.Id);
+                await _billing.ProvisionDefaultQuotaAsync(user.Id);
             }
             else
             {
@@ -1438,7 +1381,7 @@ namespace Namines.API.Controllers
             var token = GenerateJwtToken(user);
             SetAuthCookie(token);
 
-            var quota = await _context.UserAIQuotas.AsNoTracking().FirstOrDefaultAsync(q => q.UserId == user.Id);
+            var quota = await _billing.GetQuotaRowAsync(user.Id);
             var quotaInfo = quota != null ? new
             {
                 dailyLimit = quota.DailyLimit,

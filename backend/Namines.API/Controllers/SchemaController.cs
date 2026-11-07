@@ -1,3 +1,4 @@
+using Namines.BuildingBlocks.Contracts;
 using Namines.API.Filters;
 using System;
 using Microsoft.AspNetCore.Authorization;
@@ -27,7 +28,7 @@ public class SchemaController : ControllerBase
     private readonly IAIFactory _aiFactory;
     private readonly ISmartSeedService _smartSeedService;
     private readonly SchemaAgentPipeline? _agent;
-    private readonly AiQuotaService? _quota;
+    private readonly IAiQuota? _quota;
     private readonly Namines.Infrastructure.Generators.DdlGenerator.IDdlGeneratorFactory _ddlFactory;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly IAiUsageTracker _usage;
@@ -39,7 +40,7 @@ public class SchemaController : ControllerBase
         IOptions<Microsoft.AspNetCore.Mvc.JsonOptions> jsonOptions,
         IAiUsageTracker usage,
         SchemaAgentPipeline? agent = null,
-        AiQuotaService? quota = null)
+        IAiQuota? quota = null)
     {
         _aiFactory = aiFactory;
         _smartSeedService = smartSeedService;
@@ -375,7 +376,7 @@ public class SchemaController : ControllerBase
 
         // Bütçe ÖNCEDEN rezerve ediliyor — eskiden yalnızca iş bittikten sonra
         // düşülüyordu ve aradaki pencerede eşzamanlı N istek aynı bütçeyi
-        // harcayabiliyordu (bkz. AiQuotaService.TryReserveAsync).
+        // harcayabiliyordu (bkz. IAiQuota.TryReserveAsync).
         //
         // Düz "budgetRounds * SchemaRoundTokenEstimate" DEĞİL: bir onarım turu
         // araç döngüsü yüzünden birden çok upstream çağrıya açılabiliyor (bkz.
@@ -643,8 +644,8 @@ public class SchemaController : ControllerBase
         if (_quota is null || string.IsNullOrEmpty(userId))
             return SchemaAgentPipeline.DefaultTotalRounds;
 
-        var quota = await _quota.EnsureQuotaAsync(userId, HttpContext.RequestAborted);
-        var remaining = Math.Max(0, quota.DailyLimit - quota.DailyUsageCount);
+        var quota = await _quota.EnsureAsync(userId, HttpContext.RequestAborted);
+        var remaining = Math.Max(0, quota.DailyLimit - quota.Used);
 
         var affordable = remaining / SchemaRoundTokenEstimate;
 

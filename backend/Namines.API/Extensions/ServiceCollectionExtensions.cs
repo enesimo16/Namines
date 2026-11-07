@@ -1,3 +1,6 @@
+using Namines.Billing.DependencyInjection;
+using Namines.Governance.DependencyInjection;
+using Namines.Infrastructure.Services;
 using Namines.Gateway.DependencyInjection;
 using Namines.Hub.DependencyInjection;
 using Namines.Studio.DependencyInjection;
@@ -19,7 +22,6 @@ using Namines.Infrastructure.Generators.Eject;
 using Namines.Infrastructure.Generators.PrismaGenerator;
 using Namines.Infrastructure.Generators.DocumentationGenerator;
 using Namines.Infrastructure.Realtime;
-using Namines.Infrastructure.Services;
 using Namines.Vault.DependencyInjection;
 using Namines.Ground.DependencyInjection;
 using Namines.Flow.DependencyInjection;
@@ -114,7 +116,6 @@ public static class ServiceCollectionExtensions
         // AI bütçesinin tek sahibi. İki yer harcıyor (Studio middleware'i ve
         // Gateway'in /query/nl ucu); kural iki yerde yazıldığında üç şey birden
         // yanlış olmuştu — bkz. AiQuotaService.
-        services.AddScoped<AiQuotaService>();
 
         // İstek kapsamlı: bir isteğin tüm sağlayıcı çağrılarında biriken GERÇEK
         // token kullanımı. Kota artık sabit tahminle değil bununla düşülüyor
@@ -171,11 +172,7 @@ public static class ServiceCollectionExtensions
 
         // Modular Monolith (Faz 2) — Modüller arası asenkron in-process olay veri yolu
         services.AddSingleton<IModuleEventBus, ModuleEventBus>();
-        services.AddNaminesBuildingBlocks(connectionStringFactory: config =>
-            Namines.Infrastructure.Data.ControlDbConnection.ApplyPoolDefaults(
-                config.GetConnectionString("DefaultConnection")
-                    ?? "Host=localhost;Port=5432;Database=namines_control;Username=postgres;Password=postgres",
-                config));
+        services.AddNaminesBuildingBlocks();
         Func<IConfiguration, string> controlDb = config =>
             Namines.Infrastructure.Data.ControlDbConnection.ApplyPoolDefaults(
                 config.GetConnectionString("DefaultConnection")
@@ -185,13 +182,11 @@ public static class ServiceCollectionExtensions
         services.AddStudioModule(controlDb);
         services.AddHubModule(controlDb);
         services.AddGatewayModule(controlDb);
+        services.AddBillingModule(controlDb);
+        services.AddGovernanceModule(controlDb);
         services.AddSingleton<Namines.Gateway.Application.IGatewayMetrics, Namines.Infrastructure.Observability.GatewayMetricsAdapter>();
-        services.AddScoped<Namines.BuildingBlocks.Contracts.IUsageMeter, Namines.Infrastructure.Data.UsageMeterBridge>();
-        services.AddScoped<Namines.BuildingBlocks.Contracts.IIdentityDirectory, Namines.Infrastructure.Data.IdentityDirectoryService>();
         services.AddScoped<Namines.BuildingBlocks.Contracts.IConnectionHostInspector, Namines.Infrastructure.Data.ConnectionHostInspector>();
-        services.AddScoped<Namines.BuildingBlocks.Contracts.IChangeRequestStats, Namines.Infrastructure.Data.ChangeRequestStats>();
         services.AddScoped<Namines.BuildingBlocks.Contracts.IProjectDeletion>(sp => sp.GetRequiredService<Namines.Infrastructure.Services.ProjectDeletionService>());
-        services.AddSingleton(Namines.Infrastructure.Data.AuthMigrations.Descriptor);
         services.AddScoped<Namines.BuildingBlocks.Security.IPlatformAdminAuthority, Namines.Infrastructure.Security.PlatformAdminAuthority>();
         services.AddScoped<Namines.BuildingBlocks.Persistence.ICrossModuleTransaction, Namines.Infrastructure.Data.CrossModuleTransaction>();
 
@@ -230,7 +225,6 @@ public static class ServiceCollectionExtensions
         // ölüyordu. IAIService ile aynı devredici-fabrika deseni: tek örnek
         // paylaşılsın diye yeni bir nesne kurulmuyor, kayıtlı somut servis
         // çözümleniyor.
-        services.AddScoped<IAiQuotaReserver>(sp => sp.GetRequiredService<AiQuotaService>());
         services.AddScoped<Namines.Flow.Application.IFlowAiQuotaGate>(sp =>
             new FlowAiQuotaGateAdapter(sp.GetRequiredService<IAiQuotaReserver>()));
 
@@ -260,8 +254,7 @@ public static class ServiceCollectionExtensions
         services.AddNaminesGround();
         services.AddScoped<ProjectDeletionService>();
         services.AddScoped<AccountDeletionService>();
-        services.AddScoped<ISubscriptionCanceller, Namines.API.Services.StripeSubscriptionCanceller>();
-        services.AddHostedService<SubscriptionCancellationWorker>();
+        services.AddScoped<IProjectMembershipService, ProjectMembershipService>();
 
         // Bekleme penceresi dolan yonetilen veritabanlarini kalici olarak siler.
         // GroundPurgeBackgroundService artik AddNaminesGround() icinde kaydediliyor.
