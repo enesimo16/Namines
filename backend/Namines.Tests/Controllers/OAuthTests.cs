@@ -75,7 +75,7 @@ public sealed class OAuthTests : IAsyncLifetime
 
         var controller = new AuthController(
             NewUserManager(db),
-            db,
+            TestModules.For(db).BillingAccounts, TestModules.For(db).Policies,
             config,
             new MigrationService(null!),
             new AutomationJobQueue(),

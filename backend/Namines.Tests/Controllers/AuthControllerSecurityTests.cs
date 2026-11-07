@@ -64,7 +64,7 @@ public sealed class AuthControllerSecurityTests : IAsyncLifetime
         var config = configuration ?? new ConfigurationBuilder().Build();
         var controller = new AuthController(
             userManager,
-            db,
+            TestModules.For(db).BillingAccounts, TestModules.For(db).Policies,
             config,
             new MigrationService(null!),
             new AutomationJobQueue(),

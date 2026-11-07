@@ -1,3 +1,4 @@
+using Namines.Billing.Domain;
 using Namines.Identity.Infrastructure.Persistence;
 using System;
 using System.Collections.Generic;
@@ -42,7 +43,7 @@ public sealed class TeamControllerProjectSharingTests : IAsyncLifetime
 
     private static TeamController CreateController(AuthDbContext db, string userId)
     {
-        var controller = new TeamController(db, TestModules.For(db).DefaultAuthority, TestModules.For(db).Projects, TestModules.For(db).Identity, TestModules.For(db).Lifecycle);
+        var controller = new TeamController(Kit_A_Identity.Team(db), TestModules.For(db).Projects, TestModules.For(db).Identity, TestModules.For(db).Lifecycle);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
@@ -68,9 +69,10 @@ public sealed class TeamControllerProjectSharingTests : IAsyncLifetime
                 Id = userId,
                 UserName = "owner",
                 Email = "owner@example.com",
-                PlanCode = "team"
             };
             db.Users.Add(user);
+            // Plan artik faturalama modulunde (billing.subscriptions).
+            db.Billing().Subscriptions.Add(new BillingSubscription { UserId = userId, Status = "active", PlanCode = "team" });
 
             var personalOrg = new Organization
             {
@@ -162,9 +164,10 @@ public sealed class TeamControllerProjectSharingTests : IAsyncLifetime
                 Id = userId,
                 UserName = "owner2",
                 Email = "owner2@example.com",
-                PlanCode = "team"
             };
             db.Users.Add(user);
+            // Plan artik faturalama modulunde (billing.subscriptions).
+            db.Billing().Subscriptions.Add(new BillingSubscription { UserId = userId, Status = "active", PlanCode = "team" });
 
             var personalOrg = new Organization
             {

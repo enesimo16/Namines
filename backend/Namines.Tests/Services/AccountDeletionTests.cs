@@ -11,6 +11,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
 using Namines.API.Controllers;
+using Namines.Billing.Domain;
+using Namines.Governance.Domain;
 using Namines.Core.Models;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
@@ -18,6 +20,10 @@ using Namines.Infrastructure.Services;
 using Xunit;
 using static Namines.Tests.Services.ProjectDeletionTestKit;
 using Namines.Tests.TestSupport;
+using Namines.Tests.Integration;
+using Namines.Studio.Infrastructure.Persistence;
+using Namines.Desk.Infrastructure.Persistence;
+using Namines.Studio.Domain;
 
 namespace Namines.Tests.Services;
 
@@ -66,7 +72,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
 
     private static AccountDeletionService NewService(
         AuthDbContext db, FakeStore store, FakeProvider provider, ISubscriptionCanceller? canceller = null) =>
-        new(db, NewUserManager(db), Create(db, store, provider), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance, TestModules.For(db).Feedback, TestModules.For(db).Projects, TestModules.For(db).GatewayMaintenance, canceller);
+        Kit_A_Identity.AccountDeletion(db, NewUserManager(db), Create(db, store, provider), canceller);
 
     private static CloudProject Project(string id, string userId, string? orgId) => new()
     {
@@ -84,11 +90,13 @@ public sealed class AccountDeletionTests : IAsyncLifetime
     private static async Task SeedAsync(AuthDbContext db, FakeStore store)
     {
         db.Users.AddRange(
-            new ApplicationUser { Id = "u1", UserName = "alice", Email = "alice@example.com", StripeSubscriptionId = "sub_123" },
+            new ApplicationUser { Id = "u1", UserName = "alice", Email = "alice@example.com" },
             new ApplicationUser { Id = "u2", UserName = "bob", Email = "bob@example.com" });
         db.Organizations.AddRange(
             new Organization { Id = "P", Name = "Alice personal", IsPersonal = true, CreatedByUserId = "u1" },
             new Organization { Id = "T", Name = "Team", CreatedByUserId = "u2" });
+        // Stripe kimligi artik kimlik tablosunda degil, faturalama modulunde.
+        db.Billing().Subscriptions.Add(new BillingSubscription { UserId = "u1", StripeSubscriptionId = "sub_123" });
         await db.SaveChangesAsync();
 
         Member(db, "P", "u1", OrgRole.Owner);
@@ -148,7 +156,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
 
         db.ChangeTracker.Clear();
         var user = await db.Users.SingleAsync(u => u.Id == "u1");
-        var result = await NewService(db, store, new FakeProvider()).DeleteAsync(user, CancellationToken.None);
+        var result = await NewService(db, store, new FakeProvider()).DeleteAsync("u1", CancellationToken.None);
 
         Assert.False(result.Ok);
         Assert.Equal(409, result.StatusCode);
@@ -171,7 +179,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await SeedAsync(db, store);
 
         var result = await NewService(db, store, provider)
-            .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
+            .DeleteAsync("u1", CancellationToken.None);
 
         Assert.True(result.Ok, result.Code + " " + result.Error);
         Assert.Empty(store.Blobs);
@@ -198,7 +206,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         db.ChangeTracker.Clear();
 
         var result = await NewService(db, store, new FakeProvider())
-            .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
+            .DeleteAsync("u1", CancellationToken.None);
 
         Assert.True(result.Ok, result.Code + " " + result.Error);
         await using var verify = NewContext();
@@ -219,7 +227,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await db.OrganizationMembers.Where(m => m.OrganizationId == "T" && m.UserId == "u1").ExecuteDeleteAsync();
 
         var result = await NewService(db, store, new FakeProvider())
-            .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
+            .DeleteAsync("u1", CancellationToken.None);
 
         Assert.True(result.Ok, result.Code + " " + result.Error);
         await using var verify = NewContext();
@@ -235,13 +243,20 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await SeedAsync(db, store);
 
         var result = await NewService(db, store, new FakeProvider(), canceller)
-            .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
+            .DeleteAsync("u1", CancellationToken.None);
 
         Assert.True(result.Ok, result.Code + " " + result.Error);
         Assert.Equal(new[] { "sub_123" }, canceller.Canceled);
         await using var verify = NewContext();
-        var audit = await verify.ChangeRequestAuditLogs.SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
-        Assert.Contains("\"stripe\":\"canceled\"", audit.Details);
+        // Denetim izi degistirilemez: AccountDeleted satiri "queued" kalir, tamamlanma yeni satir olarak eklenir.
+        var audit = await verify.Governance().ChangeRequestAuditLogs.SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
+        Assert.Contains("\"stripe\":\"queued\"", audit.Details);
+        var outbox = await verify.Billing().PendingSubscriptionCancellations.SingleAsync();
+        Assert.Equal("sub_123", outbox.SubscriptionId);
+        Assert.NotNull(outbox.CompletedAt);
+        var completed = await verify.Governance().ChangeRequestAuditLogs.SingleAsync(a => a.Action == ChangeRequestAuditAction.SubscriptionCancellationCompleted);
+        Assert.Equal(outbox.Id, completed.ChangeRequestId);
+        Assert.Contains("\"stripe\":\"canceled\"", completed.Details);
     }
 
     [Fact]
@@ -252,13 +267,13 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await SeedAsync(db, store);
 
         var result = await NewService(db, store, new FakeProvider(), canceller: null)
-            .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
+            .DeleteAsync("u1", CancellationToken.None);
 
         Assert.True(result.Ok, result.Code + " " + result.Error);
         await using var verify = NewContext();
-        var audit = await verify.ChangeRequestAuditLogs.SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
+        var audit = await verify.Governance().ChangeRequestAuditLogs.SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
         Assert.Contains("\"stripe\":\"queued\"", audit.Details);
-        var outbox = await verify.PendingSubscriptionCancellations.SingleAsync();
+        var outbox = await verify.Billing().PendingSubscriptionCancellations.SingleAsync();
         Assert.Equal("sub_123", outbox.SubscriptionId);
         Assert.Null(outbox.CompletedAt);
     }
@@ -271,7 +286,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await SeedAsync(db, store);
 
         var result = await NewService(db, store, new FakeProvider())
-            .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
+            .DeleteAsync("u1", CancellationToken.None);
 
         Assert.True(result.Ok, result.Code + " " + result.Error);
         await using var verify = NewContext();
@@ -286,9 +301,10 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         Assert.Null(feedback.UserId);
         Assert.Equal("great", feedback.Message);
 
-        Assert.False(await verifyDesk.SqlQueryHistory.AnyAsync());
+        // SQL gecmisinin silinmesi veritabani FK'sinin (CASCADE) isi: modul sema kurulumunda (SQLite) capraz
+        // modul FK'si yok. Gercek zincirde sinama AccountDeletionDeskCascadeTests icinde (PostgreSQL).
 
-        var audit = await verify.ChangeRequestAuditLogs.SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
+        var audit = await verify.Governance().ChangeRequestAuditLogs.SingleAsync(a => a.Action == ChangeRequestAuditAction.AccountDeleted);
         Assert.Equal("u1", audit.ChangeRequestId);
         Assert.Null(audit.ActorUserId);
         Assert.Null(audit.ChangeRequestTitle);
@@ -296,7 +312,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
             Assert.DoesNotContain(pii, audit.Details ?? string.Empty);
 
         // Kişisel projenin silme denetim satırı da ad/aktör taşımıyor.
-        var projectAudit = await verify.ChangeRequestAuditLogs
+        var projectAudit = await verify.Governance().ChangeRequestAuditLogs
             .Where(a => a.ProjectId == "pp" && a.Action == ChangeRequestAuditAction.ProjectDeleted).SingleAsync();
         Assert.Null(projectAudit.ActorUserId);
         Assert.Null(projectAudit.ChangeRequestTitle);
@@ -310,7 +326,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await SeedAsync(db, store);
 
         var result = await NewService(db, store, new FakeProvider { FailDelete = true })
-            .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
+            .DeleteAsync("u1", CancellationToken.None);
 
         Assert.False(result.Ok);
         Assert.Equal(503, result.StatusCode);
@@ -339,7 +355,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         db.ChangeTracker.Clear();
 
         var result = await NewService(db, store, new FakeProvider())
-            .DeleteAsync(await db.Users.SingleAsync(u => u.Id == "u1"), CancellationToken.None);
+            .DeleteAsync("u1", CancellationToken.None);
         Assert.True(result.Ok, result.Code + " " + result.Error);
 
         await using var read = NewContext();
@@ -375,9 +391,9 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         }).Build();
         var all = new List<Claim>(claims) { new(ClaimTypes.NameIdentifier, "u1") };
         var um = NewUserManager(db);
-        return new AuthController(um, db, config, new MigrationService(null!), new AutomationJobQueue(),
+        return new AuthController(um, TestModules.For(db).BillingAccounts, TestModules.For(db).Policies, config, new MigrationService(null!), new AutomationJobQueue(),
             NullLogger<AuthController>.Instance, TestModules.For(db).StudioService, TestModules.For(db).Lifecycle, TestModules.For(db).Workspace, new FakeEnv(), null,
-            new AccountDeletionService(db, um, Create(db), TestModules.For(db).HubService, TestModules.For(db).Transaction, NullLogger<AccountDeletionService>.Instance, TestModules.For(db).Feedback, TestModules.For(db).Projects, TestModules.For(db).GatewayMaintenance))
+            accountDeletion: Kit_A_Identity.AccountDeletion(db, um, Create(db)))
         {
             ControllerContext = new ControllerContext
             {
@@ -466,4 +482,66 @@ public sealed class AccountDeletionTests : IAsyncLifetime
             .DeleteAccount(new DeleteAccountRequest(null, null, "alice@example.com"), CancellationToken.None);
         Assert.IsType<OkObjectResult>(ok);
     }
+}
+
+/// <summary>
+/// Desk SQL geçmişi kullanıcı silinince DB'den gider: bu kural FK CASCADE ile uygulanıyor ve yalnızca gerçek
+/// migration zincirinde var (modül bağlamı çapraz modül FK'si tanımlamaz), bu yüzden PostgreSQL'de sınanır.
+/// </summary>
+[Collection("Docker")]
+public sealed class AccountDeletionDeskCascadeTests : IAsyncLifetime
+{
+    private readonly Testcontainers.PostgreSql.PostgreSqlContainer _container =
+        new Testcontainers.PostgreSql.PostgreSqlBuilder("postgres:17-alpine").Build();
+
+    public async Task InitializeAsync()
+    {
+        if (!DockerAvailable.Value) return;
+        await _container.StartAsync();
+        PostgresTestPools.Reset();
+    }
+
+    public async Task DisposeAsync()
+    {
+        if (!DockerAvailable.Value) return;
+        await _container.DisposeAsync();
+    }
+
+    [RequiresDockerFact]
+    public async Task Kullanici_silinince_Desk_SQL_gecmisi_migration_FK_ile_gider_baskasinin_gecmisi_kalir()
+    {
+        var cs = _container.GetConnectionString();
+        await TestModules.MigrateAllAsync(cs);
+
+        await using var db = new AuthDbContext(new DbContextOptionsBuilder<AuthDbContext>().UseNpgsql(cs).Options);
+        db.Users.AddRange(new ApplicationUser { Id = "u1", UserName = "alice" }, new ApplicationUser { Id = "u2", UserName = "bob" });
+        await db.SaveChangesAsync();
+
+        // Proje u2'nin: u1 silinince proje CASCADE'i gecmisi sessizce goturmesin, sinanan yalnizca kullanici FK'si.
+        await using (var studio = new StudioDbContext(new DbContextOptionsBuilder<StudioDbContext>().UseNpgsql(cs).Options))
+        {
+            studio.Projects.Add(Project("tp", "u2", null));
+            await studio.SaveChangesAsync();
+        }
+
+        await using (var desk = new DeskDbContext(new DbContextOptionsBuilder<DeskDbContext>().UseNpgsql(cs).Options))
+        {
+            desk.SqlQueryHistory.AddRange(
+                new SqlQueryHistoryEntry { UserId = "u1", ProjectId = "tp", Sql = "select secret from t" },
+                new SqlQueryHistoryEntry { UserId = "u2", ProjectId = "tp", Sql = "select 1" });
+            await desk.SaveChangesAsync();
+        }
+
+        await db.Users.Where(u => u.Id == "u1").ExecuteDeleteAsync();
+
+        await using var verify = new DeskDbContext(new DbContextOptionsBuilder<DeskDbContext>().UseNpgsql(cs).Options);
+        var left = await verify.SqlQueryHistory.AsNoTracking().ToListAsync();
+        Assert.Equal("u2", Assert.Single(left).UserId);
+    }
+
+    private static CloudProject Project(string id, string userId, string? orgId) => new()
+    {
+        Id = id, Name = "proj " + id, DbType = "PostgreSQL", SchemaJson = "{}", NodePositionsJson = "{}",
+        UserId = userId, OrganizationId = orgId,
+    };
 }

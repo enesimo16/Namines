@@ -82,7 +82,7 @@ public sealed class MfaSessionTests : IAsyncLifetime
     {
         var cache = new MemoryCache(new MemoryCacheOptions());
         var controller = new AuthController(
-            userManager, db, new ConfigurationBuilder().Build(), new MigrationService(null!),
+            userManager, TestModules.For(db).BillingAccounts, TestModules.For(db).Policies, new ConfigurationBuilder().Build(), new MigrationService(null!),
             new AutomationJobQueue(), NullLogger<AuthController>.Instance, TestModules.For(db).StudioService, TestModules.For(db).Lifecycle, TestModules.For(db).Workspace);
         controller.ControllerContext = new ControllerContext
         {

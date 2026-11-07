@@ -72,6 +72,7 @@ public sealed class SecurityStampValidationTests : IAsyncLifetime
 
     private ServiceProvider BuildServices() => new ServiceCollection()
         .AddDbContext<AuthDbContext>(o => o.UseSqlite(_connection))
+        .AddScoped<Namines.BuildingBlocks.Contracts.IIdentityDirectory>(sp => new Namines.Identity.Application.IdentityDirectoryService(sp.GetRequiredService<AuthDbContext>()))
         .AddMemoryCache()
         .BuildServiceProvider();
 

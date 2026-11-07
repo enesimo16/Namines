@@ -82,7 +82,7 @@ public sealed class RemovedMemberKeepsAccessTests : IAsyncLifetime
 
     private static ProjectMemberController NewMemberController(AuthDbContext db, string userId) =>
         // ProjectId doluyken ResolveOrgIdAsync UserManager'a dokunmuyor.
-        new(db, userManager: null!, authority: TestModules.For(db).DefaultAuthority, lifecycle: TestModules.For(db).Lifecycle, gateway: TestModules.For(db).GatewayMaintenance, transaction: TestModules.For(db).Transaction)
+        new ProjectMemberController(Kit_A_Identity.Members(db))
         {
             ControllerContext = new ControllerContext
             {

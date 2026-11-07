@@ -84,7 +84,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
         if (userId is not null) claims.Add(new Claim(ClaimTypes.NameIdentifier, userId));
 
         return new AuthController(
-            NewUserManager(db), db, config, new MigrationService(null!), new AutomationJobQueue(),
+            NewUserManager(db), TestModules.For(db).BillingAccounts, TestModules.For(db).Policies, config, new MigrationService(null!), new AutomationJobQueue(),
             NullLogger<AuthController>.Instance, TestModules.For(db).StudioService, TestModules.For(db).Lifecycle, TestModules.For(db).Workspace, new FakeEnv(envName))
         {
             ControllerContext = new ControllerContext
@@ -306,7 +306,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
     }
 
     private static TeamController NewTeam(AuthDbContext db, string userId) =>
-        new(db, TestModules.For(db).DefaultAuthority, TestModules.For(db).Projects, TestModules.For(db).Identity, TestModules.For(db).Lifecycle)
+        new TeamController(Kit_A_Identity.Team(db), TestModules.For(db).Projects, TestModules.For(db).Identity, TestModules.For(db).Lifecycle)
         {
             ControllerContext = new ControllerContext
             {
@@ -380,7 +380,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
     {
         await SeedKeysAsync(OrgRole.Owner);
         await using var db = NewContext();
-        var controller = new ProjectMemberController(db, userManager: null!, authority: TestModules.For(db).DefaultAuthority, lifecycle: TestModules.For(db).Lifecycle, gateway: TestModules.For(db).GatewayMaintenance, transaction: TestModules.For(db).Transaction)
+        var controller = new ProjectMemberController(Kit_A_Identity.Members(db))
         {
             ControllerContext = new ControllerContext
             {

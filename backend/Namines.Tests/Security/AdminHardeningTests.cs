@@ -167,7 +167,7 @@ public class AdminHardeningTests : IAsyncLifetime
         var db = new AuthDbContext(_options);
 
         var controller = new AdminController(
-            users, db, NullLogger<AdminController>.Instance, telemetry ?? new AdminTelemetryService(),
+            users, Kit_A_Identity.AdminContracts(db).Users, Kit_A_Identity.AdminContracts(db).Billing, Kit_A_Identity.AdminContracts(db).Governance, NullLogger<AdminController>.Instance, telemetry ?? new AdminTelemetryService(),
             new ConfigurationBuilder().Build(), TestOps.Admin(sp), TestModules.For(db).StudioAdmin, TestModules.For(db).Projects, TestModules.For(db).Identity);
 
         var admin = new ApplicationUser { Id = "adm", UserName = "adm", Email = "adm@example.com", IsDev = true };
