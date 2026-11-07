@@ -4,7 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Namines.Core.Models.Auth;
-using Namines.Infrastructure.Security;
+using Namines.Identity.Application;
 
 namespace Namines.Tests.TestSupport;
 
@@ -17,7 +17,7 @@ public static class TestOps
         var db = sp.CreateScope().ServiceProvider.GetRequiredService<OpsDbContext>();
         return new OpsAdminService(
             db,
-            new PlatformAdminAuthority(sp.GetRequiredService<UserManager<ApplicationUser>>(), new ConfigurationBuilder().Build()),
+            new PlatformAdminAuthority(new Namines.Identity.Application.IdentityAccountService(sp.GetRequiredService<UserManager<ApplicationUser>>(), new ConfigurationBuilder().Build())),
             flags ?? new FeatureFlagService(scopes, NullLogger<FeatureFlagService>.Instance),
             new AiRouteCatalog(scopes, NullLogger<AiRouteCatalog>.Instance));
     }

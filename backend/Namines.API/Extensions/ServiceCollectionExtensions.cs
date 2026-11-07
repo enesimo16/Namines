@@ -187,7 +187,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<Namines.Gateway.Application.IGatewayMetrics, Namines.Infrastructure.Observability.GatewayMetricsAdapter>();
         services.AddScoped<Namines.BuildingBlocks.Contracts.IConnectionHostInspector, Namines.Infrastructure.Data.ConnectionHostInspector>();
         services.AddScoped<Namines.BuildingBlocks.Contracts.IProjectDeletion>(sp => sp.GetRequiredService<Namines.Infrastructure.Services.ProjectDeletionService>());
-        services.AddScoped<Namines.BuildingBlocks.Security.IPlatformAdminAuthority, Namines.Infrastructure.Security.PlatformAdminAuthority>();
         services.AddScoped<Namines.BuildingBlocks.Persistence.ICrossModuleTransaction, Namines.Infrastructure.Data.CrossModuleTransaction>();
 
         // Namines Vault — yedekleme/geri yükleme. Modülün kendi kayıtları

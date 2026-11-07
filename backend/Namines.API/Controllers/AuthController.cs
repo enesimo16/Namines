@@ -47,7 +47,7 @@ namespace Namines.API.Controllers
             Converters = { new JsonStringEnumConverter() }
         };
 
-        private readonly UserManager<ApplicationUser> _userManager;
+        private readonly Namines.Identity.Application.IIdentityAccounts _accounts;
         private readonly Namines.BuildingBlocks.Contracts.IBillingAccounts _billing;
         private readonly Namines.BuildingBlocks.Contracts.IAiPolicies _policies;
         private readonly IConfiguration _configuration;
@@ -65,7 +65,7 @@ namespace Namines.API.Controllers
         private readonly IProjectWorkspaceService _workspace;
 
         public AuthController(
-            UserManager<ApplicationUser> userManager,
+            Namines.Identity.Application.IIdentityAccounts accounts,
             Namines.BuildingBlocks.Contracts.IBillingAccounts billing,
             Namines.BuildingBlocks.Contracts.IAiPolicies policies,
             IConfiguration configuration,
@@ -85,7 +85,7 @@ namespace Namines.API.Controllers
         {
             _lifecycle = lifecycle;
             _workspace = workspace;
-            _userManager = userManager;
+            _accounts = accounts;
             _billing = billing;
             _policies = policies;
             _configuration = configuration;
@@ -107,39 +107,14 @@ namespace Namines.API.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var devConfigEmail = _configuration["Dev:Email"];
-            bool isReservedEmail = !string.IsNullOrWhiteSpace(model.Email) && (
-                string.Equals(model.Email, "namines@namines.com", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(model.Email, "admin@namines.com", StringComparison.OrdinalIgnoreCase) ||
-                (!string.IsNullOrWhiteSpace(devConfigEmail) && string.Equals(model.Email, devConfigEmail, StringComparison.OrdinalIgnoreCase)));
-
-            if (isReservedEmail)
+            var registration = await _accounts.RegisterAsync(model.Username, model.Email, model.Password, model.CompanyName);
+            if (registration.Status == Namines.Identity.Application.RegistrationStatus.ReservedEmail)
                 return BadRequest(new { Message = "This email address is reserved and cannot be registered publicly." });
-
-            var existingUser = await _userManager.FindByEmailAsync(model.Email);
-            if (existingUser != null)
+            if (registration.Status == Namines.Identity.Application.RegistrationStatus.EmailTaken)
                 return BadRequest(new { Message = "An account with this email already exists." });
-
-            // All new users start as Free (Individual) tier.
-            // Pro (Corporate) status is ONLY granted by the Stripe payment webhook
-            // after a successful subscription — it can never be self-assigned at registration.
-            var userType = UserType.Individual;
-
-            var user = new ApplicationUser
-            {
-                UserName = model.Username ?? model.Email,
-                Email = model.Email,
-                Type = userType,
-                CompanyName = model.CompanyName,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            var result = await _userManager.CreateAsync(user, model.Password);
-            if (!result.Succeeded)
-            {
-                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-                return BadRequest(new { Message = $"Registration failed: {errors}" });
-            }
+            if (registration.Status != Namines.Identity.Application.RegistrationStatus.Created)
+                return BadRequest(new { Message = $"Registration failed: {registration.Errors}" });
+            var user = registration.User!;
 
             // Varsayilan AI politikasi ve gunluk kota satiri; varsayilanlar ilgili modullerde tanimli.
             await _policies.EnsureAsync(user.Id);
@@ -183,68 +158,28 @@ namespace Namines.API.Controllers
         [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("sensitive")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto model)
         {
-            var user = await _userManager.FindByEmailAsync(model.Email);
-
-            // Kullanıcı yoksa da aynı mesaj: farklı cevap vermek, hangi
-            // e-postaların kayıtlı olduğunu sızdıran bir numaralandırma
-            // aracına dönerdi.
-            if (user is null)
-                return Unauthorized(new { Message = "Incorrect email or password." });
-
-            if (await _userManager.IsLockedOutAsync(user))
-                return Unauthorized(new
-                {
-                    Message = "This account is temporarily locked after too many failed sign-in attempts. Try again later.",
-                });
-
-            if (!await _userManager.CheckPasswordAsync(user, model.Password))
+            // Kilit, parola, MFA kapıları ve başarısızlık sayacı Identity modülünde; burada yalnız HTTP eşlemesi.
+            // Kullanıcı yoksa da aynı mesaj: farklı cevap, hangi e-postaların kayıtlı olduğunu sızdırırdı.
+            var signIn = await _accounts.PasswordSignInAsync(model.Email, model.Password, model.TwoFactorCode);
+            switch (signIn.Status)
             {
-                // Başarısızlığı KAYDET — kilitleme buna dayanıyor.
-                await _userManager.AccessFailedAsync(user);
-                return Unauthorized(new { Message = "Incorrect email or password." });
-            }
-
-            // ── MFA kapısı ────────────────────────────────────────────────
-            //
-            // Parola doğrulandıktan SONRA. Önce sorulsaydı, parolayı bilmeyen
-            // biri bile bir hesapta MFA açık olup olmadığını öğrenirdi — hedef
-            // seçmesine yarayan bir bilgi.
-            if (user.TwoFactorEnabled)
-            {
-                if (string.IsNullOrWhiteSpace(model.TwoFactorCode))
-                {
-                    // Sayaç SIFIRLANMIYOR: parola doğru ama giriş tamamlanmadı.
+                case Namines.Identity.Application.PasswordSignInStatus.LockedOut:
+                    return Unauthorized(new
+                    {
+                        Message = "This account is temporarily locked after too many failed sign-in attempts. Try again later.",
+                    });
+                case Namines.Identity.Application.PasswordSignInStatus.TwoFactorRequired:
                     return Unauthorized(new
                     {
                         requiresTwoFactor = true,
                         Message = "Enter the 6-digit code from your authenticator app.",
                     });
-                }
-
-                if (!await VerifyTwoFactorAsync(user, model.TwoFactorCode))
-                {
-                    // Yanlış MFA kodu da kilitleme sayacına yazılıyor. Aksi
-                    // hâlde parolası sızmış bir hesapta saldırgan altı haneyi
-                    // sınırsız deneyebilirdi — bir milyon olasılık, sınırsız
-                    // deneme demek kırılmış MFA demek.
-                    await _userManager.AccessFailedAsync(user);
+                case Namines.Identity.Application.PasswordSignInStatus.Succeeded:
+                    break;
+                default:
                     return Unauthorized(new { Message = "Incorrect email or password." });
-                }
             }
-
-            // Başarılı girişte sayaç sıfırlanır; aksi hâlde aylar içinde biriken
-            // yanlış denemeler doğru parolayla giren kullanıcıyı kilitlerdi.
-            await _userManager.ResetAccessFailedCountAsync(user);
-
-            var devConfigEmail = _configuration["Dev:Email"];
-            var isConfigDev = !string.IsNullOrWhiteSpace(devConfigEmail) && string.Equals(user.Email, devConfigEmail, StringComparison.OrdinalIgnoreCase);
-            if (!user.IsDev && isConfigDev)
-            {
-                user.IsDev = true;
-                user.EmailConfirmed = true;
-                user.Type = UserType.Corporate;
-                await _userManager.UpdateAsync(user);
-            }
+            var user = signIn.User!;
 
             var plan = await _billing.GetPlanSnapshotAsync(user.Id);
             var tier = Namines.Core.Analysis.PlanQuotas.Resolve(plan?.SubscriptionStatus, plan?.PlanCode, user.IsDev);
@@ -320,7 +255,7 @@ namespace Namines.API.Controllers
             if (userId is null)
                 return Unauthorized(new { Message = "The token is invalid, expired, or already used." });
 
-            var user = await _userManager.FindByIdAsync(userId);
+            var user = await _accounts.FindByIdAsync(userId);
             if (user is null) return Unauthorized(new { Message = "User not found." });
 
             // NORMAL oturum jetonu DEĞİL: kısa ömürlü ve amacı işaretli
@@ -342,7 +277,7 @@ namespace Namines.API.Controllers
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
-            var user = await _userManager.FindByIdAsync(userId);
+            var user = await _accounts.FindByIdAsync(userId);
             if (user == null)
                 return Unauthorized();
 
@@ -505,7 +440,7 @@ namespace Namines.API.Controllers
         public async Task<IActionResult> GetProfile()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var user = await _userManager.FindByIdAsync(userId!);
+            var user = await _accounts.FindByIdAsync(userId!);
             if (user == null) return Unauthorized();
 
             // Parse extra profile data stored as JSON in ProfileJson field (if it exists)
@@ -542,14 +477,10 @@ namespace Namines.API.Controllers
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto dto)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var user = await _userManager.FindByIdAsync(userId!);
+            var user = await _accounts.FindByIdAsync(userId!);
             if (user == null) return Unauthorized();
 
             // Update basic fields
-            if (!string.IsNullOrWhiteSpace(dto.CompanyName))
-                user.CompanyName = dto.CompanyName;
-
-            // Serialize extended profile data into ProfileJson
             var profile = new ProfileData
             {
                 FullName    = dto.FullName ?? "",
@@ -560,11 +491,10 @@ namespace Namines.API.Controllers
                 Bio         = dto.Bio ?? "",
                 Location    = dto.Location ?? ""
             };
-            user.ProfileJson = System.Text.Json.JsonSerializer.Serialize(profile);
 
-            var result = await _userManager.UpdateAsync(user);
+            var result = await _accounts.UpdateProfileAsync(user, dto.CompanyName, System.Text.Json.JsonSerializer.Serialize(profile));
             if (!result.Succeeded)
-                return BadRequest(new { message = "Profile update failed.", errors = result.Errors.Select(e => e.Description) });
+                return BadRequest(new { message = "Profile update failed.", errors = result.Errors });
 
             return Ok(new { message = "Profile updated successfully." });
         }
@@ -653,11 +583,10 @@ namespace Namines.API.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (userId is null) return Unauthorized();
 
-            var user = await _userManager.FindByIdAsync(userId);
+            var user = await _accounts.FindByIdAsync(userId);
             if (user is null) return Unauthorized();
 
-            var result = await _userManager.UpdateSecurityStampAsync(user);
-            if (!result.Succeeded)
+            if (!await _accounts.RevokeAllSessionsAsync(user))
                 return StatusCode(500, new { Message = "Sessions could not be revoked. Try again." });
 
             // Bu tarayıcının cookie'si de siliniyor: kullanıcı "tüm oturumları
@@ -696,30 +625,21 @@ namespace Namines.API.Controllers
             if (!string.Equals(request?.Confirmation?.Trim(), user.Email, StringComparison.OrdinalIgnoreCase))
                 return BadRequest(new { Message = "Type your account e-mail address exactly to confirm.", code = "CONFIRMATION_MISMATCH" });
 
-            if (await _userManager.IsLockedOutAsync(user))
-                return StatusCode(StatusCodes.Status429TooManyRequests, new { Message = "This account is temporarily locked. Try again later." });
-
-            if (await _userManager.HasPasswordAsync(user))
+            var reauth = await _accounts.ReauthenticateAsync(user, request?.Password, request?.TwoFactorCode);
+            switch (reauth)
             {
-                if (string.IsNullOrEmpty(request?.Password) || !await _userManager.CheckPasswordAsync(user, request.Password))
-                {
-                    await _userManager.AccessFailedAsync(user);
+                case Namines.Identity.Application.ReauthStatus.LockedOut:
+                    return StatusCode(StatusCodes.Status429TooManyRequests, new { Message = "This account is temporarily locked. Try again later." });
+                case Namines.Identity.Application.ReauthStatus.BadPassword:
                     return StatusCode(StatusCodes.Status403Forbidden, new { Message = "Password is incorrect.", code = "REAUTH_FAILED" });
-                }
-
-                if (user.TwoFactorEnabled && !await VerifyTwoFactorAsync(user, request.TwoFactorCode))
-                {
-                    await _userManager.AccessFailedAsync(user);
+                case Namines.Identity.Application.ReauthStatus.BadTwoFactorCode:
                     return StatusCode(StatusCodes.Status403Forbidden, new { Message = "That code is not valid.", code = "REAUTH_FAILED" });
-                }
-            }
-            else if (!HasFreshLogin())
-            {
-                return StatusCode(StatusCodes.Status403Forbidden, new
-                {
-                    Message = "Sign in again, then retry within a few minutes to confirm it is you.",
-                    code = "REAUTH_REQUIRED",
-                });
+                case Namines.Identity.Application.ReauthStatus.NoPassword when !HasFreshLogin():
+                    return StatusCode(StatusCodes.Status403Forbidden, new
+                    {
+                        Message = "Sign in again, then retry within a few minutes to confirm it is you.",
+                        code = "REAUTH_REQUIRED",
+                    });
             }
 
             var result = await _accountDeletion.DeleteAsync(user.Id, ct);
@@ -754,7 +674,6 @@ namespace Namines.API.Controllers
         // anahtari IdentityUser'da hazir duruyordu.
 
         /// <summary>Kurtarma kodu sayisi -- telefon kaybedildiginde tek cikis yolu.</summary>
-        private const int RecoveryCodeCount = 8;
 
         /// <summary>
         /// MFA kurulumunu baslatir: paylasilan anahtari ve QR icin `otpauth://`
@@ -779,10 +698,8 @@ namespace Namines.API.Controllers
             // Her kurulum denemesinde YENI anahtar: yarim kalmis bir kurulumun
             // anahtari, kullanicinin telefonunda kalip sonraki kurulumla
             // cakisabilirdi.
-            await _userManager.ResetAuthenticatorKeyAsync(user);
-            var key = await _userManager.GetAuthenticatorKeyAsync(user);
-
-            if (string.IsNullOrEmpty(key))
+            var key = await _accounts.BeginMfaSetupAsync(user);
+            if (key is null)
                 return StatusCode(500, new { Message = "Could not generate an authenticator key." });
 
             RenewCurrentSession(user);
@@ -810,18 +727,9 @@ namespace Namines.API.Controllers
             if (user.TwoFactorEnabled)
                 return BadRequest(new { Message = "Two-factor authentication is already enabled." });
 
-            var code = NormalizeCode(request.Code);
-            var valid = await _userManager.VerifyTwoFactorTokenAsync(
-                user, _userManager.Options.Tokens.AuthenticatorTokenProvider, code);
-
-            if (!valid)
+            var recoveryCodes = await _accounts.EnableMfaAsync(user, request.Code);
+            if (recoveryCodes is null)
                 return BadRequest(new { Message = "That code is not valid. Check your device clock and try again." });
-
-            await _userManager.SetTwoFactorEnabledAsync(user, true);
-
-            // Kurtarma kodlari OLMADAN MFA acmak, telefonunu kaybeden
-            // kullaniciyi hesabindan kalici olarak kilitlemek demek.
-            var recoveryCodes = await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, RecoveryCodeCount);
 
             RenewCurrentSession(user);
             return Ok(new
@@ -848,14 +756,8 @@ namespace Namines.API.Controllers
             if (!user.TwoFactorEnabled)
                 return BadRequest(new { Message = "Two-factor authentication is not enabled." });
 
-            if (!await VerifyTwoFactorAsync(user, request.Code))
-            {
-                await _userManager.AccessFailedAsync(user);
+            if (!await _accounts.DisableMfaAsync(user, request.Code))
                 return BadRequest(new { Message = "That code is not valid." });
-            }
-
-            await _userManager.SetTwoFactorEnabledAsync(user, false);
-            await _userManager.ResetAuthenticatorKeyAsync(user);
 
             RenewCurrentSession(user);
             return Ok(new { Message = "Two-factor authentication is off." });
@@ -873,7 +775,7 @@ namespace Namines.API.Controllers
             {
                 enabled = user.TwoFactorEnabled,
                 recoveryCodesLeft = user.TwoFactorEnabled
-                    ? await _userManager.CountRecoveryCodesAsync(user)
+                    ? await _accounts.CountRecoveryCodesAsync(user)
                     : 0,
             });
         }
@@ -885,39 +787,6 @@ namespace Namines.API.Controllers
         /// listeden siliyor. Bu yuzden siralama onemli -- TOTP once denenmezse,
         /// normal bir giris kurtarma kodlarini tuketebilirdi.
         /// </summary>
-        private async Task<bool> VerifyTwoFactorAsync(ApplicationUser user, string? code)
-        {
-            if (string.IsNullOrWhiteSpace(code)) return false;
-
-            // TOTP icin bosluk VE tire temizleniyor: kimlik dogrulayici
-            // uygulamalari kodu "123 456" diye gosteriyor.
-            var totpCode = NormalizeCode(code);
-            if (totpCode.Length > 0 && await _userManager.VerifyTwoFactorTokenAsync(
-                    user, _userManager.Options.Tokens.AuthenticatorTokenProvider, totpCode))
-                return true;
-
-            // Kurtarma kodu icin YALNIZCA bosluk temizleniyor -- TIRE KORUNUYOR.
-            //
-            // Identity kurtarma kodlarini "xxxxx-xxxxx" bicimde uretip AYNEN
-            // sakliyor. Tireyi silmek, dogru kodu yanlis gosteriyordu: canli
-            // denemede kullanici kurtarma koduyla giris YAPAMIYORDU -- yani
-            // telefonunu kaybedeni hesabindan kilitleyen, tam da kurtarma
-            // kodlarinin onlemek icin var oldugu durum.
-            var recoveryCode = code.Trim();
-            var recovery = await _userManager.RedeemTwoFactorRecoveryCodeAsync(user, recoveryCode);
-            return recovery.Succeeded;
-        }
-
-        /// <summary>
-        /// Güvenlik damgası yenilendikten sonra İŞLEMİ YAPAN oturumu yeni
-        /// damgalı bir jetonla sürdürür.
-        ///
-        /// Identity, authenticator anahtarını sıfırlarken ve 2FA'yı açıp
-        /// kapatırken damgayı yeniliyor. Bu doğru: o hesaba ait DİĞER oturumlar
-        /// düşmeli. Ama işlemi yapan tarayıcının jetonu da eski damgayı taşıdığı
-        /// için sonraki isteği 401 alıyordu — "Turn on"dan sonra kodu doğrulamak
-        /// oturumu kapatıyor, 2FA fiilen açılamıyordu (bkz. MfaSessionTests).
-        /// </summary>
         private void RenewCurrentSession(ApplicationUser user)
         {
             SetAuthCookie(GenerateJwtToken(user));
@@ -928,7 +797,7 @@ namespace Namines.API.Controllers
         private async Task<ApplicationUser?> GetCurrentUserAsync()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            return userId is null ? null : await _userManager.FindByIdAsync(userId);
+            return userId is null ? null : await _accounts.FindByIdAsync(userId);
         }
 
         /// <summary>
@@ -937,7 +806,7 @@ namespace Namines.API.Controllers
         /// dogru kod yanlis sayilirdi.
         /// </summary>
         internal static string NormalizeCode(string? code) =>
-            code?.Replace(" ", string.Empty).Replace("-", string.Empty).Trim() ?? string.Empty;
+            Namines.Identity.Application.IdentityAccountService.NormalizeCode(code);
 
         /// <summary>Anahtari elle girilebilir hale getirir: dorderli gruplar.</summary>
         internal static string FormatAuthenticatorKey(string key)
@@ -1307,75 +1176,32 @@ namespace Namines.API.Controllers
             if (string.IsNullOrWhiteSpace(email))
                 return BadRequest(new { Message = "Could not obtain verified email from OAuth provider." });
 
-            var user = await _userManager.FindByEmailAsync(email);
-            if (user == null)
+            var external = await _accounts.ResolveExternalUserAsync(email, name, avatar);
+            switch (external.Status)
             {
-                var baseUsername = !string.IsNullOrWhiteSpace(name)
-                    ? System.Text.RegularExpressions.Regex.Replace(name.Trim().ToLowerInvariant(), @"[^a-z0-9\-]", "")
-                    : email.Split('@')[0];
-                if (string.IsNullOrWhiteSpace(baseUsername)) baseUsername = "user";
-                var uniqueUsername = baseUsername;
-                int suffix = 1;
-                while (await _userManager.FindByNameAsync(uniqueUsername) != null)
-                {
-                    uniqueUsername = $"{baseUsername}{suffix++}";
-                }
-
-                user = new ApplicationUser
-                {
-                    UserName = uniqueUsername,
-                    Email = email,
-                    EmailConfirmed = true,
-                    Type = UserType.Individual,
-                    CreatedAt = DateTime.UtcNow,
-                    ProfileJson = !string.IsNullOrEmpty(avatar)
-                        ? JsonSerializer.Serialize(new { avatarUrl = avatar })
-                        : null
-                };
-
-                var createRes = await _userManager.CreateAsync(user);
-                if (!createRes.Succeeded)
-                {
-                    var errors = string.Join(", ", createRes.Errors.Select(e => e.Description));
-                    return BadRequest(new { Message = $"Could not create user account: {errors}" });
-                }
-
-                await _policies.EnsureAsync(user.Id);
-                await _billing.ProvisionDefaultQuotaAsync(user.Id);
-            }
-            else
-            {
-                // Mevcut hesaba e-posta eşleşmesiyle bağlanıyoruz; parola girişindeki
-                // kapıların (kilit, MFA) OAuth yolundan atlanmasına izin verilmez.
-                if (await _userManager.IsLockedOutAsync(user))
+                case Namines.Identity.Application.ExternalSignInStatus.CreateFailed:
+                    return BadRequest(new { Message = $"Could not create user account: {external.Errors}" });
+                case Namines.Identity.Application.ExternalSignInStatus.LockedOut:
                     return Unauthorized(new
                     {
                         Message = "This account is temporarily locked after too many failed sign-in attempts. Try again later.",
                     });
-
-                // MFA açık hesapta OAuth ikinci faktörü atlatırdı; parola + kod girişi gerekir.
-                if (user.TwoFactorEnabled)
+                case Namines.Identity.Application.ExternalSignInStatus.TwoFactorRequired:
                     return StatusCode(StatusCodes.Status403Forbidden, new
                     {
                         requiresTwoFactor = true,
                         Message = "This account has two-factor authentication enabled. Sign in with your email, password and authenticator code instead.",
                     });
-
-                // E-postası doğrulanmamış hesap: saldırgan bu adresle önceden kayıt olup
-                // parola belirlemiş olabilir. Sağlayıcı e-postayı doğruladığı için hesap
-                // gerçek sahibine geçer; saldırganın parolası ve açık oturumları ölür.
-                if (!user.EmailConfirmed)
-                {
-                    user.PasswordHash = null;
-                    var stampRes = await _userManager.UpdateSecurityStampAsync(user);
-                    if (!stampRes.Succeeded)
-                        return StatusCode(500, new { Message = "Could not secure the existing account. Try again." });
-
-                    user.EmailConfirmed = true;
-                    var confirmRes = await _userManager.UpdateAsync(user);
-                    if (!confirmRes.Succeeded)
-                        return StatusCode(500, new { Message = "Could not link the existing account. Try again." });
-                }
+                case Namines.Identity.Application.ExternalSignInStatus.SecureFailed:
+                    return StatusCode(500, new { Message = "Could not secure the existing account. Try again." });
+                case Namines.Identity.Application.ExternalSignInStatus.LinkFailed:
+                    return StatusCode(500, new { Message = "Could not link the existing account. Try again." });
+            }
+            var user = external.User!;
+            if (external.Status == Namines.Identity.Application.ExternalSignInStatus.Created)
+            {
+                await _policies.EnsureAsync(user.Id);
+                await _billing.ProvisionDefaultQuotaAsync(user.Id);
             }
 
             var token = GenerateJwtToken(user);

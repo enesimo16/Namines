@@ -31,7 +31,7 @@ namespace Namines.API.Controllers;
 [Route("api/[controller]")]
 public class AdminController : ControllerBase
 {
-    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly Namines.Identity.Application.IAdminUserService _adminUsers;
     private readonly IIdentityAdmin _users;
     private readonly IBillingAccounts _billing;
     private readonly IGovernanceAdminQueries _governance;
@@ -49,7 +49,7 @@ public class AdminController : ControllerBase
     private readonly IDeskModule? _desk;
 
     public AdminController(
-        UserManager<ApplicationUser> userManager,
+        Namines.Identity.Application.IAdminUserService adminUsers,
         IIdentityAdmin users,
         IBillingAccounts billing,
         IGovernanceAdminQueries governance,
@@ -66,7 +66,7 @@ public class AdminController : ControllerBase
         IFlowModule? flow = null,
         IDeskModule? desk = null)
     {
-        _userManager = userManager;
+        _adminUsers = adminUsers;
         _users = users;
         _billing = billing;
         _governance = governance;
@@ -92,38 +92,8 @@ public class AdminController : ControllerBase
             var email = User.FindFirstValue(ClaimTypes.Email);
             if (string.IsNullOrEmpty(userId) && string.IsNullOrEmpty(email)) return null;
 
-            ApplicationUser? user = null;
-            if (!string.IsNullOrEmpty(userId))
-            {
-                user = await _userManager.FindByIdAsync(userId);
-            }
-            if (user == null && !string.IsNullOrEmpty(email))
-            {
-                user = await _userManager.FindByEmailAsync(email);
-            }
-
-            if (user == null) return null;
-
-            var devConfigEmail = _configuration["Dev:Email"];
-            var isConfiguredDevEmail = !string.IsNullOrWhiteSpace(devConfigEmail) &&
-                                       string.Equals(user.Email, devConfigEmail, StringComparison.OrdinalIgnoreCase);
-
-            if (user.IsDev || isConfiguredDevEmail)
-            {
-                if (isConfiguredDevEmail && !user.IsDev)
-                {
-                    user.IsDev = true;
-                    try { await _userManager.UpdateAsync(user); } catch { }
-                }
-                return user;
-            }
-
-            if (_userManager.SupportsUserRole && await _userManager.IsInRoleAsync(user, "Admin"))
-            {
-                return user;
-            }
-
-            return null;
+            // Yetki kuralı ve kullanıcı çözümü Identity modülünde; bu kontrol GET isteklerinde de çalıştığı için hiçbir şey yazmaz.
+            return await _adminUsers.ResolveAdminAsync(userId, email);
         }
         catch (Exception ex)
         {
@@ -330,7 +300,7 @@ public class AdminController : ControllerBase
         var admin = await EnsureAdminAsync();
         if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
-        var user = await _userManager.FindByIdAsync(id);
+        var user = await _adminUsers.FindUserAsync(id);
         if (user == null) return NotFound(new { error = "User not found." });
 
         var quota = await _billing.GetQuotaRowAsync(id);
@@ -381,7 +351,7 @@ public class AdminController : ControllerBase
         var admin = await EnsureAdminAsync();
         if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
-        var user = await _userManager.FindByIdAsync(id);
+        var user = await _adminUsers.FindUserAsync(id);
         if (user == null) return NotFound(new { error = "User not found." });
 
         var targetPlan = (dto.PlanCode ?? "free").Trim().ToLowerInvariant();
@@ -439,7 +409,7 @@ public class AdminController : ControllerBase
         var admin = await EnsureAdminAsync();
         if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
-        var user = await _userManager.FindByIdAsync(id);
+        var user = await _adminUsers.FindUserAsync(id);
         if (user == null) return NotFound(new { error = "User not found." });
 
         var quota = await _billing.AdminAdjustQuotaAsync(id, user.IsDev, dto.ResetToZero, dto.BonusPoints, MaxBonusPoints);
@@ -1007,7 +977,7 @@ public class AdminController : ControllerBase
         var admin = await EnsureAdminAsync();
         if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
-        var targetUser = await _userManager.FindByIdAsync(id);
+        var targetUser = await _adminUsers.FindUserAsync(id);
         if (targetUser == null) return NotFound(new { error = "User not found." });
 
         var allSessions = _telemetry.GetRecentSessions(100);

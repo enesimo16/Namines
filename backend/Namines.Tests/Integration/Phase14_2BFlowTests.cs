@@ -136,7 +136,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         };
 
     private AuthController Auth(Scope s, string userId) =>
-        new(Users(s.Db), s.Kit.BillingAccounts, s.Kit.Policies, _config, new MigrationService(null!), new AutomationJobQueue(),
+        new(new Namines.Identity.Application.IdentityAccountService(Users(s.Db), _config), s.Kit.BillingAccounts, s.Kit.Policies, _config, new MigrationService(null!), new AutomationJobQueue(),
             NullLogger<AuthController>.Instance, s.Kit.StudioService, s.Kit.Lifecycle, s.Kit.Workspace)
         {
             ControllerContext = new ControllerContext { HttpContext = Http(userId) },

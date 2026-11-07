@@ -252,7 +252,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
 
         using var db = CreateContext();
         var controller = new AdminController(
-            userManager,
+            new Namines.Identity.Application.IdentityAccountService(userManager, config),
             Kit_A_Identity.AdminContracts(db).Users, Kit_A_Identity.AdminContracts(db).Billing, Kit_A_Identity.AdminContracts(db).Governance,
             NullLogger<AdminController>.Instance,
             telemetry,
@@ -324,7 +324,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
 
         using var db = CreateContext();
         var controller = new AdminController(
-            userManager,
+            new Namines.Identity.Application.IdentityAccountService(userManager, config),
             Kit_A_Identity.AdminContracts(db).Users, Kit_A_Identity.AdminContracts(db).Billing, Kit_A_Identity.AdminContracts(db).Governance,
             NullLogger<AdminController>.Instance,
             telemetry,
@@ -400,7 +400,7 @@ public class AdminAiRoutingAndFeatureFlagsTests : IAsyncLifetime
 
         using var db = CreateContext();
         var controller = new AdminController(
-            userManager,
+            new Namines.Identity.Application.IdentityAccountService(userManager, config),
             Kit_A_Identity.AdminContracts(db).Users, Kit_A_Identity.AdminContracts(db).Billing, Kit_A_Identity.AdminContracts(db).Governance,
             NullLogger<AdminController>.Instance,
             telemetry,

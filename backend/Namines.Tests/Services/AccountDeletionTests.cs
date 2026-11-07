@@ -391,7 +391,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         }).Build();
         var all = new List<Claim>(claims) { new(ClaimTypes.NameIdentifier, "u1") };
         var um = NewUserManager(db);
-        return new AuthController(um, TestModules.For(db).BillingAccounts, TestModules.For(db).Policies, config, new MigrationService(null!), new AutomationJobQueue(),
+        return new AuthController(new Namines.Identity.Application.IdentityAccountService(um, config), TestModules.For(db).BillingAccounts, TestModules.For(db).Policies, config, new MigrationService(null!), new AutomationJobQueue(),
             NullLogger<AuthController>.Instance, TestModules.For(db).StudioService, TestModules.For(db).Lifecycle, TestModules.For(db).Workspace, new FakeEnv(), null,
             accountDeletion: Kit_A_Identity.AccountDeletion(db, um, Create(db)))
         {

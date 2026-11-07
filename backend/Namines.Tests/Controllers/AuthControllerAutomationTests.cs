@@ -104,7 +104,7 @@ public sealed class AuthControllerAutomationTests : IAsyncLifetime
         AuthDbContext db, UserManager<ApplicationUser> userManager, IAutomationJobQueue queue, string userId)
     {
         var controller = new AuthController(
-            userManager,
+            new Namines.Identity.Application.IdentityAccountService(userManager, new ConfigurationBuilder().Build()),
             TestModules.For(db).BillingAccounts, TestModules.For(db).Policies,
             new ConfigurationBuilder().Build(),
             // CalculateDiffAsync yalnızca DDL üretmez, GroqAIService'e hiç

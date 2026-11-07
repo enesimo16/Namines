@@ -62,6 +62,10 @@ public static class IdentityServiceCollectionExtensions
         services.AddScoped<IIdentityMaintenance, IdentityMaintenanceService>();
         services.AddScoped<IIdentityAdmin, IdentityAdminService>();
         services.AddScoped<ITeamService, TeamService>();
+        services.AddScoped<IdentityAccountService>();
+        services.AddScoped<IIdentityAccounts>(sp => sp.GetRequiredService<IdentityAccountService>());
+        services.AddScoped<IAdminUserService>(sp => sp.GetRequiredService<IdentityAccountService>());
+        services.AddScoped<Namines.BuildingBlocks.Security.IPlatformAdminAuthority, PlatformAdminAuthority>();
 
         return services.AddIdentity<ApplicationUser, IdentityRole>(configureIdentity)
             .AddEntityFrameworkStores<AuthDbContext>()

@@ -84,7 +84,7 @@ public sealed class AuthHardeningTests : IAsyncLifetime
         if (userId is not null) claims.Add(new Claim(ClaimTypes.NameIdentifier, userId));
 
         return new AuthController(
-            NewUserManager(db), TestModules.For(db).BillingAccounts, TestModules.For(db).Policies, config, new MigrationService(null!), new AutomationJobQueue(),
+            new Namines.Identity.Application.IdentityAccountService(NewUserManager(db), config), TestModules.For(db).BillingAccounts, TestModules.For(db).Policies, config, new MigrationService(null!), new AutomationJobQueue(),
             NullLogger<AuthController>.Instance, TestModules.For(db).StudioService, TestModules.For(db).Lifecycle, TestModules.For(db).Workspace, new FakeEnv(envName))
         {
             ControllerContext = new ControllerContext
