@@ -99,7 +99,7 @@ public sealed class GatewayQueryAuthorizationTests : IAsyncLifetime
         var groq = new GroqAIService(
             new HttpClient(), new ConfigurationBuilder().Build(), httpContextAccessor,
             new MemoryCache(new MemoryCacheOptions()));
-        var quota = new Namines.Infrastructure.Data.AiQuotaService(db, new ConfigurationBuilder().Build());
+        var quota = TestModules.For(db).AiQuota();
 
         var controller = new GatewayController(
             gateway: null!, gate: TestModules.For(db).GatewayGate(new ConfigurationBuilder().Build()), audit: TestModules.For(db).GatewayAudit, usage: TestModules.For(db).Usage, configuration: new ConfigurationBuilder().Build(),

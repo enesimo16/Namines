@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Namines.Tests" />
+    <InternalsVisibleTo Include="Namines.Tests.RunTests" />
   </ItemGroup>
 
 </Project>

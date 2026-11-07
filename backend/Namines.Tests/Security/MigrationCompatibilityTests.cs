@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using Namines.Tests.TestSupport;
 
 namespace Namines.Tests.Security;
 
@@ -55,6 +56,11 @@ public class MigrationCompatibilityTests
     /// </summary>
     private static readonly Dictionary<string, string> DeliberateExceptions = new()
     {
+        ["20261107112907_Billing_01_AdoptTables"] =
+            "14.2D-2: Stripe kolonları AspNetUsers'tan billing.customers/subscriptions'a taşınıp fiziksel DROP " +
+            "(sahibin kararı). Ham SQL olduğu için kural zaten yakalamıyor ama kayıt burada dursun: eski kod yeni " +
+            "şemada ÇALIŞMAZ (fail-closed, kolon yok hatası). Dağıtım: eski sürümü durdur, --migrate, yeni sürümü aç; " +
+            "kod geri alınacaksa önce Billing zinciri 0'a indirilir (Down kolonları geri doldurur).",
         ["20261105163819_Phase14_2D1_DropModuleOrganizationCopies"] =
             "14.2D-1 zaten durdur-migrate-aç dağıtımı: aynı sürümde tablolar şema değiştiriyor, eski kod yeni şemada " +
             "çalışmaz (fail-closed). Kolonlar hiç okunmuyordu; geri dönüşte Down projeden doldurur " +
@@ -194,11 +200,18 @@ public class MigrationCompatibilityTests
     {
         // .../backend/Namines.Tests/Security/MigrationCompatibilityTests.cs
         var backend = Directory.GetParent(thisFile)!.Parent!.Parent!;
-        var dir = Path.Combine(backend.FullName, "Namines.Infrastructure", "Migrations");
 
-        Assert.True(Directory.Exists(dir), $"Migration klasoru bulunamadi: {dir}");
+        // Her modül kendi zincirini taşıyor (Identity/Studio/Billing/Governance/Hub/Gateway/Ops/Vault/Ground/Flow/Desk):
+        // yalnızca biri taranırsa diğer zincirlerdeki ihlal sessizce geçerdi.
+        var dirs = Directory.GetDirectories(backend.FullName, "Namines.*")
+            .Select(module => Path.Combine(module, "Infrastructure", "Persistence", "Migrations"))
+            .Where(Directory.Exists)
+            .ToArray();
 
-        return Directory.GetFiles(dir, "*.cs")
+        Assert.True(dirs.Length >= TestModules.Descriptors.Count,
+            $"Her modul zinciri icin migration klasoru beklenirdi ({TestModules.Descriptors.Count}), bulunan: {dirs.Length}");
+
+        return dirs.SelectMany(dir => Directory.GetFiles(dir, "*.cs"))
             .Where(f => !f.EndsWith("Designer.cs", StringComparison.Ordinal))
             .Where(f => !f.EndsWith("ModelSnapshot.cs", StringComparison.Ordinal))
             .OrderBy(f => f, StringComparer.Ordinal)

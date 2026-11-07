@@ -488,8 +488,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         Assert.Equal(1, (await s.Kit.HubService.GetRepositoryAsync("starred"))!.StarCount);
 
         await using var d = Open(cs);
-        var um = Users(d.Db);
-        var service = d.Kit.AccountDeletion(um, ProjectDeletionTestKit.Create(d.Db, d.Kit));
+        var service = d.Kit.AccountDeletion(Users(d.Db), ProjectDeletionTestKit.Create(d.Db, d.Kit), canceller: null);
         var result = await service.DeleteAsync("member", default);
         Assert.True(result.Ok, result.Code + " " + result.Error);
 
@@ -667,7 +666,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
     }
 
     private static SubscriptionCancellationProcessor Processor(Scope s, ISubscriptionCanceller? canceller, ILogger? logger = null) =>
-        new(s.Kit.Billing, canceller, logger ?? NullLogger.Instance, new ISubscriptionCancellationObserver[] { s.Kit.GovernanceAudit });
+        new(s.Kit.Billing, canceller, logger ?? NullLogger.Instance);
 
     /// <summary>Aboneliği olan, silinecek bir kullanıcı: "member" ekipte, projesi varise devrolur.</summary>
     private async Task<string> SubscribedMemberDatabaseAsync(string name)
@@ -675,7 +674,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         var cs = await NewDatabaseAsync(name);
         await using var s = Open(cs);
         await SeedProjectAsync(s, "team", owner: "member", slug: "teamrepo");
-        await s.Db.SeedSubscriptionAsync("member", status: null, planCode: null, stripeSubscriptionId: "sub_1");
+        await SeedSubscriptionAsync(s, "member", "sub_1");
         return cs;
     }
 
@@ -710,11 +709,6 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         Assert.Equal(1, await Processor(s, canceller).ProcessDueAsync(row.NextAttemptAt.AddSeconds(1), 10, default));
         Assert.Equal(new[] { "sub_1" }, canceller.Canceled);
         Assert.NotNull((await s.Db.Billing().PendingSubscriptionCancellations.AsNoTracking().SingleAsync()).CompletedAt);
-        // Tamamlanma haberi değiştirilemez ize YENİ satır olarak eklenir; ilk satır "queued" kalır (BL-4).
-        var trail = await s.Db.Governance().ChangeRequestAuditLogs.AsNoTracking().ToListAsync();
-        Assert.Contains("\"stripe\":\"queued\"", Assert.Single(trail, a => a.Action == ChangeRequestAuditAction.AccountDeleted).Details);
-        var completed = Assert.Single(trail, a => a.Action == ChangeRequestAuditAction.SubscriptionCancellationCompleted);
-        Assert.Equal(row.Id, completed.ChangeRequestId);
 
         // Tamamlanan bir daha denenmez.
         Assert.Equal(0, await Processor(s, canceller).ProcessDueAsync(DateTime.UtcNow.AddYears(1), 10, default));
@@ -735,10 +729,14 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         Assert.True(result.Ok, result.Code + " " + result.Error);
         Assert.Equal(new[] { "sub_1" }, canceller.Canceled);
         await using var v = Open(cs);
-        Assert.NotNull((await v.Db.Billing().PendingSubscriptionCancellations.AsNoTracking().SingleAsync()).CompletedAt);
-        var trail = await v.Db.Governance().ChangeRequestAuditLogs.AsNoTracking().ToListAsync();
-        Assert.Contains("\"stripe\":\"queued\"", Assert.Single(trail, a => a.Action == ChangeRequestAuditAction.AccountDeleted).Details);
-        Assert.Contains("\"stripe\":\"canceled\"", Assert.Single(trail, a => a.Action == ChangeRequestAuditAction.SubscriptionCancellationCompleted).Details);
+        var outbox = await v.Db.Billing().PendingSubscriptionCancellations.AsNoTracking().SingleAsync();
+        Assert.NotNull(outbox.CompletedAt);
+        // Denetim izi artık yalnızca eklemeli (tetikleyici UPDATE'i reddeder): tamamlanma, AccountDeleted satırını
+        // güncellemek yerine outbox kimliğine bağlı yeni bir satır olarak yazılır.
+        var completed = await v.Db.Governance().ChangeRequestAuditLogs.AsNoTracking().SingleAsync(a => a.Action == ChangeRequestAuditAction.SubscriptionCancellationCompleted);
+        Assert.Equal(outbox.Id, completed.ChangeRequestId);
+        Assert.Contains("\"stripe\":\"canceled\"", completed.Details);
+        Assert.Single(await v.Db.Governance().ChangeRequestAuditLogs.AsNoTracking().Where(a => a.Action == ChangeRequestAuditAction.AccountDeleted).ToListAsync());
     }
 
     [RequiresDockerFact]
@@ -828,6 +826,13 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
     private static AccountDeletionService AccountDeletion(Scope s, ISubscriptionCanceller? canceller = null) =>
         s.Kit.AccountDeletion(Users(s.Db), ProjectDeletionTestKit.Create(s.Db, s.Kit), canceller);
 
+    /// <summary>Stripe aboneliği artık billing.subscriptions satırı; AspNetUsers'ta alan yok.</summary>
+    private static async Task SeedSubscriptionAsync(Scope s, string userId, string stripeSubscriptionId)
+    {
+        s.Kit.Billing.Subscriptions.Add(new BillingSubscription { UserId = userId, StripeSubscriptionId = stripeSubscriptionId, Status = "active", PlanCode = "pro" });
+        await s.Kit.Billing.SaveChangesAsync();
+    }
+
     [RequiresDockerFact]
     public async Task Hesap_silme_varis_slug_cakismasi()
     {
@@ -861,7 +866,7 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         await using (var s = Open(cs))
         {
             await SeedProjectAsync(s, "team", owner: "member", slug: "teamrepo");
-            await s.Db.SeedSubscriptionAsync("member", status: null, planCode: null, stripeSubscriptionId: "sub_1");
+            await SeedSubscriptionAsync(s, "member", "sub_1");
         }
 
         await using (var conn = new NpgsqlConnection(cs))
@@ -911,9 +916,10 @@ public sealed class Phase14_2BFlowTests : IClassFixture<Phase14_2BPostgresFixtur
         Assert.Equal(new[] { "sub_1" }, canceller.Canceled);
         await using var after = Open(cs);
         Assert.Equal("owner", (await after.Kit.HubService.GetRepositoryAsync("team"))!.OwnerUserId);
-        var trail = await after.Db.Governance().ChangeRequestAuditLogs.AsNoTracking().ToListAsync();
-        Assert.Contains("\"stripe\":\"queued\"", Assert.Single(trail, a => a.Action == ChangeRequestAuditAction.AccountDeleted).Details);
-        Assert.Contains("\"stripe\":\"canceled\"", Assert.Single(trail, a => a.Action == ChangeRequestAuditAction.SubscriptionCancellationCompleted).Details);
+        var completed = await after.Db.Governance().ChangeRequestAuditLogs.AsNoTracking()
+            .SingleAsync(a => a.Action == ChangeRequestAuditAction.SubscriptionCancellationCompleted);
+        Assert.Contains("\"stripe\":\"canceled\"", completed.Details);
+        Assert.Single(await after.Db.Governance().ChangeRequestAuditLogs.AsNoTracking().Where(a => a.Action == ChangeRequestAuditAction.AccountDeleted).ToListAsync());
     }
 
     [RequiresDockerFact]

@@ -169,7 +169,8 @@ public sealed class MigrationHandoffTests : IAsyncLifetime
                 }
             }
         }
-        Assert.Empty(missing);
+        // Tam liste yazılıyor: Assert.Empty koleksiyonu ilk beş öğede keserdi.
+        Assert.True(missing.Count == 0, string.Join(Environment.NewLine, missing));
     }
 
     [RequiresDockerFact]
@@ -292,8 +293,12 @@ public sealed class MigrationHandoffTests : IAsyncLifetime
     public async Task App_role_can_use_module_schema_and_read_history_after_migration()
     {
         var cs = await NewDatabaseAsync("roles");
-        // roles.sql yeniden çalıştırılmamış kurulum: rol ve public yetkileri var, yeni şemalar yok.
-        await ExecAsync(cs, "CREATE ROLE namines_app LOGIN PASSWORD 'app_pw'; GRANT USAGE ON SCHEMA public TO namines_app; ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO namines_app;");
+        // roles.sql yeniden çalıştırılmamış kurulum: rol ile D-1 sürümünde var olan şemaların (public, flow,
+        // namines_vault, ground, desk) yetkileri var; yeni şemalar (billing, governance) yok, onları modül
+        // zincirlerinin kendi GrantAppRole adımı açmak zorunda.
+        await ExecAsync(cs, "CREATE ROLE namines_app LOGIN PASSWORD 'app_pw';");
+        foreach (var existing in new[] { "public", "flow", "namines_vault", "ground", "desk" })
+            await ExecAsync(cs, $"CREATE SCHEMA IF NOT EXISTS \"{existing}\"; GRANT USAGE ON SCHEMA \"{existing}\" TO namines_app; ALTER DEFAULT PRIVILEGES IN SCHEMA \"{existing}\" GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO namines_app; ALTER DEFAULT PRIVILEGES IN SCHEMA \"{existing}\" GRANT USAGE, SELECT ON SEQUENCES TO namines_app;");
         await TestModules.MigrateAllAsync(cs);
 
         var appCs = new NpgsqlConnectionStringBuilder(cs) { Username = "namines_app", Password = "app_pw" }.ConnectionString;

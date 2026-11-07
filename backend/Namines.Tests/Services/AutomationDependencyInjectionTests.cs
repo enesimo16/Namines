@@ -1,6 +1,7 @@
 using Namines.Identity.Infrastructure.Persistence;
 using Namines.BuildingBlocks.Contracts;
 using Namines.Billing.Application;
+using Namines.Identity.DependencyInjection;
 using System.Collections.Generic;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -28,7 +29,8 @@ public sealed class AutomationDependencyInjectionTests
         var services = new ServiceCollection();
         services.AddLogging();
 
-        services.AddDbContext<AuthDbContext>(options => options.UseSqlite(connection));
+        // Kimlik sözleşmeleri (IIdentityDirectory vb.) Identity modülünün kaydından gelir; üretimdeki gibi onunla.
+        services.AddIdentityModule("Host=localhost;Database=unused;Username=unused;Password=unused", _ => { }, options => options.UseSqlite(connection));
         services.AddDbContext<OpsDbContext>(options => options.UseSqlite(connection));
         services.AddScoped<Namines.Ops.Application.IOpsData>(sp => sp.GetRequiredService<OpsDbContext>());
         // Kimlik modülü üretimde Program'da kaydoluyor (AddIdentityModule); kota ve Flow servisleri dizinine ihtiyaç duyuyor.
