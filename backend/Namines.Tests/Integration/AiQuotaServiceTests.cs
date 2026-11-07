@@ -43,16 +43,13 @@ public class AiQuotaServiceTests : IAsyncLifetime
         await context.MigrateAllModulesAsync();
         context.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1" });
         context.Users.Add(new ApplicationUser { Id = "owner", UserName = "owner", IsDev = true });
-        // Team plani: aktif abonelik + PlanCode "team".
-        context.Users.Add(new ApplicationUser
-        {
-            Id = "t1", UserName = "t1", SubscriptionStatus = "active", PlanCode = "team",
-        });
-        context.Users.Add(new ApplicationUser
-        {
-            Id = "t2", UserName = "t2", SubscriptionStatus = "active", PlanCode = "team",
-        });
+        context.Users.Add(new ApplicationUser { Id = "t1", UserName = "t1" });
+        context.Users.Add(new ApplicationUser { Id = "t2", UserName = "t2" });
         await context.SaveChangesAsync();
+
+        // Team plani: aktif abonelik + PlanCode "team" (artik faturalama tablosunda, kullanici satirinda degil).
+        await context.SeedSubscriptionAsync("t1", "active", "team");
+        await context.SeedSubscriptionAsync("t2", "active", "team");
     }
 
     public Task DisposeAsync() => DockerAvailable.Value ? _container.DisposeAsync().AsTask() : Task.CompletedTask;
@@ -66,7 +63,7 @@ public class AiQuotaServiceTests : IAsyncLifetime
             ["AiPool:DailyTokenPool"] = pool.ToString(),
         }).Build();
 
-        return (context, new AiQuotaService(context, configuration));
+        return (context, TestModules.For(context).AiQuota(configuration));
     }
 
     private async Task ResetAsync()
@@ -301,18 +298,18 @@ public class AiQuotaServiceTests : IAsyncLifetime
     private async Task<string> SeedTeamAsync()
     {
         await using var seed = new AuthDbContext(_options);
-        var org = await seed.GetOrCreatePersonalOrgAsync("t1", "t1");
+        var orgId = await TestModules.For(seed).Identity.GetOrCreatePersonalOrganizationAsync("t1", "t1");
         var already = await seed.OrganizationMembers
-            .AnyAsync(m => m.OrganizationId == org.Id && m.UserId == "t2");
+            .AnyAsync(m => m.OrganizationId == orgId && m.UserId == "t2");
         if (!already)
         {
             seed.OrganizationMembers.Add(new OrganizationMember
             {
-                OrganizationId = org.Id, UserId = "t2", Role = OrgRole.Editor,
+                OrganizationId = orgId, UserId = "t2", Role = OrgRole.Editor,
             });
             await seed.SaveChangesAsync();
         }
-        return org.Id;
+        return orgId;
     }
 
     [RequiresDockerFact]
@@ -446,7 +443,7 @@ public class AiQuotaServiceTests : IAsyncLifetime
         }));
 
         await using var verify = new AuthDbContext(_options);
-        var used = (await verify.UserAIQuotas.SingleAsync(q => q.UserId == "u1")).DailyUsageCount;
+        var used = (await verify.Billing().UserAIQuotas.SingleAsync(q => q.UserId == "u1")).DailyUsageCount;
 
         // ASIL İDDİA: tavan AŞILMADI. Düzeltme öncesi 40 eşzamanlı istek
         // CheckAsync'i birlikte geçip hepsi sağlayıcıya gidiyordu.

@@ -54,11 +54,11 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
             Id = _projectId, Name = "TestProject", DbType = "PostgreSQL",
             SchemaJson = "{}", NodePositionsJson = "{}", UserId = _userId
         });
-        await _context.SaveChangesAsync();
+        await _context!.SaveChangesAsync();
 
         var branch = new Branch { ProjectId = _projectId, Name = "main", IsDefault = true, CreatedByUserId = _userId };
         await _context.Studio().Branches.AddAsync(branch);
-        await _context.SaveChangesAsync();
+        await _context!.SaveChangesAsync();
         _branchId = branch.Id;
 
         var version = new SchemaVersion
@@ -67,7 +67,7 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
             Checksum = "abc", SchemaJson = "{}", AuthorUserId = _userId
         };
         await _context.Studio().SchemaVersions.AddAsync(version);
-        await _context.SaveChangesAsync();
+        await _context!.SaveChangesAsync();
         _headVersionId = version.Id;
     }
 
@@ -93,8 +93,8 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
     public async Task Can_create_a_change_request_and_read_it_back()
     {
         var cr = NewChangeRequest();
-        await _context!.ChangeRequests.AddAsync(cr);
-        await _context.SaveChangesAsync();
+        await _context!.Governance().ChangeRequests.AddAsync(cr);
+        await _context!.SaveChangesAsync();
 
         var reloaded = await _context.Governance().ChangeRequests.FindAsync(cr.Id);
         Assert.NotNull(reloaded);
@@ -105,14 +105,14 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
     public async Task Same_user_cannot_vote_twice_on_same_change_request()
     {
         var cr = NewChangeRequest();
-        await _context!.ChangeRequests.AddAsync(cr);
-        await _context.SaveChangesAsync();
+        await _context!.Governance().ChangeRequests.AddAsync(cr);
+        await _context!.SaveChangesAsync();
 
         await _context.Governance().ChangeRequestApprovals.AddAsync(new ChangeRequestApproval
         {
             ChangeRequestId = cr.Id, UserId = _reviewerId, Decision = ApprovalDecision.Approved
         });
-        await _context.SaveChangesAsync();
+        await _context!.SaveChangesAsync();
 
         await _context.Governance().ChangeRequestApprovals.AddAsync(new ChangeRequestApproval
         {
@@ -125,14 +125,14 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
     public async Task Deleting_branch_cascades_to_change_requests_and_their_approvals()
     {
         var cr = NewChangeRequest();
-        await _context!.ChangeRequests.AddAsync(cr);
-        await _context.SaveChangesAsync();
+        await _context!.Governance().ChangeRequests.AddAsync(cr);
+        await _context!.SaveChangesAsync();
 
         await _context.Governance().ChangeRequestApprovals.AddAsync(new ChangeRequestApproval
         {
             ChangeRequestId = cr.Id, UserId = _reviewerId, Decision = ApprovalDecision.Approved
         });
-        await _context.SaveChangesAsync();
+        await _context!.SaveChangesAsync();
 
         _context.Studio().ChangeTracker.Clear();
         await _context.Studio().Branches.Where(b => b.Id == _branchId).ExecuteDeleteAsync();
@@ -149,8 +149,8 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
     public async Task Approving_a_change_request_end_to_end_using_the_policy()
     {
         var cr = NewChangeRequest(RiskLevel.Breaking);
-        await _context!.ChangeRequests.AddAsync(cr);
-        await _context.SaveChangesAsync();
+        await _context!.Governance().ChangeRequests.AddAsync(cr);
+        await _context!.SaveChangesAsync();
 
         // Yazar kendi breaking değişikliğini onaylayamaz — policy bunu reddeder,
         // burada sadece DB'nin de bunu engellemediğini (uygulama katmanı sorumluluğu)
@@ -160,7 +160,7 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
             ChangeRequestId = cr.Id, UserId = _reviewerId, Decision = ApprovalDecision.Approved
         });
         cr.Status = ChangeRequestStatus.PendingReview; // hâlâ 2 onay gerekiyor (Breaking)
-        await _context.SaveChangesAsync();
+        await _context!.SaveChangesAsync();
 
         var reloaded = await _context.Governance().ChangeRequests
             .Include(c => c.Approvals)
@@ -178,8 +178,8 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
         var cr = NewChangeRequest(RiskLevel.Safe);
         cr.Status = ChangeRequestStatus.Approved;
         cr.ResolvedAt = DateTime.UtcNow;
-        await _context!.ChangeRequests.AddAsync(cr);
-        await _context.SaveChangesAsync();
+        await _context!.Governance().ChangeRequests.AddAsync(cr);
+        await _context!.SaveChangesAsync();
 
         // Otomatik onay — hiçbir insan aktör yok, ActorUserId null.
         await _context.Governance().ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
@@ -189,7 +189,7 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
             ActorUserId = null,
             Details = "Safe risk + project.AutoApproveSafeChanges enabled"
         });
-        await _context.SaveChangesAsync();
+        await _context!.SaveChangesAsync();
 
         var entry = await _context.Governance().ChangeRequestAuditLogs.SingleAsync(a => a.ChangeRequestId == cr.Id);
         Assert.Equal(ChangeRequestAuditAction.AutoApproved, entry.Action);
@@ -200,15 +200,15 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
     public async Task Audit_log_SURVIVES_when_change_request_is_deleted_via_branch_removal()
     {
         var cr = NewChangeRequest();
-        await _context!.ChangeRequests.AddAsync(cr);
-        await _context.SaveChangesAsync();
+        await _context!.Governance().ChangeRequests.AddAsync(cr);
+        await _context!.SaveChangesAsync();
 
         await _context.Governance().ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
         {
             ChangeRequestId = cr.Id, ProjectId = cr.ProjectId,
             Action = ChangeRequestAuditAction.Created, ActorUserId = _userId
         });
-        await _context.SaveChangesAsync();
+        await _context!.SaveChangesAsync();
 
         _context.Studio().ChangeTracker.Clear();
         await _context.Studio().Branches.Where(b => b.Id == _branchId).ExecuteDeleteAsync();
@@ -223,15 +223,15 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
     public async Task Audit_log_preserves_full_lifecycle_order_for_a_change_request()
     {
         var cr = NewChangeRequest(RiskLevel.Risky);
-        await _context!.ChangeRequests.AddAsync(cr);
-        await _context.SaveChangesAsync();
+        await _context!.Governance().ChangeRequests.AddAsync(cr);
+        await _context!.SaveChangesAsync();
 
         await _context.Governance().ChangeRequestAuditLogs.AddAsync(new ChangeRequestAuditLog
         {
             ChangeRequestId = cr.Id, Action = ChangeRequestAuditAction.Created, ActorUserId = _userId,
             CreatedAt = DateTime.UtcNow
         });
-        await _context.SaveChangesAsync();
+        await _context!.SaveChangesAsync();
 
         cr.Status = ChangeRequestStatus.Approved;
         cr.ResolvedAt = DateTime.UtcNow;
@@ -240,7 +240,7 @@ public class ChangeRequestIntegrationTests : IAsyncLifetime
             ChangeRequestId = cr.Id, Action = ChangeRequestAuditAction.Approved, ActorUserId = _reviewerId,
             CreatedAt = DateTime.UtcNow.AddSeconds(1)
         });
-        await _context.SaveChangesAsync();
+        await _context!.SaveChangesAsync();
 
         var timeline = await _context.Governance().ChangeRequestAuditLogs
             .Where(a => a.ChangeRequestId == cr.Id)

@@ -2,21 +2,15 @@ using Namines.Identity.Infrastructure.Persistence;
 using Namines.Tests.TestSupport;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging.Abstractions;
 using Namines.API.Controllers;
+using Namines.Billing.Domain;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using Xunit;
@@ -39,7 +33,6 @@ namespace Namines.Tests.Controllers;
 /// </summary>
 public sealed class StripeWebhookIdempotencyTests : IAsyncLifetime
 {
-    private const string Secret = "whsec_test_secret_for_unit_tests";
     private const string CustomerId = "cus_test_1";
 
     private SqliteConnection _connection = null!;
@@ -57,89 +50,19 @@ public sealed class StripeWebhookIdempotencyTests : IAsyncLifetime
         db.Users.Add(new ApplicationUser
         {
             Id = "u1", UserName = "u1", NormalizedUserName = "U1",
-            StripeCustomerId = CustomerId,
-            StripeSubscriptionId = "sub_1",
-            SubscriptionStatus = "active",
-            PlanCode = "pro",
             Type = UserType.Corporate,
         });
         await db.SaveChangesAsync();
+        // Stripe alanlari artik kullanici satirinda degil, faturalama tablolarinda.
+        await db.SeedSubscriptionAsync("u1", "active", "pro", stripeSubscriptionId: "sub_1", stripeCustomerId: CustomerId);
     }
 
     public async Task DisposeAsync() => await _connection.DisposeAsync();
 
     private AuthDbContext NewContext() => new(_options);
 
-    private static UserManager<ApplicationUser> NewUserManager(AuthDbContext db) =>
-        new(new UserStore<ApplicationUser>(db),
-            optionsAccessor: null!,
-            passwordHasher: new PasswordHasher<ApplicationUser>(),
-            userValidators: new List<IUserValidator<ApplicationUser>>(),
-            passwordValidators: new List<IPasswordValidator<ApplicationUser>>(),
-            keyNormalizer: new UpperInvariantLookupNormalizer(),
-            errors: new IdentityErrorDescriber(),
-            services: null!,
-            logger: NullLogger<UserManager<ApplicationUser>>.Instance);
-
-    /// <summary>
-    /// Stripe'ın imza başlığı: <c>t=&lt;unix&gt;,v1=&lt;HMAC-SHA256(t + "." + gövde)&gt;</c>.
-    /// Elle hesaplanıyor, çünkü doğrulamayı SDK yapıyor ve onu atlatmak testin
-    /// kanıt değerini yok ederdi.
-    /// </summary>
-    private static string SignatureHeader(string payload, DateTime signedAt)
-    {
-        var timestamp = ((long)(signedAt - DateTime.UnixEpoch).TotalSeconds)
-            .ToString(CultureInfo.InvariantCulture);
-
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(Secret));
-        var signature = Convert.ToHexString(
-            hmac.ComputeHash(Encoding.UTF8.GetBytes($"{timestamp}.{payload}"))).ToLowerInvariant();
-
-        return $"t={timestamp},v1={signature}";
-    }
-
-    /// <summary>Bir <c>customer.subscription.updated|deleted</c> olayının JSON gövdesi.</summary>
-    private static string SubscriptionEventJson(
-        string eventId, string type, string status, DateTime created) =>
-        $@"{{
-  ""id"": ""{eventId}"",
-  ""object"": ""event"",
-  ""api_version"": ""2024-06-20"",
-  ""livemode"": false,
-  ""pending_webhooks"": 1,
-  ""request"": null,
-  ""type"": ""{type}"",
-  ""created"": {(long)(created - DateTime.UnixEpoch).TotalSeconds},
-  ""data"": {{
-    ""object"": {{
-      ""id"": ""sub_1"",
-      ""object"": ""subscription"",
-      ""customer"": ""{CustomerId}"",
-      ""status"": ""{status}"",
-      ""current_period_end"": {(long)(created.AddDays(30) - DateTime.UnixEpoch).TotalSeconds},
-      ""items"": {{ ""object"": ""list"", ""data"": [] }}
-    }}
-  }}
-}}";
-
-    private static StripeWebhookController NewController(
-        AuthDbContext db, UserManager<ApplicationUser> userManager, string payload, DateTime signedAt)
-    {
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["Stripe:WebhookSecret"] = Secret })
-            .Build();
-
-        var httpContext = new DefaultHttpContext();
-        httpContext.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(payload));
-        httpContext.Request.ContentType = "application/json";
-        httpContext.Request.Headers["Stripe-Signature"] = SignatureHeader(payload, signedAt);
-
-        return new StripeWebhookController(
-            userManager, db, config, NullLogger<StripeWebhookController>.Instance)
-        {
-            ControllerContext = new ControllerContext { HttpContext = httpContext },
-        };
-    }
+    private static string SubscriptionEventJson(string eventId, string type, string status, DateTime created) =>
+        KitBStripe.SubscriptionEventJson(eventId, type, status, created, CustomerId);
 
     private async Task<IActionResult> PostAsync(string payload)
     {
@@ -147,15 +70,20 @@ public sealed class StripeWebhookIdempotencyTests : IAsyncLifetime
         // `created` alanına değil, imzanın zamanına bakıyor. Eski bir olayı
         // "şimdi" imzalamak, sıra dışı teslimatın gerçek hâli.
         await using var db = NewContext();
-        var userManager = NewUserManager(db);
-        var controller = NewController(db, userManager, payload, DateTime.UtcNow);
-        return await controller.HandleStripeWebhook();
+        var service = KitBStripe.Service(db, KitBStripe.Config());
+        var controller = KitBStripe.Controller(service, payload, KitBStripe.SignatureHeader(payload, DateTime.UtcNow));
+        return await controller.HandleStripeWebhook(default);
     }
 
-    private async Task<ApplicationUser> ReloadUserAsync()
+    /// <summary>Kullanici kimligi ile abonelik artik ayri modulde: test ikisini tek gorunumde toplar.</summary>
+    private sealed record UserView(string? SubscriptionStatus, UserType Type);
+
+    private async Task<UserView> ReloadUserAsync()
     {
         await using var db = NewContext();
-        return await db.Users.SingleAsync(u => u.Id == "u1");
+        var user = await db.Users.AsNoTracking().SingleAsync(u => u.Id == "u1");
+        var subscription = await db.Billing().Subscriptions.AsNoTracking().SingleAsync(s => s.UserId == "u1");
+        return new UserView(subscription.Status, user.Type);
     }
 
     [Fact]
@@ -165,16 +93,16 @@ public sealed class StripeWebhookIdempotencyTests : IAsyncLifetime
         var cancelEvent = SubscriptionEventJson(
             "evt_cancel", "customer.subscription.deleted", "canceled", created);
 
-        Assert.IsType<OkObjectResult>(await PostAsync(cancelEvent));
+        Assert.Equal(200, KitBStripe.StatusOf(await PostAsync(cancelEvent)));
         Assert.Equal("canceled", (await ReloadUserAsync()).SubscriptionStatus);
 
         // Kullanici arada YENIDEN abone oldu.
         await using (var db = NewContext())
         {
             var user = await db.Users.SingleAsync(u => u.Id == "u1");
-            user.SubscriptionStatus = "active";
             user.Type = UserType.Corporate;
             await db.SaveChangesAsync();
+            await db.SeedSubscriptionAsync("u1", "active", "pro", stripeSubscriptionId: "sub_2", stripeCustomerId: CustomerId);
         }
 
         // Stripe ayni iptal olayini TEKRAR gonderiyor.
@@ -206,7 +134,8 @@ public sealed class StripeWebhookIdempotencyTests : IAsyncLifetime
         // Sonra ESKI "active" olayi geliyor (gecikmis teslimat).
         var result = await PostAsync(oldActive);
 
-        Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(200, KitBStripe.StatusOf(result));
+        Assert.Contains("stale", KitBStripe.BodyOf(result));
 
         var reloaded = await ReloadUserAsync();
         Assert.Equal("canceled", reloaded.SubscriptionStatus);
@@ -220,7 +149,7 @@ public sealed class StripeWebhookIdempotencyTests : IAsyncLifetime
         var cancelEvent = SubscriptionEventJson(
             "evt_first", "customer.subscription.deleted", "canceled", DateTime.UtcNow);
 
-        Assert.IsType<OkObjectResult>(await PostAsync(cancelEvent));
+        Assert.Equal(200, KitBStripe.StatusOf(await PostAsync(cancelEvent)));
 
         var reloaded = await ReloadUserAsync();
         Assert.Equal("canceled", reloaded.SubscriptionStatus);
@@ -242,24 +171,13 @@ public sealed class StripeWebhookIdempotencyTests : IAsyncLifetime
             "evt_forged", "customer.subscription.deleted", "canceled", DateTime.UtcNow);
 
         await using var db = NewContext();
-        var httpContext = new DefaultHttpContext();
-        httpContext.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(payload));
-        httpContext.Request.Headers["Stripe-Signature"] = "t=1,v1=deadbeef";
+        var service = KitBStripe.Service(db, KitBStripe.Config());
+        var controller = KitBStripe.Controller(service, payload, "t=1,v1=deadbeef");
 
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["Stripe:WebhookSecret"] = Secret })
-            .Build();
-
-        var controller = new StripeWebhookController(
-            NewUserManager(db), db, config, NullLogger<StripeWebhookController>.Instance)
-        {
-            ControllerContext = new ControllerContext { HttpContext = httpContext },
-        };
-
-        Assert.IsType<BadRequestObjectResult>(await controller.HandleStripeWebhook());
+        Assert.Equal(400, KitBStripe.StatusOf(await controller.HandleStripeWebhook(default)));
 
         await using var verify = NewContext();
-        Assert.Empty(await verify.StripeWebhookEvents.ToListAsync());
+        Assert.Empty(await verify.Billing().StripeWebhookEvents.ToListAsync());
         Assert.Equal("active", (await ReloadUserAsync()).SubscriptionStatus);
     }
 }

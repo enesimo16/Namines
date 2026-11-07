@@ -113,7 +113,7 @@ public sealed class ApprovalCountPinningTests : IAsyncLifetime
     }
 
     private static ChangeRequestController NewController(AuthDbContext db, string userId) =>
-        new(db, migrationService: null!, testRunner: null!, aiService: null!, quota: null!, authority: TestModules.For(db).DefaultAuthority, projects: TestModules.For(db).Projects, branches: TestModules.For(db).Branches, lifecycle: TestModules.For(db).Lifecycle)
+        new(TestModules.For(db).ChangeRequests(), TestModules.For(db).Lifecycle)
         {
             ControllerContext = new ControllerContext
             {
@@ -133,7 +133,7 @@ public sealed class ApprovalCountPinningTests : IAsyncLifetime
             {
                 Decision = ApprovalDecision.Approved,
                 Comment = "lgtm",
-            });
+            }, default);
     }
 
     [Fact]
@@ -147,9 +147,9 @@ public sealed class ApprovalCountPinningTests : IAsyncLifetime
         Assert.IsType<ForbidResult>(result);
 
         await using var verify = NewContext();
-        var cr = await verify.ChangeRequests.SingleAsync();
+        var cr = await verify.Governance().ChangeRequests.SingleAsync();
         Assert.Equal(ChangeRequestStatus.PendingReview, cr.Status);
-        Assert.Empty(await verify.ChangeRequestApprovals.ToListAsync());
+        Assert.Empty(await verify.Governance().ChangeRequestApprovals.ToListAsync());
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public sealed class ApprovalCountPinningTests : IAsyncLifetime
         Assert.IsNotType<ForbidResult>(result);
 
         await using var verify = NewContext();
-        Assert.Single(await verify.ChangeRequestApprovals.ToListAsync());
+        Assert.Single(await verify.Governance().ChangeRequestApprovals.ToListAsync());
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public sealed class ApprovalCountPinningTests : IAsyncLifetime
         await VoteAsync(crId, "rev-1");
 
         await using var verify = NewContext();
-        var cr = await verify.ChangeRequests.SingleAsync();
+        var cr = await verify.Governance().ChangeRequests.SingleAsync();
         Assert.Equal(ChangeRequestStatus.PendingReview, cr.Status);
     }
 

@@ -88,7 +88,7 @@ public sealed class ProjectDeletionServiceTests : IAsyncLifetime
         Assert.False(await verifyVault.VaultBackups.AnyAsync());
         Assert.False(await verifyGround.GroundDatabases.AnyAsync());
 
-        var audit = await verify.ChangeRequestAuditLogs.Where(a => a.ProjectId == "proj-1").ToListAsync();
+        var audit = await verify.Governance().ChangeRequestAuditLogs.Where(a => a.ProjectId == "proj-1").ToListAsync();
         Assert.Contains(audit, a => a.Action == ChangeRequestAuditAction.ProjectDeletionRequested);
         var deleted = Assert.Single(audit, a => a.Action == ChangeRequestAuditAction.ProjectDeleted);
         Assert.Equal("u1", deleted.ActorUserId);
@@ -121,7 +121,7 @@ public sealed class ProjectDeletionServiceTests : IAsyncLifetime
         Assert.Null(ground.ClaimedAt);
         Assert.True(ground.DeleteRequestedAt < DateTime.UtcNow.AddDays(-7));
 
-        var audit = await verify.ChangeRequestAuditLogs.ToListAsync();
+        var audit = await verify.Governance().ChangeRequestAuditLogs.ToListAsync();
         Assert.Contains(audit, a => a.Action == ChangeRequestAuditAction.ProjectDeletionFailed);
         Assert.DoesNotContain(audit, a => a.Action == ChangeRequestAuditAction.ProjectDeleted);
     }
