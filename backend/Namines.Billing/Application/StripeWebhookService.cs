@@ -14,7 +14,7 @@ using PlanTier = Namines.Core.Analysis.PlanTier;
 namespace Namines.Billing.Application;
 
 /// <summary>Stripe'tan okunan abonelik özeti: ağ çağrısı sınır kapısı, testte sahte ile değiştirilebilir.</summary>
-internal sealed record StripeSubscriptionInfo(DateTime? CurrentPeriodEnd, string? PriceId);
+internal sealed record StripeSubscriptionInfo(DateTime? CurrentPeriodEnd, string? PriceId, string? Status = null);
 
 internal interface IStripeGateway
 {
@@ -140,7 +140,9 @@ internal sealed class StripeWebhookService : IStripeWebhookService
         // olaylarıyla yapılır ve Stripe'ın olayı ÜRETME zamanına göredir (aldığımız zamana göre değil).
         // Eşleme (checkout) hiçbir zaman "eski" sayılıp atılmaz: müşteri henüz bağlı değilse ödeme yapan kullanıcıyı
         // bağlayan tek olay budur ve ondan sonra Stripe yeniden denemez. Bağlı olmayan müşterinin güncelleme/silme olayı
-        // ise yazacak satır olmadığı için etkisiz kalır ve sıra hesabına girmez.
+        // yazacak satır bulamaz ama sıra hesabına GİRER: aksi halde eşlemeden önce gelen bir iptal unutulur ve sonradan
+        // gelen daha eski bir checkout kullanıcıyı yeniden "active" yapardı. Checkout böyle bir olayı gördüyse
+        // (newerStateSeen) eşlemeyi kurar ama durumu sabit varsaymaz; gerçek durumu Stripe'tan okur.
         var mapped = !string.IsNullOrEmpty(customerId)
             && await _db.Customers.AsNoTracking().AnyAsync(c => c.StripeCustomerId == customerId, ct);
         var isLatest = true;
@@ -153,6 +155,7 @@ internal sealed class StripeWebhookService : IStripeWebhookService
         }
 
         var apply = writesState && (isCheckout ? (!mapped || isLatest) : (mapped && isLatest));
+        var newerStateSeen = isCheckout && !mapped && !isLatest;
 
         // Kayıt işlemeden ÖNCE (ama aynı işlemde): birincil anahtar çakışması eşzamanlı ikinci isteği burada
         // durdurur, PostgreSQL ikincinin eklemesini birincinin commit/rollback'ine kadar bekletir.
@@ -162,8 +165,9 @@ internal sealed class StripeWebhookService : IStripeWebhookService
             EventType = stripeEvent.Type,
             EventCreatedAt = stripeEvent.Created,
             StripeCustomerId = customerId,
-            // "Uygulandı" anlamında: sıra hesabı yalnızca uygulanmış olaylara bakar.
-            LatestProcessedForCustomer = apply,
+            // "Sıra hesabına girer": bağlı olmayan müşterinin güncelleme/silmesi de dahil (etkisiz olsa bile zamanı kalır).
+            // Eski olay zaten en büyük zamanı değiştiremez.
+            LatestProcessedForCustomer = writesState,
         });
 
         try
@@ -188,7 +192,7 @@ internal sealed class StripeWebhookService : IStripeWebhookService
         switch (stripeEvent.Type)
         {
             case "checkout.session.completed":
-                await HandleCheckoutCompletedAsync(stripeEvent, ct);
+                await HandleCheckoutCompletedAsync(stripeEvent, newerStateSeen, ct);
                 break;
             case "customer.subscription.deleted":
                 await HandleSubscriptionDeletedAsync(stripeEvent, ct);
@@ -233,7 +237,7 @@ internal sealed class StripeWebhookService : IStripeWebhookService
         return row;
     }
 
-    private async Task HandleCheckoutCompletedAsync(Event stripeEvent, CancellationToken ct)
+    private async Task HandleCheckoutCompletedAsync(Event stripeEvent, bool newerStateSeen, CancellationToken ct)
     {
         if (stripeEvent.Data.Object is not Stripe.Checkout.Session session) return;
 
@@ -256,11 +260,13 @@ internal sealed class StripeWebhookService : IStripeWebhookService
         // dönüp Stripe yeniden dener (kayıt işlemle birlikte geri alınır).
         DateTime? periodEnd = null;
         string? planCode = null;
+        string? stripeStatus = null;
         if (!string.IsNullOrEmpty(session.SubscriptionId))
         {
             var info = await _stripe.GetSubscriptionAsync(session.SubscriptionId, ct);
             periodEnd = info.CurrentPeriodEnd;
             planCode = ResolvePlanCode(info.PriceId);
+            stripeStatus = info.Status;
         }
 
         if (!string.IsNullOrEmpty(session.CustomerId))
@@ -272,16 +278,36 @@ internal sealed class StripeWebhookService : IStripeWebhookService
                 customer.StripeCustomerId = session.CustomerId;
         }
 
+        // Durum: abonelik okunabildiyse Stripe'ın gerçek durumu. Okunamadıysa (abonelik kimliği yok) ve bu müşteri için
+        // daha yeni bir durum olayı zaten görüldüyse durum YAZILMAZ (bilinmiyor; eski checkout yeni iptali ezemez).
+        // Yalnızca yeni olay görülmediyse ödeme oturumunun kendisi "aktif" anlamına gelir.
+        if (stripeStatus is null && newerStateSeen)
+        {
+            await _db.SaveChangesAsync(ct);
+            _logger.LogWarning("[STRIPE WEBHOOK] checkout for user {UserId} linked the customer but a newer state event was already seen; state left unchanged.", userId);
+            return;
+        }
+
+        var status = stripeStatus ?? "active";
         var subscription = await SubscriptionOfAsync(userId, ct);
         subscription.StripeSubscriptionId = session.SubscriptionId;
-        subscription.Status = "active";
+        subscription.Status = status;
         subscription.CurrentPeriodEnd = periodEnd;
         subscription.PlanCode = planCode;
         subscription.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
-        await _identity.SetUserTypeAsync(userId, UserType.Corporate, ct); // ücretli plana yükselt
-        _logger.LogInformation("[STRIPE WEBHOOK] User {UserId} elevated to a paid plan. Subscription: {SubId}", userId, session.SubscriptionId);
+        // İptal edilmiş/ödenmemiş abonelik erişim açmaz (sıra dışı gelen eski checkout'un yükseltmesi buna takılır);
+        // deneme (trialing) dahil diğer durumlar eskisi gibi ücretli plana yükseltir.
+        if (status is "canceled" or "unpaid" or "incomplete_expired")
+        {
+            await _identity.SetUserTypeAsync(userId, UserType.Individual, ct);
+        }
+        else
+        {
+            await _identity.SetUserTypeAsync(userId, UserType.Corporate, ct); // ücretli plana yükselt
+            _logger.LogInformation("[STRIPE WEBHOOK] User {UserId} elevated to a paid plan. Subscription: {SubId}", userId, session.SubscriptionId);
+        }
     }
 
     private async Task HandleSubscriptionDeletedAsync(Event stripeEvent, CancellationToken ct)
@@ -378,7 +404,7 @@ internal sealed class StripeGateway : IStripeGateway
         var key = _config["Stripe:SecretKey"];
         var service = string.IsNullOrWhiteSpace(key) ? new SubscriptionService() : new SubscriptionService(new StripeClient(key));
         var subscription = await service.GetAsync(subscriptionId, cancellationToken: ct);
-        return new StripeSubscriptionInfo(subscription.CurrentPeriodEnd, subscription.Items?.Data?.FirstOrDefault()?.Price?.Id);
+        return new StripeSubscriptionInfo(subscription.CurrentPeriodEnd, subscription.Items?.Data?.FirstOrDefault()?.Price?.Id, subscription.Status);
     }
 }
 

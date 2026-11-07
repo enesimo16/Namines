@@ -21,14 +21,17 @@ internal sealed class FakeStripeGateway : IStripeGateway
 {
     private int _calls;
 
-    public FakeStripeGateway(DateTime? periodEnd = null, string? priceId = null)
+    public FakeStripeGateway(DateTime? periodEnd = null, string? priceId = null, string? status = null)
     {
         PeriodEnd = periodEnd ?? DateTime.UtcNow.AddDays(30);
         PriceId = priceId;
+        Status = status ?? "active";
     }
 
     public DateTime? PeriodEnd { get; }
     public string? PriceId { get; }
+    /// <summary>Stripe'ın o anki gerçek abonelik durumu (gerçek geçit her zaman doldurur); verilmezse active.</summary>
+    public string? Status { get; set; }
     public int Calls => Volatile.Read(ref _calls);
 
     /// <summary>İlk N çağrı patlar: Stripe ağ hatasının webhook'u 500'e düşürüp geri aldığını sınamak için.</summary>
@@ -38,7 +41,7 @@ internal sealed class FakeStripeGateway : IStripeGateway
     {
         var call = Interlocked.Increment(ref _calls);
         if (call <= FailFirst) throw new HttpRequestException("stripe unreachable");
-        return Task.FromResult(new StripeSubscriptionInfo(PeriodEnd, PriceId));
+        return Task.FromResult(new StripeSubscriptionInfo(PeriodEnd, PriceId, Status));
     }
 }
 
@@ -158,8 +161,9 @@ internal static class KitBStripe
 
     /// <summary>Bir <c>checkout.session.completed</c> olayının JSON gövdesi.</summary>
     public static string CheckoutCompletedJson(
-        string eventId, DateTime created, string customerId, string userId, string subscriptionId)
+        string eventId, DateTime created, string customerId, string userId, string? subscriptionId)
     {
+        var sub = subscriptionId is null ? "null" : "\"" + subscriptionId + "\"";
         return $@"{{
   ""id"": ""{eventId}"",
   ""object"": ""event"",
@@ -175,7 +179,7 @@ internal static class KitBStripe
       ""object"": ""checkout.session"",
       ""customer"": ""{customerId}"",
       ""client_reference_id"": ""{userId}"",
-      ""subscription"": ""{subscriptionId}"",
+      ""subscription"": {sub},
       ""mode"": ""subscription""
     }}
   }}
