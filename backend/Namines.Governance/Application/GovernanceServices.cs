@@ -154,20 +154,22 @@ internal sealed class GovernanceAuditService :
         while (true)
         {
             ct.ThrowIfCancellationRequested();
-            var deleted = 0;
-            // Silme izni YALNIZCA bu işlemde açılır (set_config(..., is_local = true)); sızıntı olmaz.
-            var strategy = _db.Database.CreateExecutionStrategy();
-            await strategy.ExecuteAsync(async () =>
+            int deleted;
+            if (_db.Database.IsNpgsql())
             {
-                await using var tx = await _db.Database.BeginTransactionAsync(ct);
-                if (_db.Database.IsNpgsql())
-                    await _db.Database.ExecuteSqlRawAsync("SELECT set_config('namines.audit_retention', 'on', true)", ct);
+                // Tek izinli yol: tablo sahibi adına çalışan SECURITY DEFINER işlevi (90 günden yeni satırı silmez).
+                // Uygulama rolü oturum ayarını kendisi açıp doğrudan DELETE edemez (tetikleyici current_user'a bakar).
+                deleted = (await _db.Database
+                    .SqlQuery<int>($"SELECT governance.purge_change_request_audit({cutoffUtc}, {batch}) AS \"Value\"")
+                    .ToListAsync(ct)).Single();
+            }
+            else
+            {
                 deleted = await _db.ChangeRequestAuditLogs
                     .Where(a => a.CreatedAt < cutoffUtc)
                     .OrderBy(a => a.Id).Take(batch)
                     .ExecuteDeleteAsync(ct);
-                await tx.CommitAsync(ct);
-            });
+            }
             total += deleted;
             if (deleted < batch) return total;
             if (pause > TimeSpan.Zero) await Task.Delay(pause, ct);

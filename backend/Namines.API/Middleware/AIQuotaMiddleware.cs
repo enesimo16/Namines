@@ -150,8 +150,21 @@ namespace Namines.API.Middleware
                 return;
             }
 
-            // ── Havuz VEYA kullanıcı tavanı dolarsa → minimum AI'ya düş (BLOKLAMA YOK) ──
-            var decision = await quotaService.CheckAsync(userId, estTokens);
+            // ── Bütçe ÇAĞRIDAN ÖNCE ve ATOMİK rezerve edilir ──
+            // Eskiden önce okunur (CheckAsync), yanıt başarılıysa sonradan düşülürdü (ConsumeAsync): bütçe tükenmeden önce
+            // gelen N paralel istek hepsi "Allowed" görür, havuz ve ekip sayacı sınırsız artardı (spec: kota yarışsız).
+            // Şimdi kullanıcı tavanı, paylaşılan havuz ve ekip havuzu tek işlemde koşullu artırılır; sığmayan istek
+            // yerel yedeğe düşer (BLOKLAMA YOK), başarısız yanıt rezervasyonu iade eder.
+            //
+            // /api/schema/generate kendi bütçesini ucun içinde rezerve edip uzlaştırıyor (tur çarpanı, gerçek kullanım):
+            // burada ikinci kez düşmek aynı işi İKİ KEZ ücretlendirirdi, o yol eskisi gibi yalnızca karar için okunur.
+            var selfReserving = path.StartsWith("/api/schema/generate");
+            Namines.BuildingBlocks.Contracts.AiQuotaDecision decision;
+            if (selfReserving)
+                decision = await quotaService.CheckAsync(userId, estTokens);
+            else
+                decision = await quotaService.TryReserveAsync(userId, estTokens);
+
             if (decision != Namines.BuildingBlocks.Contracts.AiQuotaDecision.Allowed)
             {
                 context.Items["FallbackToLocal"] = true;
@@ -165,16 +178,29 @@ namespace Namines.API.Middleware
                 return;
             }
 
-            await _next(context);
+            if (selfReserving)
+            {
+                await _next(context);
+                if (context.Response.StatusCode >= 200 && context.Response.StatusCode < 300 && !quotaService.HasReservedInScope)
+                    await quotaService.ConsumeAsync(userId, estTokens);
+                return;
+            }
 
-            // Yalnızca BAŞARILI istek harcanmış sayılır: hata dönen bir çağrı
-            // kullanıcıya hiçbir şey vermedi, bütçesinden de düşmemeli.
-            //
-            // Uç kendi bütçesini zaten rezerve edip uzlaştırdıysa (SchemaController
-            // /generate) burada tekrar düşmek aynı işi İKİ KEZ ücretlendirirdi.
-            if (context.Response.StatusCode >= 200 && context.Response.StatusCode < 300
-                && !quotaService.HasReservedInScope)
-                await quotaService.ConsumeAsync(userId, estTokens);
+            context.Items["AiQuotaReservedTokens"] = estTokens;
+            try
+            {
+                await _next(context);
+            }
+            catch
+            {
+                // Çağrı patladı: kullanıcı hiçbir şey almadı, bütçesinden düşmemeli.
+                await quotaService.RefundAsync(userId, estTokens, CancellationToken.None);
+                throw;
+            }
+
+            // Yalnızca BAŞARILI istek harcanmış sayılır.
+            if (context.Response.StatusCode < 200 || context.Response.StatusCode >= 300)
+                await quotaService.RefundAsync(userId, estTokens, CancellationToken.None);
         }
     }
 }

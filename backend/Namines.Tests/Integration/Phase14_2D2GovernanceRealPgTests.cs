@@ -407,4 +407,44 @@ public sealed class Phase14_2D2GovernanceRealPgTests : IClassFixture<Phase14_2BP
 
         Assert.Equal(0, await CountAsync(cs, "SELECT count(*) FROM desk.sql_query_history"));
     }
+
+    [RequiresDockerFact]
+    public async Task A_hijacked_application_role_cannot_delete_audit_rows_even_with_the_session_setting()
+    {
+        // m-1: uygulama rolü oturum ayarını kendisi açıp DELETE edemez; saklama yalnızca sahip adına çalışan işlevden geçer.
+        var cs = await NewDatabaseAsync("a_hijack");
+        var old = await AppendAsync(cs, at: DateTime.UtcNow.AddDays(-800));
+        var recent = await AppendAsync(cs, at: DateTime.UtcNow.AddDays(-5));
+        await ExecAsync(cs, """
+            DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'namines_app') THEN CREATE ROLE namines_app LOGIN PASSWORD 'app_pw'; END IF; END $$;
+            GRANT USAGE ON SCHEMA governance TO namines_app;
+            GRANT SELECT, INSERT, UPDATE, DELETE ON governance."ChangeRequestAuditLogs" TO namines_app;
+            GRANT EXECUTE ON FUNCTION governance.purge_change_request_audit(timestamptz, integer) TO namines_app;
+            """);
+        var app = new NpgsqlConnectionStringBuilder(cs) { Username = "namines_app", Password = "app_pw", Pooling = false }.ConnectionString;
+
+        await using var conn = new NpgsqlConnection(app);
+        await conn.OpenAsync();
+        await using (var tx = await conn.BeginTransactionAsync())
+        {
+            await using (var enable = new NpgsqlCommand("SELECT set_config('namines.audit_retention', 'on', true)", conn, tx)) await enable.ExecuteNonQueryAsync();
+            await using var del = new NpgsqlCommand($"DELETE FROM governance.\"ChangeRequestAuditLogs\" WHERE \"Id\" = '{old}'", conn, tx);
+            var ex = await Assert.ThrowsAsync<PostgresException>(() => del.ExecuteNonQueryAsync());
+            Assert.Equal("42501", ex.SqlState);
+        }
+        // Tetikleyiciyi kapatmak da sahibin işi.
+        await using (var disable = new NpgsqlCommand("ALTER TABLE governance.\"ChangeRequestAuditLogs\" DISABLE TRIGGER change_request_audit_row_guard", conn))
+            Assert.Equal("42501", (await Assert.ThrowsAsync<PostgresException>(() => disable.ExecuteNonQueryAsync())).SqlState);
+
+        // İşlev: 90 günden yeni kesim reddedilir, eski satır silinir, yeni satır kalır.
+        await using (var tooNew = new NpgsqlCommand("SELECT governance.purge_change_request_audit(now() - interval '10 days', 100)", conn))
+            Assert.Equal("22023", (await Assert.ThrowsAsync<PostgresException>(() => tooNew.ExecuteScalarAsync())).SqlState);
+        await using (var purge = new NpgsqlCommand("SELECT governance.purge_change_request_audit(now() - interval '100 days', 100)", conn))
+            Assert.Equal(1, (int)(await purge.ExecuteScalarAsync())!);
+        Assert.Equal(0, await CountAsync(cs, $"SELECT count(*) FROM governance.\"ChangeRequestAuditLogs\" WHERE \"Id\" = '{old}'"));
+        Assert.Equal(1, await CountAsync(cs, $"SELECT count(*) FROM governance.\"ChangeRequestAuditLogs\" WHERE \"Id\" = '{recent}'"));
+        // Ayar işlevin işleminde kapandı: sonraki doğrudan silme yine reddedilir.
+        await using var again = new NpgsqlCommand($"DELETE FROM governance.\"ChangeRequestAuditLogs\" WHERE \"Id\" = '{recent}'", conn);
+        Assert.Equal("42501", (await Assert.ThrowsAsync<PostgresException>(() => again.ExecuteNonQueryAsync())).SqlState);
+    }
 }

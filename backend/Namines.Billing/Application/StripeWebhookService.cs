@@ -72,11 +72,17 @@ internal sealed class StripeWebhookService : IStripeWebhookService
         {
             stripeEvent = EventUtility.ConstructEvent(payload, signatureHeader, webhookSecret, throwOnApiVersionMismatch: false);
         }
-        catch (StripeException ex)
+        catch (Exception ex) when (ex is StripeException or NullReferenceException or System.Text.Json.JsonException or Newtonsoft.Json.JsonException or InvalidCastException)
         {
-            _logger.LogWarning("[STRIPE WEBHOOK] Signature validation FAILED: {Message}. Rejecting with 400.", ex.Message);
+            // İmza geçerli olsa bile gövde ayrıştırılamıyorsa (boş, data.object eksik) Stripe.net StripeException yerine
+            // NullReferenceException atar; istemci hatasıdır, 500 olmamalı ve Stripe bozuk yükü yeniden denememeli.
+            _logger.LogWarning("[STRIPE WEBHOOK] Signature or payload rejected: {Type}: {Message}. Rejecting with 400.", ex.GetType().Name, ex.Message);
             return new WebhookResult(400, new { error = "Invalid Stripe signature." });
         }
+
+        // İmzalı ama içi boş yük (data.object yok): işlenecek bir şey yok ve yeniden denemek de çözmez.
+        if (stripeEvent is null || string.IsNullOrEmpty(stripeEvent.Id) || stripeEvent.Data?.Object is null)
+            return new WebhookResult(400, new { error = "Invalid Stripe event payload." });
 
         _logger.LogInformation("[STRIPE WEBHOOK] Verified event: {Type} | ID: {Id}", stripeEvent.Type, stripeEvent.Id);
 
@@ -120,15 +126,33 @@ internal sealed class StripeWebhookService : IStripeWebhookService
         // Yürütme stratejisi işlemi yeniden denerse önceki denemeden kalan izleyici durumu temizlenir.
         _db.ChangeTracker.Clear();
 
-        // Sıra dışı teslimat: Stripe sırayı garanti etmiyor. Durumu değiştiren olay, o müşteri için daha yeni bir
-        // olay işlenmişse uygulanmaz. Olayın ÜRETİLME zamanı kullanılır, aldığımız zaman değil.
+        // Aynı müşterinin olayları SERİ işlenir: sıra kontrolü ile yazma arasında boşluk kalırsa iki farklı olay
+        // (updated@t, deleted@t+1) birbirini görmeden "ben en yenisiyim" der ve iptal geri alınabilirdi. Kilit işlem
+        // sonunda kendiliğinden düşer ve kontrol KİLİT ALTINDA yapılır.
+        if (!string.IsNullOrEmpty(customerId) && _db.Database.IsNpgsql())
+            await _db.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtextextended({"stripe-customer:" + customerId}, 0))", ct);
+
+        var writesState = stripeEvent.Type is "checkout.session.completed" or "customer.subscription.updated" or "customer.subscription.deleted";
+        var isCheckout = stripeEvent.Type == "checkout.session.completed";
+
+        // Sıra dışı teslimat: Stripe sırayı garanti etmiyor. Karşılaştırma yalnızca o müşteri için UYGULANMIŞ durum
+        // olaylarıyla yapılır ve Stripe'ın olayı ÜRETME zamanına göredir (aldığımız zamana göre değil).
+        // Eşleme (checkout) hiçbir zaman "eski" sayılıp atılmaz: müşteri henüz bağlı değilse ödeme yapan kullanıcıyı
+        // bağlayan tek olay budur ve ondan sonra Stripe yeniden denemez. Bağlı olmayan müşterinin güncelleme/silme olayı
+        // ise yazacak satır olmadığı için etkisiz kalır ve sıra hesabına girmez.
+        var mapped = !string.IsNullOrEmpty(customerId)
+            && await _db.Customers.AsNoTracking().AnyAsync(c => c.StripeCustomerId == customerId, ct);
         var isLatest = true;
-        if (!string.IsNullOrEmpty(customerId))
+        if (!string.IsNullOrEmpty(customerId) && writesState)
         {
-            var newest = await _db.StripeWebhookEvents.Where(e => e.StripeCustomerId == customerId)
+            var newest = await _db.StripeWebhookEvents
+                .Where(e => e.StripeCustomerId == customerId && e.LatestProcessedForCustomer)
                 .MaxAsync(e => (DateTime?)e.EventCreatedAt, ct);
             isLatest = newest is null || stripeEvent.Created >= newest;
         }
+
+        var apply = writesState && (isCheckout ? (!mapped || isLatest) : (mapped && isLatest));
 
         // Kayıt işlemeden ÖNCE (ama aynı işlemde): birincil anahtar çakışması eşzamanlı ikinci isteği burada
         // durdurur, PostgreSQL ikincinin eklemesini birincinin commit/rollback'ine kadar bekletir.
@@ -138,7 +162,8 @@ internal sealed class StripeWebhookService : IStripeWebhookService
             EventType = stripeEvent.Type,
             EventCreatedAt = stripeEvent.Created,
             StripeCustomerId = customerId,
-            LatestProcessedForCustomer = isLatest,
+            // "Uygulandı" anlamında: sıra hesabı yalnızca uygulanmış olaylara bakar.
+            LatestProcessedForCustomer = apply,
         });
 
         try
@@ -150,13 +175,15 @@ internal sealed class StripeWebhookService : IStripeWebhookService
             throw new DuplicateEventException();
         }
 
-        if (!isLatest)
+        if (writesState && mapped && !isLatest)
         {
             _logger.LogWarning(
                 "[STRIPE WEBHOOK] Event {Id} ({Type}) arrived out of order for {Customer}; subscription state NOT changed.",
                 stripeEvent.Id, stripeEvent.Type, customerId);
             return Outcome.Stale;
         }
+
+        if (!apply) return Outcome.Processed;
 
         switch (stripeEvent.Type)
         {

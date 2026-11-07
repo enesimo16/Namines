@@ -296,7 +296,7 @@ public sealed class MigrationHandoffTests : IAsyncLifetime
         // roles.sql yeniden çalıştırılmamış kurulum: rol ile D-1 sürümünde var olan şemaların (public, flow,
         // namines_vault, ground, desk) yetkileri var; yeni şemalar (billing, governance) yok, onları modül
         // zincirlerinin kendi GrantAppRole adımı açmak zorunda.
-        await ExecAsync(cs, "CREATE ROLE namines_app LOGIN PASSWORD 'app_pw';");
+        await ExecAsync(cs, "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'namines_app') THEN CREATE ROLE namines_app LOGIN PASSWORD 'app_pw'; END IF; END $$;");
         foreach (var existing in new[] { "public", "flow", "namines_vault", "ground", "desk" })
             await ExecAsync(cs, $"CREATE SCHEMA IF NOT EXISTS \"{existing}\"; GRANT USAGE ON SCHEMA \"{existing}\" TO namines_app; ALTER DEFAULT PRIVILEGES IN SCHEMA \"{existing}\" GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO namines_app; ALTER DEFAULT PRIVILEGES IN SCHEMA \"{existing}\" GRANT USAGE, SELECT ON SEQUENCES TO namines_app;");
         await TestModules.MigrateAllAsync(cs);

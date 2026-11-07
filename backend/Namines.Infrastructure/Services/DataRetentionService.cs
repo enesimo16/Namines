@@ -34,6 +34,10 @@ public class DataRetentionService : BackgroundService
     public const int DefaultSqlExecutionAuditDays = 365;
     public const int DefaultUsageEventDays = 2557; // ~7 yıl (vergi/muhasebe)
     public const int DefaultChangeRequestAuditDays = 730;
+    public const int MinChangeRequestAuditDays = 90;
+
+    // 0 ya da negatif = temizlik kapalı; açıksa taban uygulanır.
+    private static int ClampAuditDays(int days) => days <= 0 ? days : Math.Max(days, MinChangeRequestAuditDays);
     public const int DefaultStripeWebhookDays = 180;
     public const int DefaultFeedbackDays = 0; // varsayılan: sakla
     public const int ExpiredTokenGraceDays = 7;
@@ -124,7 +128,8 @@ public class DataRetentionService : BackgroundService
                 c.GetValue("Retention:GatewayAuditDays", DefaultGatewayAuditDays),
                 c.GetValue("Retention:SqlExecutionAuditDays", DefaultSqlExecutionAuditDays),
                 usage,
-                c.GetValue("Retention:ChangeRequestAuditDays", DefaultChangeRequestAuditDays),
+                // Veritabanı işlevi 90 günden yeni denetim satırı silmez; daha kısa ayar sessizce boşa çalışmasın diye tabana çekilir.
+                ClampAuditDays(c.GetValue("Retention:ChangeRequestAuditDays", DefaultChangeRequestAuditDays)),
                 c.GetValue("Retention:StripeWebhookDays", DefaultStripeWebhookDays),
                 c.GetValue("Retention:FeedbackDays", DefaultFeedbackDays),
                 c.GetValue("Retention:CompletedSubscriptionCancellationDays", DefaultCompletedSubscriptionCancellationDays));

@@ -414,4 +414,96 @@ public sealed class Phase14_2D2BillingRealPgTests : IClassFixture<Phase14_2BPost
 
         Assert.Equal("23505", ((PostgresException)ex.InnerException!).SqlState);
     }
+
+    [RequiresDockerFact]
+    public async Task A_checkout_that_creates_the_mapping_is_never_dropped_as_stale_even_after_a_newer_update()
+    {
+        // M-1: eşlemesi olmayan müşterinin daha yeni "updated" olayı önce gelir; sonra gelen daha eski checkout kullanıcıyı bağlamalı.
+        var cs = await WebhookDatabaseAsync("w_m1");
+        var now = DateTime.UtcNow;
+        var update = KitBStripe.SubscriptionEventJson("evt_m1_upd", "customer.subscription.updated", "active", now.AddSeconds(-10), Customer("new"), "sub_m1");
+        var checkout = KitBStripe.CheckoutCompletedJson("evt_m1_co", now.AddSeconds(-20), Customer("new"), "u1", "sub_m1");
+        var gateway = new FakeStripeGateway(periodEnd: now.AddDays(30));
+
+        var first = await DeliverAsync(cs, update, gateway);
+        Assert.Equal(200, first.Status);
+        Assert.DoesNotContain("stale", first.Json);
+        var second = await DeliverAsync(cs, checkout, gateway);
+        Assert.Equal(200, second.Status);
+        Assert.DoesNotContain("stale", second.Json);
+
+        await using var verify = Open(cs);
+        Assert.Equal(Customer("new"), (await verify.Billing().Customers.AsNoTracking().SingleAsync(c => c.UserId == "u1")).StripeCustomerId);
+        Assert.Equal("active", (await verify.Billing().Subscriptions.AsNoTracking().SingleAsync(s => s.UserId == "u1")).Status);
+        Assert.Equal(UserType.Corporate, (await verify.Users.AsNoTracking().SingleAsync(u => u.Id == "u1")).Type);
+        // Bağlı olmayan müşterinin güncellemesi sıra hesabına girmedi.
+        Assert.False((await verify.Billing().StripeWebhookEvents.AsNoTracking().SingleAsync(e => e.Id == "evt_m1_upd")).LatestProcessedForCustomer);
+    }
+
+    [RequiresDockerFact]
+    public async Task A_checkout_older_than_an_applied_state_event_of_an_already_mapped_customer_is_stale()
+    {
+        var cs = await WebhookDatabaseAsync("w_m1b");
+        await using (var seed = Open(cs))
+            await seed.SeedSubscriptionAsync("u1", "active", "pro", "sub_1", Customer("m1b"));
+        var now = DateTime.UtcNow;
+        var cancel = KitBStripe.SubscriptionEventJson("evt_m1b_del", "customer.subscription.deleted", "canceled", now.AddSeconds(-5), Customer("m1b"));
+        var oldCheckout = KitBStripe.CheckoutCompletedJson("evt_m1b_co", now.AddSeconds(-60), Customer("m1b"), "u1", "sub_1");
+        Assert.Equal(200, (await DeliverAsync(cs, cancel)).Status);
+        var late = await DeliverAsync(cs, oldCheckout, new FakeStripeGateway(periodEnd: now.AddDays(30)));
+        Assert.Contains("stale", late.Json);
+        await using var verify = Open(cs);
+        Assert.Equal("canceled", (await verify.Billing().Subscriptions.AsNoTracking().SingleAsync()).Status);
+    }
+
+    [RequiresDockerFact]
+    public async Task Different_events_of_one_customer_arriving_in_parallel_always_end_at_the_newest_state()
+    {
+        // M-2: updated(active)@t ile deleted@t+1 paralel; commit sırası ne olursa olsun son durum canceled olmalı.
+        var cs = await WebhookDatabaseAsync("w_m2");
+        await using (var seed = Open(cs))
+            await seed.SeedSubscriptionAsync("u1", "active", "pro", "sub_1", Customer("m2"));
+        var wrong = 0;
+        for (var i = 0; i < 30; i++)
+        {
+            await using (var reset = Open(cs))
+            {
+                await reset.Billing().Subscriptions.Where(s => s.UserId == "u1").ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, "active"));
+                await reset.Billing().StripeWebhookEvents.ExecuteDeleteAsync();
+            }
+            var t = DateTime.UtcNow.AddMinutes(-10).AddSeconds(i * 3);
+            var active = KitBStripe.SubscriptionEventJson("evt_m2_a" + i, "customer.subscription.updated", "active", t, Customer("m2"));
+            var canceled = KitBStripe.SubscriptionEventJson("evt_m2_d" + i, "customer.subscription.deleted", "canceled", t.AddSeconds(1), Customer("m2"));
+            // Aralığı ZORLA: abonelik satırı başka bir bağlantıda kilitliyken iki istek de sıra kontrolünü geçip yazmada
+            // bekler. Kilit müşteri bazında alınmıyorsa ikisi de "ben en yenisiyim" der ve son yazan kazanır.
+            await using var blocker = new NpgsqlConnection(cs);
+            await blocker.OpenAsync();
+            await using var blockTx = await blocker.BeginTransactionAsync();
+            await using (var lockCmd = new NpgsqlCommand("SELECT 1 FROM billing.subscriptions WHERE \"UserId\" = 'u1' FOR UPDATE", blocker, blockTx))
+                await lockCmd.ExecuteScalarAsync();
+            // Önce YENİ olay (deleted@t+1) kuyruğa girer, eski olay (updated@t) ondan sonra: kilitsiz sürümde eski olay
+            // son yazan olur ve iptal geri alınır.
+            var first = Task.Run(() => DeliverAsync(cs, canceled));
+            await Task.Delay(300);
+            var second = Task.Run(() => DeliverAsync(cs, active));
+            var tasks = new[] { first, second };
+            await Task.Delay(500);
+            await blockTx.CommitAsync();
+            await Task.WhenAll(tasks);
+            await using var verify = Open(cs);
+            if ((await verify.Billing().Subscriptions.AsNoTracking().SingleAsync()).Status != "canceled") wrong++;
+        }
+        Assert.Equal(0, wrong);
+    }
+
+    [RequiresDockerFact]
+    public async Task A_signed_but_unparseable_body_is_a_400_not_a_500()
+    {
+        // m-6: boş gövde ya da data.object eksik; Stripe.net NullReferenceException atardı.
+        var cs = await WebhookDatabaseAsync("w_m6");
+        foreach (var payload in new[] { "", "{}", "null", "[]", "{\"id\":\"evt_x\",\"object\":\"event\",\"type\":\"customer.subscription.updated\"}" })
+            Assert.Equal(400, (await DeliverAsync(cs, payload)).Status);
+        await using var verify = Open(cs);
+        Assert.Empty(await verify.Billing().StripeWebhookEvents.AsNoTracking().ToListAsync());
+    }
 }

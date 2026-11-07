@@ -339,4 +339,53 @@ public sealed class Phase14_2D2BillingGovernanceMigrationTests : IClassFixture<P
         await TestModules.MigrateAllAsync(cs);
         await AssertUpgradedAsync(cs, resolved);
     }
+
+    private const string UserInsert = """INSERT INTO "AspNetUsers" ("Id","Type","CreatedAt","IsDev","EmailConfirmed","PhoneNumberConfirmed","TwoFactorEnabled","LockoutEnabled","AccessFailedCount","UserName","NormalizedUserName","StripeCustomerId","StripeSubscriptionId") VALUES""";
+
+    [RequiresDockerFact]
+    public async Task Padded_and_blank_stripe_ids_are_trimmed_into_the_new_tables_and_come_back_trimmed_on_down()
+    {
+        // m-3: boşluklu kimlik webhook eşleşmesini sonsuza dek kaçırırdı; kırpılarak taşınır. Boş dizge "yok" sayılır.
+        var cs = await D1DatabaseAsync("m_trim");
+        await ExecAsync(cs, UserInsert + """
+             ('p1',0,now(),false,true,false,false,true,0,'p1','P1',' cus_pad ',' sub_pad '),
+             ('p2',0,now(),false,true,false,false,true,0,'p2','P2','','');
+            """);
+        await TestModules.MigrateAllAsync(cs);
+
+        Assert.Equal(1, await CountAsync(cs, "SELECT count(*) FROM billing.customers WHERE \"UserId\"='p1' AND \"StripeCustomerId\"='cus_pad'"));
+        Assert.Equal(1, await CountAsync(cs, "SELECT count(*) FROM billing.subscriptions WHERE \"UserId\"='p1' AND \"StripeSubscriptionId\"='sub_pad'"));
+        Assert.Equal(0, await CountAsync(cs, "SELECT count(*) FROM billing.customers WHERE \"UserId\"='p2'"));
+        // Yalnızca boş kimlikli kullanıcı için abonelik satırı da açılmaz (içi boş satır olurdu).
+        Assert.Equal(0, await CountAsync(cs, "SELECT count(*) FROM billing.subscriptions WHERE \"UserId\"='p2'"));
+
+        foreach (var module in TestModules.Descriptors.Where(d => d.Order is 30 or 40).OrderByDescending(d => d.Order))
+        {
+            await using var ctx = module.CreateContext(cs);
+            await ctx.GetService<IMigrator>().MigrateAsync("0");
+        }
+        Assert.Equal(1, await CountAsync(cs, "SELECT count(*) FROM \"AspNetUsers\" WHERE \"Id\"='p1' AND \"StripeCustomerId\"='cus_pad' AND \"StripeSubscriptionId\"='sub_pad'"));
+        Assert.Equal(1, await CountAsync(cs, "SELECT count(*) FROM \"AspNetUsers\" WHERE \"Id\"='p2' AND \"StripeCustomerId\" IS NULL AND \"StripeSubscriptionId\" IS NULL"));
+    }
+
+    [RequiresDockerFact]
+    public async Task The_same_stripe_subscription_on_two_users_stops_the_migration_and_changes_nothing()
+    {
+        var cs = await D1DatabaseAsync("m_dupsub");
+        await ExecAsync(cs, UserInsert + """
+             ('d1',0,now(),false,true,false,false,true,0,'d1','D1','cus_d1','sub_same'),
+             ('d2',0,now(),false,true,false,false,true,0,'d2','D2','cus_d2',' sub_same ');
+            """);
+        var failure = await Assert.ThrowsAnyAsync<Exception>(() => TestModules.MigrateAllAsync(cs));
+        Assert.Contains("Billing_01: the same StripeSubscriptionId belongs to more than one user (sub_same)", failure.ToString());
+        Assert.Equal(1, await CountAsync(cs, "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='AspNetUsers' AND column_name='StripeSubscriptionId'"));
+        Assert.Equal(0, await TableExistsAsync(cs, "billing", "subscriptions"));
+
+        await ExecAsync(cs, "UPDATE \"AspNetUsers\" SET \"StripeSubscriptionId\" = 'sub_other' WHERE \"Id\" = 'd2'");
+        await TestModules.MigrateAllAsync(cs);
+        Assert.Equal(2, await CountAsync(cs, "SELECT count(*) FROM billing.subscriptions WHERE \"UserId\" IN ('d1','d2')"));
+        // Uygulama yolu da aynı kuralı korur: ikinci kullanıcıya aynı abonelik kimliği yazılamaz.
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => ExecAsync(cs, "UPDATE billing.subscriptions SET \"StripeSubscriptionId\"='sub_same' WHERE \"UserId\"='d2'"));
+        Assert.Contains("IX_subscriptions_StripeSubscriptionId", ex.ToString());
+    }
 }

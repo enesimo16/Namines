@@ -70,7 +70,9 @@ namespace Namines.Billing.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("PlanCode");
 
-                    b.HasIndex("StripeSubscriptionId");
+                    b.HasIndex("StripeSubscriptionId")
+                        .IsUnique()
+                        .HasFilter("\"StripeSubscriptionId\" IS NOT NULL");
 
                     b.ToTable("subscriptions", "billing");
                 });

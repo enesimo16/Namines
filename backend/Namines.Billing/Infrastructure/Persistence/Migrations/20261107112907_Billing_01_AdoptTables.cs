@@ -17,7 +17,7 @@ namespace Namines.Billing.Infrastructure.Persistence.Migrations
     ///
     /// Aynı Stripe müşterisini taşıyan iki kullanıcı varsa (eski şemada yalnızca düz indeks vardı) migration
     /// hata verir: hangisinin gerçek sahip olduğunu otomatik seçmek yanlış kişiyi ücretli plana bağlardı.
-    /// Boş dizge müşteri kimliği "yok" sayılır (anlamsız ve benzersizliği bozar); Down'da NULL döner.
+    /// Müşteri ve abonelik kimlikleri kırpılır (başı sonu boşluk Stripe kimliğinde anlamsız ve webhook eşleşmesini sonsuza dek kaçırırdı); boş olan "yok" sayılır. Aynı abonelik kimliği iki kullanıcıdaysa da migration durur (yeni benzersiz indeks). DOWN kırpılmış değeri geri koyar: boş dizge NULL, boşluklu kimlik kırpılmış döner (özgün boşluk bilgisi kaybolur, anlam kaybolmaz).
     /// </summary>
     public partial class Billing_01_AdoptTables : Migration
     {
@@ -38,11 +38,19 @@ namespace Namines.Billing.Infrastructure.Persistence.Migrations
                 DECLARE dup text;
                 BEGIN
                   SELECT string_agg("StripeCustomerId", ', ') INTO dup FROM (
-                    SELECT "StripeCustomerId" FROM public."AspNetUsers"
-                    WHERE nullif("StripeCustomerId", '') IS NOT NULL
-                    GROUP BY "StripeCustomerId" HAVING count(*) > 1 LIMIT 10) d;
+                    SELECT btrim("StripeCustomerId") AS "StripeCustomerId" FROM public."AspNetUsers"
+                    WHERE nullif(btrim("StripeCustomerId"), '') IS NOT NULL
+                    GROUP BY btrim("StripeCustomerId") HAVING count(*) > 1 LIMIT 10) d;
                   IF dup IS NOT NULL THEN
                     RAISE EXCEPTION 'Billing_01: the same StripeCustomerId belongs to more than one user (%). Resolve the duplicates, then re-run.', dup;
+                  END IF;
+
+                  SELECT string_agg(sid, ', ') INTO dup FROM (
+                    SELECT btrim("StripeSubscriptionId") AS sid FROM public."AspNetUsers"
+                    WHERE nullif(btrim("StripeSubscriptionId"), '') IS NOT NULL
+                    GROUP BY btrim("StripeSubscriptionId") HAVING count(*) > 1 LIMIT 10) d;
+                  IF dup IS NOT NULL THEN
+                    RAISE EXCEPTION 'Billing_01: the same StripeSubscriptionId belongs to more than one user (%). Resolve the duplicates, then re-run.', dup;
                   END IF;
                 END $$;
                 """);
@@ -89,18 +97,19 @@ namespace Namines.Billing.Infrastructure.Persistence.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_subscriptions_PlanCode", schema: "billing", table: "subscriptions", column: "PlanCode");
             migrationBuilder.CreateIndex(
-                name: "IX_subscriptions_StripeSubscriptionId", schema: "billing", table: "subscriptions", column: "StripeSubscriptionId");
+                name: "IX_subscriptions_StripeSubscriptionId", schema: "billing", table: "subscriptions", column: "StripeSubscriptionId",
+                unique: true, filter: "\"StripeSubscriptionId\" IS NOT NULL");
 
             // Doldur.
             migrationBuilder.Sql("""
                 INSERT INTO billing.customers ("UserId", "StripeCustomerId", "CreatedAt")
-                SELECT "Id", "StripeCustomerId", now() FROM public."AspNetUsers"
-                WHERE nullif("StripeCustomerId", '') IS NOT NULL;
+                SELECT "Id", btrim("StripeCustomerId"), now() FROM public."AspNetUsers"
+                WHERE nullif(btrim("StripeCustomerId"), '') IS NOT NULL;
 
                 INSERT INTO billing.subscriptions ("UserId", "StripeSubscriptionId", "Status", "PlanCode", "CurrentPeriodEnd", "UpdatedAt")
-                SELECT "Id", "StripeSubscriptionId", "SubscriptionStatus", "PlanCode", "CurrentPeriodEnd", now()
+                SELECT "Id", nullif(btrim("StripeSubscriptionId"), ''), "SubscriptionStatus", "PlanCode", "CurrentPeriodEnd", now()
                 FROM public."AspNetUsers"
-                WHERE "StripeSubscriptionId" IS NOT NULL OR "SubscriptionStatus" IS NOT NULL
+                WHERE nullif(btrim("StripeSubscriptionId"), '') IS NOT NULL OR "SubscriptionStatus" IS NOT NULL
                    OR "PlanCode" IS NOT NULL OR "CurrentPeriodEnd" IS NOT NULL;
                 """);
 
@@ -109,7 +118,7 @@ namespace Namines.Billing.Infrastructure.Persistence.Migrations
                 DO $$
                 DECLARE expected bigint; actual bigint; bad bigint;
                 BEGIN
-                  SELECT count(*) INTO expected FROM public."AspNetUsers" WHERE nullif("StripeCustomerId", '') IS NOT NULL;
+                  SELECT count(*) INTO expected FROM public."AspNetUsers" WHERE nullif(btrim("StripeCustomerId"), '') IS NOT NULL;
                   SELECT count(*) INTO actual FROM billing.customers;
                   IF expected <> actual THEN
                     RAISE EXCEPTION 'Billing_01: customers backfill count mismatch (% users, % rows)', expected, actual;
@@ -117,13 +126,13 @@ namespace Namines.Billing.Infrastructure.Persistence.Migrations
 
                   SELECT count(*) INTO bad FROM public."AspNetUsers" u
                   LEFT JOIN billing.customers c ON c."UserId" = u."Id"
-                  WHERE nullif(u."StripeCustomerId", '') IS DISTINCT FROM c."StripeCustomerId";
+                  WHERE nullif(btrim(u."StripeCustomerId"), '') IS DISTINCT FROM c."StripeCustomerId";
                   IF bad <> 0 THEN
                     RAISE EXCEPTION 'Billing_01: % users differ from billing.customers', bad;
                   END IF;
 
                   SELECT count(*) INTO expected FROM public."AspNetUsers"
-                  WHERE "StripeSubscriptionId" IS NOT NULL OR "SubscriptionStatus" IS NOT NULL
+                  WHERE nullif(btrim("StripeSubscriptionId"), '') IS NOT NULL OR "SubscriptionStatus" IS NOT NULL
                      OR "PlanCode" IS NOT NULL OR "CurrentPeriodEnd" IS NOT NULL;
                   SELECT count(*) INTO actual FROM billing.subscriptions;
                   IF expected <> actual THEN
@@ -132,7 +141,7 @@ namespace Namines.Billing.Infrastructure.Persistence.Migrations
 
                   SELECT count(*) INTO bad FROM public."AspNetUsers" u
                   LEFT JOIN billing.subscriptions s ON s."UserId" = u."Id"
-                  WHERE u."StripeSubscriptionId" IS DISTINCT FROM s."StripeSubscriptionId"
+                  WHERE nullif(btrim(u."StripeSubscriptionId"), '') IS DISTINCT FROM s."StripeSubscriptionId"
                      OR u."SubscriptionStatus" IS DISTINCT FROM s."Status"
                      OR u."PlanCode" IS DISTINCT FROM s."PlanCode"
                      OR u."CurrentPeriodEnd" IS DISTINCT FROM s."CurrentPeriodEnd";
@@ -193,7 +202,7 @@ namespace Namines.Billing.Infrastructure.Persistence.Migrations
 
                   SELECT count(*) INTO expected FROM billing.subscriptions;
                   SELECT count(*) INTO actual FROM public."AspNetUsers"
-                  WHERE "StripeSubscriptionId" IS NOT NULL OR "SubscriptionStatus" IS NOT NULL
+                  WHERE nullif(btrim("StripeSubscriptionId"), '') IS NOT NULL OR "SubscriptionStatus" IS NOT NULL
                      OR "PlanCode" IS NOT NULL OR "CurrentPeriodEnd" IS NOT NULL;
                   IF expected <> actual THEN
                     RAISE EXCEPTION 'Billing_01 Down: subscriptions restore count mismatch (% rows, % users)', expected, actual;

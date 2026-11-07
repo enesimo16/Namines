@@ -51,7 +51,8 @@ internal sealed class BillingDbContext : DbContext, IBillingData
             entity.ToTable("subscriptions", schema);
             entity.HasKey(s => s.UserId);
             entity.HasIndex(s => s.PlanCode);
-            entity.HasIndex(s => s.StripeSubscriptionId);
+            // Aynı Stripe aboneliği iki kullanıcıya bağlanamaz (webhook yanlış kişiyi yükseltirdi); boş olanlar çakışmaz.
+            entity.HasIndex(s => s.StripeSubscriptionId).IsUnique().HasFilter("\"StripeSubscriptionId\" IS NOT NULL");
         });
 
         modelBuilder.Entity<PendingSubscriptionCancellation>(entity =>
