@@ -11,6 +11,7 @@ using Namines.BuildingBlocks.Security;
 using Namines.Core.Models.Auth;
 using Namines.Vault.Abstractions;
 using Namines.Vault.Application;
+using Namines.Vault.Domain;
 
 namespace Namines.API.Controllers;
 

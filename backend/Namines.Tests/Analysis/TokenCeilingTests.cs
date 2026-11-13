@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using Namines.Core.Analysis;
-using Namines.Infrastructure.AI;
+using Namines.AI.Application;
+using Namines.AI.Infrastructure.Providers;
 
 namespace Namines.Tests.Analysis;
 

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Models.Auth;
 using Namines.Vault.Configurations;
+using Namines.Vault.Domain;
 
 namespace Namines.Vault.Infrastructure.Persistence;
 

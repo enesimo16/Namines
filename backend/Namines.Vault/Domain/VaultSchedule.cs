@@ -1,7 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace Namines.Core.Models.Auth;
+namespace Namines.Vault.Domain;
 
 /// <summary>Yedeğin ne sıklıkla alınacağı.</summary>
 public enum VaultCadence

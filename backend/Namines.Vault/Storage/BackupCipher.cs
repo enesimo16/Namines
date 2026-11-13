@@ -74,8 +74,21 @@ public sealed class BackupCipher
     /// </summary>
     private static readonly byte[] MagicV3 = Encoding.ASCII.GetBytes("NVLT3\0");
 
-    private readonly string _passphrase;
-    private readonly byte[] _legacyKey;
+    /// <summary>
+    /// Anahtar malzemesi İLK KULLANIMDA doğrulanır ve türetilir.
+    ///
+    /// <b>Neden kurucuda değil:</b> bu sınıf singleton ve hesap silme (Vault blob temizliği)
+    /// üzerinden AuthController'ın bağımlılık zincirinde. Kurucuda atınca eksik bir Vault
+    /// anahtarı Vault'u değil GİRİŞİ (500) kapatıyordu. Vault yine fail-closed: anahtar yoksa
+    /// hiçbir yedek yazılmaz/okunmaz. Üretimde eksik anahtar açılışta
+    /// <see cref="ValidateConfiguration"/> ile yakalanır, ilk kullanıcıda değil.
+    /// </summary>
+    private readonly Lazy<(string Passphrase, byte[] LegacyKey)> _key;
+
+    private string _passphrase => _key.Value.Passphrase;
+
+    // YALNIZCA NVLT1 (eski) yedekleri çözmek için. Yeni yedekler bu anahtarla YAZILMAZ.
+    private byte[] _legacyKey => _key.Value.LegacyKey;
 
     /// <summary>
     /// Eski NVLT1 biçimini okumaya izin verilsin mi (docs/last-review M-8).
@@ -88,6 +101,22 @@ public sealed class BackupCipher
         _allowLegacyV1 = configuration.GetValue("Vault:AllowLegacyV1", defaultValue: false);
 
         var raw = configuration["Vault:BackupEncryptionKey"];
+        _key = new Lazy<(string, byte[])>(() =>
+        {
+            var passphrase = ValidatedPassphrase(raw);
+            return (passphrase, SHA256.HashData(Encoding.UTF8.GetBytes(passphrase)));
+        }, LazyThreadSafetyMode.ExecutionAndPublication);
+    }
+
+    /// <summary>
+    /// Yapılandırmayı kullanmadan doğrular (açılış kontrolü). Geçersizse
+    /// <see cref="InvalidOperationException"/> atar; mesaj operatöre ne yapacağını söyler.
+    /// </summary>
+    public static void ValidateConfiguration(IConfiguration configuration) =>
+        ValidatedPassphrase(configuration["Vault:BackupEncryptionKey"]);
+
+    private static string ValidatedPassphrase(string? raw)
+    {
         if (string.IsNullOrWhiteSpace(raw))
             throw new InvalidOperationException(
                 "Vault:BackupEncryptionKey is not configured. Vault refuses to write unencrypted backups; " +
@@ -98,10 +127,7 @@ public sealed class BackupCipher
                 "Vault:BackupEncryptionKey must be at least 32 characters. A short key makes the encryption " +
                 "real on paper and breakable in practice.");
 
-        _passphrase = raw.Trim();
-
-        // YALNIZCA NVLT1 (eski) yedekleri çözmek için. Yeni yedekler bu anahtarla YAZILMAZ.
-        _legacyKey = SHA256.HashData(Encoding.UTF8.GetBytes(_passphrase));
+        return raw.Trim();
     }
 
     /// <summary>

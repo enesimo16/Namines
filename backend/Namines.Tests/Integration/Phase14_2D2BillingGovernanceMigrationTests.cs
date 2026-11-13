@@ -236,7 +236,9 @@ public sealed class Phase14_2D2BillingGovernanceMigrationTests : IClassFixture<P
         Assert.Equal(1, await CountAsync(cs, "SELECT count(*) FROM pg_indexes WHERE schemaname = 'billing' AND tablename = 'customers' AND indexdef ILIKE '%UNIQUE%StripeCustomerId%'"));
         Assert.Equal(2, await CountAsync(cs, "SELECT count(*) FROM pg_trigger WHERE tgrelid = 'governance.\"ChangeRequestAuditLogs\"'::regclass AND NOT tgisinternal"));
         Assert.Equal(1, await CountAsync(cs, "SELECT count(*) FROM billing.\"__EFMigrationsHistory\""));
-        Assert.Equal(1, await CountAsync(cs, "SELECT count(*) FROM governance.\"__EFMigrationsHistory\""));
+        // Governance_01 (tablolar + koruma) ve Governance_02 (sahibe ait saklama tabanı).
+        Assert.Equal(2, await CountAsync(cs, "SELECT count(*) FROM governance.\"__EFMigrationsHistory\""));
+        Assert.Equal(1, await CountAsync(cs, "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'governance' AND p.proname = 'audit_retention_floor_days'"));
 
         // Kullanıcı silinince müşteri ve abonelik eşlemesi gider (FK cascade); outbox satırı hesaptan uzun yaşar (FK yok).
         await ExecAsync(cs, """

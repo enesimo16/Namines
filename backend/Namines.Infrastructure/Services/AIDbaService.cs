@@ -5,7 +5,8 @@ using System.Threading.Tasks;
 using Namines.Core.Enums;
 using Namines.Core.Interfaces;
 using Namines.Core.Models;
-using Namines.Infrastructure.AI;
+using Namines.AI.Application;
+using Namines.AI.Infrastructure.Providers;
 
 namespace Namines.Infrastructure.Services;
 

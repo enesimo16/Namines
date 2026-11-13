@@ -1,7 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace Namines.Core.Models.Auth;
+namespace Namines.Ground.Domain;
 
 /// <summary>Ground'un yapılandırılabilir varsayılanları.</summary>
 public static class GroundDefaults

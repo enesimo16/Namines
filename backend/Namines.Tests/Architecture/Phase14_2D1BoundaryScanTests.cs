@@ -29,6 +29,12 @@ public sealed class Phase14_2D1BoundaryScanTests
         ("Billing", typeof(Namines.Billing.Infrastructure.Persistence.BillingDbContext).Assembly),
         ("Governance", typeof(Namines.Governance.Infrastructure.Persistence.GovernanceDbContext).Assembly),
         ("Identity", typeof(Namines.Identity.Infrastructure.Persistence.AuthDbContext).Assembly),
+        // Denetim R2-m6: bu dört modülün tabloları da korunur; başka modülün SQL metni onları anarsa test düşer.
+        // Bağlamları internal: derleme adla, bağlam tanımlayıcıdan kurulur.
+        ("Vault", Assembly.Load("Namines.Vault")),
+        ("Ground", Assembly.Load("Namines.Ground")),
+        ("Flow", Assembly.Load("Namines.Flow")),
+        ("Desk", Assembly.Load("Namines.Desk")),
     };
 
     private static DbContext OwnerContext(string module) => module switch
@@ -63,7 +69,7 @@ public sealed class Phase14_2D1BoundaryScanTests
     }
 
     /// <summary>Bir derlemedeki tüm metot gövdelerinin dize sabitleri, migration ad alanları hariç.</summary>
-    private static IEnumerable<(string Where, string Text)> StringLiterals(Assembly assembly)
+    internal static IEnumerable<(string Where, string Text)> StringLiterals(Assembly assembly)
     {
         Type[] types;
         try { types = assembly.GetTypes(); }
@@ -99,6 +105,7 @@ public sealed class Phase14_2D1BoundaryScanTests
     {
         "Namines.API", "Namines.Infrastructure", "Namines.BuildingBlocks", "Namines.Studio", "Namines.Hub", "Namines.Gateway",
         "Namines.Ops", "Namines.Vault", "Namines.Ground", "Namines.Flow", "Namines.Desk", "Namines.Billing", "Namines.Governance", "Namines.Identity",
+        "Namines.AI",
     }.Select(n => new object[] { n });
 
     [Theory]
@@ -114,6 +121,24 @@ public sealed class Phase14_2D1BoundaryScanTests
 
         var violations = StringLiterals(assembly)
             .SelectMany(s => patterns.Where(p => p.Regex.IsMatch(s.Text)).Select(p => $"{s.Where} -> {p.Name} ({p.Owner})"))
+            .Distinct()
+            .ToList();
+        Assert.Empty(violations);
+    }
+
+    /// <summary>
+    /// Bütün LLM/ses sağlayıcı trafiği AI modülünden geçer: kota uzlaştırması (gerçek token ölçümü) ve kimlik doğrulama
+    /// yalnızca orada. VoiceController Groq'a doğrudan gidiyordu; bir sonraki doğrudan çağrı burada düşer.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ScannedAssemblies))]
+    public void Ai_provider_hosts_live_only_in_the_AI_module(string assemblyName)
+    {
+        if (assemblyName == "Namines.AI") return;
+        var hosts = new[] { "api.groq.com", "api.deepseek.com", "generativelanguage.googleapis.com", "api.openai.com" };
+        var violations = StringLiterals(Assembly.Load(assemblyName))
+            .Where(s => hosts.Any(h => s.Text.Contains(h, StringComparison.OrdinalIgnoreCase)))
+            .Select(s => $"{s.Where}: {s.Text}")
             .Distinct()
             .ToList();
         Assert.Empty(violations);

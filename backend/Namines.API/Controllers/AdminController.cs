@@ -23,6 +23,7 @@ using Namines.Desk.Abstractions;
 using Namines.Flow.Abstractions;
 using Namines.Ground.Abstractions;
 using Namines.Vault.Abstractions;
+using Namines.Vault.Domain;
 
 namespace Namines.API.Controllers;
 

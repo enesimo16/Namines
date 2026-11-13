@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Net.Http;
 using Microsoft.Extensions.Configuration;
 using Namines.Core.Analysis;
-using Namines.Infrastructure.AI;
+using Namines.AI.Application;
+using Namines.AI.Infrastructure.Providers;
 using Xunit;
 
 namespace Namines.Tests.Services;

@@ -23,7 +23,7 @@ namespace Namines.Desk.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.DeskHandoffToken", b =>
+            modelBuilder.Entity("Namines.Desk.Domain.DeskHandoffToken", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -53,7 +53,7 @@ namespace Namines.Desk.Infrastructure.Persistence.Migrations
                     b.ToTable("desk_handoff_tokens", "desk");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.SavedQuery", b =>
+            modelBuilder.Entity("Namines.Desk.Domain.SavedQuery", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -94,7 +94,7 @@ namespace Namines.Desk.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.SqlQueryHistoryEntry", b =>
+            modelBuilder.Entity("Namines.Desk.Domain.SqlQueryHistoryEntry", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");

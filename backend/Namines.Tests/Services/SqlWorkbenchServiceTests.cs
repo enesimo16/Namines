@@ -11,6 +11,7 @@ using Namines.Desk.Infrastructure.Persistence;
 using Namines.Desk.Services;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
+using Namines.Desk.Domain;
 
 namespace Namines.Tests.Services;
 

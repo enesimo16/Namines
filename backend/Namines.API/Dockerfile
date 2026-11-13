@@ -10,6 +10,17 @@ COPY ["Namines.Vault/Namines.Vault.csproj", "Namines.Vault/"]
 COPY ["Namines.Ground/Namines.Ground.csproj", "Namines.Ground/"]
 COPY ["Namines.Flow/Namines.Flow.csproj", "Namines.Flow/"]
 COPY ["Namines.Desk/Namines.Desk.csproj", "Namines.Desk/"]
+# Faz 14 modülleri ve AI modülü: API'nin proje grafiğindeki HER csproj burada olmalı, yoksa restore katmanı
+# eksik grafikle çalışır (önbellek her kod değişikliğinde boşa gider, restore hatası publish'e kayar).
+COPY ["Namines.BuildingBlocks/Namines.BuildingBlocks.csproj", "Namines.BuildingBlocks/"]
+COPY ["Namines.Studio/Namines.Studio.csproj", "Namines.Studio/"]
+COPY ["Namines.Hub/Namines.Hub.csproj", "Namines.Hub/"]
+COPY ["Namines.Gateway/Namines.Gateway.csproj", "Namines.Gateway/"]
+COPY ["Namines.Ops/Namines.Ops.csproj", "Namines.Ops/"]
+COPY ["Namines.Billing/Namines.Billing.csproj", "Namines.Billing/"]
+COPY ["Namines.Governance/Namines.Governance.csproj", "Namines.Governance/"]
+COPY ["Namines.Identity/Namines.Identity.csproj", "Namines.Identity/"]
+COPY ["Namines.AI/Namines.AI.csproj", "Namines.AI/"]
 
 # Bağımlılıkları restore et
 RUN dotnet restore "Namines.API/Namines.API.csproj"
@@ -41,6 +52,9 @@ COPY --from=build /app/publish .
 # dışından erişilemezdi.
 EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080
+# Vault yerel deposunun varsayılanı yazılabilir veri dizini: süreç root DEĞİL (USER app) ve /app root'a ait.
+# Yol verilmezse yedekler /app/vault-backups'a yazılmaya çalışılır ve izin hatasıyla düşerdi.
+ENV Vault__StoragePath=/app/data/vault-backups
 
 # Bağlantı dizesi (ve parolası) imaja GÖMÜLMEZ — `docker history` ile okunabilirdi.
 # Çalışma zamanında ConnectionStrings__DefaultConnection ortam değişkeniyle verilir

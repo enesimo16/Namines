@@ -232,6 +232,24 @@ builder.Services.AddHttpClient(PwnedPasswordValidator.HttpClientName, client =>
             "(ör. `openssl rand -base64 48`).");
     }
 
+    // Vault yedek anahtarı: BackupCipher anahtarı ilk kullanımda doğruluyor (eksik anahtar
+    // girişi düşürmesin diye). Bu yüzden eksik/kısa anahtar burada, AÇILIŞTA yakalanıyor;
+    // aksi hâlde ilk yedek denemesine, saatler sonra rastgele bir kullanıcıya kalırdı.
+    // Kapı JWT ile aynı: Development DIŞINDA zorunlu.
+    // `--migrate` modu (prod'daki tek seferlik namines-migrate konteyneri) Vault'a hiç dokunmaz
+    // ve o konteynere Vault anahtarı verilmiyor: orada kontrol migration'ı boşuna düşürürdü.
+    try
+    {
+        Namines.Vault.Storage.BackupCipher.ValidateConfiguration(builder.Configuration);
+    }
+    catch (InvalidOperationException ex)
+    {
+        if (!builder.Environment.IsDevelopment() &&
+            !args.Contains("--migrate", StringComparer.OrdinalIgnoreCase))
+            throw;
+        Log.Warning("{Message} Uygulama açılıyor (Development ya da --migrate); Vault yedek/geri yükleme bu anahtar verilene kadar reddedilir.", ex.Message);
+    }
+
     builder.Services.AddAuthentication(options =>
     {
         options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;

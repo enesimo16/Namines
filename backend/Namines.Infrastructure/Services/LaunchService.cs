@@ -18,6 +18,7 @@ using Namines.BuildingBlocks.Contracts;
 using Namines.Infrastructure.Data;
 using Namines.Ops.Application;
 using Namines.Vault.Application;
+using Namines.Vault.Domain;
 
 namespace Namines.Infrastructure.Services;
 

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Namines.Core.Models.Auth;
 using Namines.Ground.Application;
+using Namines.Ground.Domain;
 
 namespace Namines.Ground.Infrastructure.Workers;
 

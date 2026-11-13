@@ -27,4 +27,17 @@ public interface IAiUsageTracker
 
     /// <summary>Sağlayıcı en az bir kez gerçek kullanım bildirdi mi?</summary>
     bool HasMeasurement { get; }
+
+    /// <summary>
+    /// Uç bu isteği MODELE GİTMEDEN yanıtladı (anlamsal önbellek isabeti, analiz edilecek tablo yok, deterministik
+    /// yerel üretici). Kota uzlaştırması bunu "gerçek kullanım 0" sayar; ölçüm de varsa ölçüm kazanır.
+    ///
+    /// <b>Neden açık bir sinyal, çıkarım değil:</b> "hiç sağlayıcı çağrısı ölçülmedi" ile "modele gidilmedi" aynı şey
+    /// değil: CoderAI çağrıyı istek kapsamının DIŞINDA (arka planda) yapıyor, ölçümsüz bir sağlayıcı usage bildirmiyor.
+    /// Ölçüm yokluğunu 0 saymak bu yolları bedava yapardı; yalnızca kendinden emin olan uç 0 der.
+    /// </summary>
+    void RecordServedWithoutModel();
+
+    /// <summary><see cref="RecordServedWithoutModel"/> en az bir kez çağrıldı mı?</summary>
+    bool ServedWithoutModel { get; }
 }

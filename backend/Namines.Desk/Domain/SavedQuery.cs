@@ -1,7 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace Namines.Core.Models.Auth;
+namespace Namines.Desk.Domain;
 
 /// <summary>
 /// Kullanıcının ada kaydettiği SQL sorgusu (F-02).

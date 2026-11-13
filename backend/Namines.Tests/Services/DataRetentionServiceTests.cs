@@ -17,6 +17,8 @@ using Namines.Desk.Services;
 using Namines.Infrastructure.Data;
 using Namines.Infrastructure.Services;
 using Xunit;
+using Namines.Desk.Domain;
+using Namines.Identity.Domain;
 
 namespace Namines.Tests.Services;
 

@@ -1,7 +1,7 @@
 using System.Threading;
 using Namines.Core.Interfaces;
 
-namespace Namines.Infrastructure.AI;
+namespace Namines.AI.Application;
 
 /// <summary>
 /// <see cref="IAiUsageTracker"/>'ın istek kapsamlı (scoped) uygulaması.
@@ -27,4 +27,10 @@ public sealed class AiUsageTracker : IAiUsageTracker
     public int TotalTokens => Volatile.Read(ref _total);
 
     public bool HasMeasurement => Volatile.Read(ref _measurements) > 0;
+
+    private int _servedWithoutModel;
+
+    public void RecordServedWithoutModel() => Interlocked.Exchange(ref _servedWithoutModel, 1);
+
+    public bool ServedWithoutModel => Volatile.Read(ref _servedWithoutModel) == 1;
 }

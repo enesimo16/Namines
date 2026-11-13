@@ -18,6 +18,7 @@
     <!-- Flow ve Desk modulleri: modular monolith sinirlari -->
     <ProjectReference Include="..\Namines.Flow\Namines.Flow.csproj" />
     <ProjectReference Include="..\Namines.Desk\Namines.Desk.csproj" />
+    <ProjectReference Include="..\Namines.AI\Namines.AI.csproj" />
   </ItemGroup>
 
   <ItemGroup>

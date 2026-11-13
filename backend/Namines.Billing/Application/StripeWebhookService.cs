@@ -333,7 +333,7 @@ internal sealed class StripeWebhookService : IStripeWebhookService
 
         // İptal edilmiş/ödenmemiş abonelik erişim açmaz (sıra dışı gelen eski checkout'un yükseltmesi buna takılır);
         // deneme (trialing) dahil diğer durumlar eskisi gibi ücretli plana yükseltir.
-        if (status is "canceled" or "unpaid" or "incomplete_expired")
+        if (SubscriptionAccess.Revokes(status))
         {
             await _identity.SetUserTypeAsync(userId, UserType.Individual, ct);
         }
@@ -389,7 +389,7 @@ internal sealed class StripeWebhookService : IStripeWebhookService
         // Ödeme düzeldiyse erişim geri gelir. past_due'da yumuşak davranılır: erişim sürer, kesin düşüş deleted'ta.
         if (subscription.Status == "active")
             await _identity.SetUserTypeAsync(userId, UserType.Corporate, ct);
-        else if (subscription.Status is "canceled" or "unpaid")
+        else if (SubscriptionAccess.Revokes(subscription.Status))
             await _identity.SetUserTypeAsync(userId, UserType.Individual, ct);
 
         _logger.LogInformation("[STRIPE WEBHOOK] Subscription updated for user {UserId}: {Status}", userId, subscription.Status);
@@ -427,6 +427,18 @@ internal sealed class StripeWebhookService : IStripeWebhookService
 }
 
 /// <summary>Stripe SDK sınırı: abonelik ayrıntısı. Anahtar yoksa çağrı başarısız olur ve webhook yeniden denenir.</summary>
+/// <summary>
+/// Bir Stripe abonelik durumunun ücretli erişimi KESİP KESMEDİĞİNİN tek kaynağı (14.2D-2 denetimi R3-n1).
+/// Önceden checkout yolu <c>incomplete_expired</c>'ı düşürüyor, güncelleme yolu düşürmüyordu; <c>paused</c> ise
+/// hiçbir yolda düşürmüyordu: ödemesi durdurulmuş abonelik ücretli kalıyordu. <c>past_due</c> bilinçli olarak
+/// burada değil (yumuşak dönem: erişim sürer, kesin düşüş <c>deleted</c>/<c>unpaid</c>'de).
+/// </summary>
+internal static class SubscriptionAccess
+{
+    public static bool Revokes(string? status) =>
+        status is "canceled" or "unpaid" or "incomplete_expired" or "paused";
+}
+
 internal sealed class StripeGateway : IStripeGateway
 {
     private static readonly TimeSpan CallTimeout = TimeSpan.FromSeconds(15);

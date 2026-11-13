@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Models.Auth;
 using Namines.Ground.Configurations;
+using Namines.Ground.Domain;
 
 namespace Namines.Ground.Infrastructure.Persistence;
 

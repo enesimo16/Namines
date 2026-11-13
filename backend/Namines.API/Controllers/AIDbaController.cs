@@ -18,12 +18,15 @@ public class AIDbaController : ControllerBase
     private readonly IAIDbaService _dbaService;
     private readonly SemanticCacheService _cacheService;
     private readonly ILogger<AIDbaController> _logger;
+    private readonly IAiUsageTracker _usage;
 
     public AIDbaController(
         IAIDbaService dbaService, 
         SemanticCacheService cacheService,
-        ILogger<AIDbaController> logger)
+        ILogger<AIDbaController> logger,
+        IAiUsageTracker usage)
     {
+        _usage = usage;
         _dbaService = dbaService;
         _cacheService = cacheService;
         _logger = logger;
@@ -51,6 +54,7 @@ public class AIDbaController : ControllerBase
                 if (cached != null)
                 {
                     _logger.LogInformation("AIDba: Cache HIT.");
+                    _usage.RecordServedWithoutModel(); // önbellekten: modele gidilmedi, kota iade edilir
                     using (var doc = JsonDocument.Parse(cached))
                     {
                         return Ok(doc.RootElement.Clone());
@@ -61,6 +65,10 @@ public class AIDbaController : ControllerBase
             {
                 _logger.LogWarning(cacheEx, "AIDba: Cache lookup failed");
             }
+
+            // Analiz edilecek tablo yoksa servis modele gitmeden sabit bir yanıt döner: kota iade edilir.
+            if (request.Schema.Tables is null || request.Schema.Tables.Count == 0)
+                _usage.RecordServedWithoutModel();
 
             var result = await _dbaService.AnalyzeSchemaAsync(request.Schema, request.DbType);
 

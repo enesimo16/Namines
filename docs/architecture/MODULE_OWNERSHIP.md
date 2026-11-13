@@ -31,6 +31,7 @@
 | **9** | **Flow** | `flow` | `FlowDbContext` | `automation_rules`, `automation_actions`, `automation_run_logs` | `FlowModule`, `FlowService`, `FlowRuleMatcher`, `AutomationConditionEvaluator`, `AutomationExecutor`, `AutomationJobQueue`, `AutomationExecutorWorker`, `AutomationRunLogRetentionService` | `AutomationController` (`/api/automation/*`) |
 | **10** | **Billing** | `billing` | `BillingDbContext` | `subscriptions`, `user_billing_settings`, `usage_events`, `user_ai_quotas`, `user_ai_tool_policies`, `user_ai_settings`, `global_ai_usages`, `org_ai_usages`, `stripe_webhook_events` | `AiQuotaService`, `UsageMeter`, `StripeSubscriptionCanceller` | `SubscriptionController`, `StripeWebhookController`, `QuotaController`, `PolicyController`, `UsageController` |
 | **11** | **Ops** | `ops` | `OpsDbContext` | `feature_flags`, `ai_tool_routes`, `feedbacks`, `sql_execution_audits`, `lifecycle_audit_logs` | `FeatureFlagService`, `AiToolRouter`, `DataRetentionService`, `AdminTelemetryService` | `AdminController`, `FeaturesController`, `FeedbackController` |
+| **12** | **AI** (14.3) | — (durumsuz) | — | Yok: kota defteri Billing'de (`IAiQuota`), kullanıcı AI politikası Governance'ta (`IAiPolicies`) | `GroqAIService`, `OllamaAIService`, `DeepSeek`/`Groq` sağlayıcı ve katalogları, `ChatCompletionProviderFactory`, `AIFactory`, `AiUsageTracker` (istek kapsamlı gerçek token ölçümü), `AiFeatureCatalog` (uç → tahmin/mod), `GroqSpeechTranscriber` | Kendi ucu yok; `AIQuotaMiddleware` ve AI kullanan denetleyiciler (AIDba, SmartSeed, Schema, CoderAI, Voice...) tüketici. LLM sağlayıcı adresleri yalnızca bu modülde (`Ai_provider_hosts_live_only_in_the_AI_module`) |
 
 ---
 
@@ -54,12 +55,19 @@
 
 Kimlik varlık sınıfları (`ApplicationUser`, `Organization`...) ASP.NET Identity ile iç içe olduğu için `Namines.Core`'da kaldı; Identity için ayrı bir Domain katmanı yoktur. Billing, kullanıcı bilgisini yalnızca `IIdentityDirectory`'den alır; Governance, Studio ve Identity'ye yalnızca sözleşmeyle gider.
 
-### Kimlik varlıklarının yeri (bilinçli borç, denetim m-8)
+### Varlıkların yeri (denetim m-8, Faz 14.3 ile kapandı)
 
-Identity ve Vault/Ground/Flow/Desk varlıkları hâlâ `Namines.Core/Models/Auth` içinde (`ApplicationUser`, `Organization`, `TeamInvite`, `VaultBackup`, `VaultSchedule`, `GroundDatabase`, `SavedQuery`, `DeskHandoffToken`, `UserType`...). Neden:
+| Varlık | Yer |
+|---|---|
+| `VaultBackup`, `VaultRestore`, `VaultSchedule` (+ enum'ları) | `Namines.Vault.Domain` |
+| `GroundDatabase`, `GroundStatus`, `GroundDefaults` | `Namines.Ground.Domain` |
+| `DeskHandoffToken`, `SavedQuery`, `SqlQueryHistoryEntry` | `Namines.Desk.Domain` |
+| `TeamInvite` | `Namines.Identity.Domain` |
+| `ApplicationUser`, `Organization`, `OrganizationMember`, `UserType` | **Core'da kalır** (paylaşılan çekirdek) |
+| `AutomationRule` | **Core'da kalır** |
 
-1. `ApplicationUser` ASP.NET Identity şablon türüdür (`IdentityUser`); Identity modülünün dışında da (Billing/Governance/Studio sözleşmeleri, testler) CLR türü olarak anılır.
-2. Namespace `Namines.Core.Models.Auth` yaklaşık 250 dosyada geçiyor (API 23, Identity 68, testler 87, diğer modüller 5-8'er) ve migration anlık görüntüleri/tasarım dosyaları CLR tür adını taşıyor; taşıma hepsini ve anlık görüntüleri aynı anda değiştirir. Veri tabanında hiçbir değişiklik gerektirmez ama tek PR'da çok geniş bir mekanik diff olur.
-3. Sınır, tür konumuna değil erişim yoluna dayanır: bu türleri okuyan/yazan tek kod Identity (ve kendi modülünün) `DbContext`'idir, bunu mimari testler zorlar.
-
-Sonraki adım (somut): (a) önce `Namines.Identity.Domain` içine yalnızca `Organization`, `OrganizationMember`, `TeamInvite` taşınır (Identity dışında ancak sözleşme türlerinden anılır, bu yüzden küçük bir yüzey); (b) `ApplicationUser` Core'da kalır, çünkü dış sözleşmeler onu `IdentityUser` olarak tanır; (c) Vault/Ground/Flow/Desk varlıkları kendi modül projelerine ayrı bir fazda taşınır. Her adım `has-pending-model-changes` ve migration parmak izi testiyle birlikte yapılır.
+Neden bazıları Core'da: `ApplicationUser` ASP.NET Identity şablon türüdür ve Studio/Vault/Ground/Desk varlıklarının gezinti
+özellikleri ona (ve `Organization`'a) bağlı; modüller Identity'ye başvuramadığı için bunlar paylaşılan çekirdek.
+`AutomationRule`'u Core'daki saf kural değerlendiricisi (`AutomationRuleMatcher`) ve modülsüz çalışan MCP aracı da kullanıyor.
+Taşıma veritabanında hiçbir şey değiştirmedi; migration anlık görüntülerindeki CLR adları güncellendi, her bağlam için
+`HasPendingModelChanges` boş. `Modules_keep_their_layers` artık yalnızca Flow'u (Domain katmanı yok) muaf tutuyor.

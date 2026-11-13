@@ -9,6 +9,7 @@ using Namines.Identity.Infrastructure.Persistence;
 using Namines.Tests.TestSupport;
 using Npgsql;
 using Xunit;
+using Namines.Desk.Domain;
 
 namespace Namines.Tests.Integration;
 
@@ -338,15 +339,18 @@ public sealed class Phase14_2D2GovernanceRealPgTests : IClassFixture<Phase14_2BP
     {
         var cs = await NewDatabaseAsync("a_retention");
         var oldA = await AppendAsync(cs, at: DateTime.UtcNow.AddDays(-800));
-        await AppendAsync(cs, at: DateTime.UtcNow.AddDays(-700));
+        var withinPolicy = await AppendAsync(cs, at: DateTime.UtcNow.AddDays(-700));
         var fresh = await AppendAsync(cs, at: DateTime.UtcNow.AddDays(-1));
 
         int purged;
         await using (var db = Open(cs))
             purged = await TestModules.For(db).GovernanceAudit.PurgeAuditAsync(DateTime.UtcNow.AddDays(-365), TimeSpan.Zero);
 
-        Assert.Equal(2, purged);
-        Assert.Equal(1, await CountAsync(cs, "SELECT count(*) FROM governance.\"ChangeRequestAuditLogs\""));
+        // Çağıran 365 gün istedi ama veritabanındaki politika tabanı 730 gün (Governance_02): uygulama
+        // politikadan fazlasını silemez. 700 günlük satır kalır, yalnızca 800 günlük gider.
+        Assert.Equal(1, purged);
+        Assert.Equal(2, await CountAsync(cs, "SELECT count(*) FROM governance.\"ChangeRequestAuditLogs\""));
+        Assert.Equal(1, await CountAsync(cs, $"SELECT count(*) FROM governance.\"ChangeRequestAuditLogs\" WHERE \"Id\" = '{withinPolicy}'"));
         Assert.Equal(1, await CountAsync(cs, $"SELECT count(*) FROM governance.\"ChangeRequestAuditLogs\" WHERE \"Id\" = '{fresh}'"));
 
         // Silme izni yalnızca temizlik işleminde açıktı; havuzdaki aynı bağlantıda sonraki DELETE yine reddedilir.
@@ -435,6 +439,11 @@ public sealed class Phase14_2D2GovernanceRealPgTests : IClassFixture<Phase14_2BP
         // Tetikleyiciyi kapatmak da sahibin işi.
         await using (var disable = new NpgsqlCommand("ALTER TABLE governance.\"ChangeRequestAuditLogs\" DISABLE TRIGGER change_request_audit_row_guard", conn))
             Assert.Equal("42501", (await Assert.ThrowsAsync<PostgresException>(() => disable.ExecuteNonQueryAsync())).SqlState);
+
+        // Saklama tabanı da sahibin işi: uygulama rolü tabanı 0'a çekip politikayı delemez (Governance_02).
+        await using (var lowerFloor = new NpgsqlCommand(
+            "CREATE OR REPLACE FUNCTION governance.audit_retention_floor_days() RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT 0'", conn))
+            Assert.Equal("42501", (await Assert.ThrowsAsync<PostgresException>(() => lowerFloor.ExecuteNonQueryAsync())).SqlState);
 
         // İşlev: 90 günden yeni kesim reddedilir, eski satır silinir, yeni satır kalır.
         await using (var tooNew = new NpgsqlCommand("SELECT governance.purge_change_request_audit(now() - interval '10 days', 100)", conn))

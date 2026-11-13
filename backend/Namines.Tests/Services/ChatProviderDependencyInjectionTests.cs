@@ -7,7 +7,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Namines.API.Extensions;
 using Namines.Core.Interfaces;
-using Namines.Infrastructure.AI;
+using Namines.AI.Application;
+using Namines.AI.Infrastructure.Providers;
 using Namines.Infrastructure.Data;
 using Xunit;
 

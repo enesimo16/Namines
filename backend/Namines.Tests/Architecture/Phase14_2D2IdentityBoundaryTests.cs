@@ -48,6 +48,9 @@ public sealed class Phase14_2D2IdentityBoundaryTests
             offenders.AddRange(c.GetProperties(all).Where(p => IsManager(p.PropertyType)).Select(p => $"{c.Name} property {p.Name}"));
             // Eylem metotlarının [FromServices] parametreleri de aynı yoldan sızabilir.
             offenders.AddRange(c.GetMethods(all).SelectMany(m => m.GetParameters()).Where(p => IsManager(p.ParameterType)).Select(p => $"{c.Name} method parameter {p.Name}"));
+            // Denetim R2-m4: imza taraması `HttpContext.RequestServices.GetService(typeof(UserManager<...>))` gibi
+            // servis bulucu erişimini görmüyordu. Metot gövdelerinin IL'i de taranır (DbContext testindeki gibi).
+            offenders.AddRange(Phase14_2D1ModuleArchitectureTests.TypesUsedInIl(c).Where(IsManager).Distinct().Select(t => $"{c.Name} IL {t.Name}"));
         }
         Assert.Empty(offenders);
     }

@@ -15,7 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Namines.Core.Interfaces;
 using Namines.Core.Sources;
 using Namines.Infrastructure;
-using Namines.Infrastructure.AI;
+using Namines.AI.DependencyInjection;
 using Namines.Infrastructure.Generators.DdlGenerator;
 using Namines.Infrastructure.Generators.EfCoreGenerator;
 using Namines.Infrastructure.Generators.Eject;
@@ -41,52 +41,9 @@ public static class ServiceCollectionExtensions
         // FAZ 3: Polly v8 Harici Servis Dayanıklılık ve Zırh Altyapısı
         services.AddNaminesResilience();
 
-        // Sohbet sağlayıcısı: yapılandırmayla seçilir, varsayılan Groq.
-        // Singleton çünkü tamamen durumsuz — yalnızca adres, anahtar ve model
-        // tablosu taşıyor.
-        services.AddSingleton<IChatCompletionProvider>(sp =>
-            ChatCompletionProviderFactory.Create(
-                sp.GetRequiredService<IConfiguration>(),
-                sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
-                    ?.CreateLogger(nameof(ChatCompletionProviderFactory))));
-
-        // Hız-sınırı bekleme bütçesi İSTEK başına, çağrı başına DEĞİL: parçalı bir
-        // şema üretimi yedi ayrı sağlayıcı çağrısı yapıyor ve her birine ayrı
-        // bütçe vermek, söz verilen toplam bekleme süresini parça sayısıyla
-        // çarpardı. Aynı istekteki paralel parçalar bu tek nesneyi paylaşıyor.
-        services.AddScoped(sp =>
-        {
-            var config = sp.GetRequiredService<IConfiguration>();
-            return new AiRetryBudget(new AiRetryPolicy(
-                ReadInt(config, "Ai:RateLimitRetry:MaxTotalWaitSeconds", 600),
-                ReadInt(config, "Ai:RateLimitRetry:MaxSingleWaitSeconds", 60),
-                ReadInt(config, "Ai:RateLimitRetry:MaxAttempts", AiRetryPolicy.DefaultMaxAttempts)));
-        });
-
-        services.AddHttpClient<GroqAIService>(client =>
-        {
-            client.Timeout = TimeSpan.FromMinutes(5);
-        });
-        
-        services.AddHttpClient<OllamaAIService>(client =>
-        {
-            client.Timeout = TimeSpan.FromMinutes(5);
-        });
-
-        // NOT: AddHttpClient<T> zaten T'yi typed-client olarak kaydeder (IHttpClientFactory
-        // üzerinden HttpClient enjekte edilir). Ayrıca AddScoped<T> yazmak bu kaydı ezer ve
-        // constructor'daki HttpClient DI'dan çözülemez → çalışmaz. Bu yüzden eklenmez.
-
-        // IAIFactory as Scoped (resolved per request)
-        services.AddScoped<IAIFactory>(sp => new AIFactory(new IAIService[]
-        {
-            sp.GetRequiredService<GroqAIService>(),
-            sp.GetRequiredService<OllamaAIService>()
-        }));
-        
-        // Default IAIService = Groq (for backward compat with other controllers)
-        services.AddScoped<IAIService>(sp => sp.GetRequiredService<GroqAIService>());
-        services.AddScoped<IDbaSchemaAnalyzer>(sp => sp.GetRequiredService<GroqAIService>());
+        // AI modülü: sağlayıcılar, sağlayıcı seçimi, retry bütçesi ve istek kapsamlı gerçek token ölçümü
+        // (Namines.AI). Kota defteri Billing'de, kullanıcı politikası Governance'ta.
+        services.AddAiModule();
 
         services.AddScoped<ILinterService, LinterService>();
         // Singleton: tamamen durumsuz bir fabrika. Scoped kalsaydı, onu tüketen
@@ -117,10 +74,6 @@ public static class ServiceCollectionExtensions
         // Gateway'in /query/nl ucu); kural iki yerde yazıldığında üç şey birden
         // yanlış olmuştu — bkz. AiQuotaService.
 
-        // İstek kapsamlı: bir isteğin tüm sağlayıcı çağrılarında biriken GERÇEK
-        // token kullanımı. Kota artık sabit tahminle değil bununla düşülüyor
-        // (bkz. IAiUsageTracker).
-        services.AddScoped<Namines.Core.Interfaces.IAiUsageTracker, Namines.Infrastructure.AI.AiUsageTracker>();
 
         // Şema üretimi artık tek bir LLM çağrısı değil: taslak → deterministik
         // denetim → düzeltme. Kapının kendisi (linter + DDL üreticileri) zaten
@@ -311,9 +264,6 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
-
-    private static int ReadInt(IConfiguration configuration, string key, int fallback)
-        => int.TryParse(configuration[key], out var value) ? value : fallback;
 
     private sealed class FlowAiQuotaGateAdapter : Namines.Flow.Application.IFlowAiQuotaGate
     {

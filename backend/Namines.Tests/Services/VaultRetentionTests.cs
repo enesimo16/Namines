@@ -17,6 +17,7 @@ using Namines.Vault.Infrastructure.Persistence;
 using Namines.Vault.Storage;
 using Xunit;
 using Namines.Tests.TestSupport;
+using Namines.Vault.Domain;
 
 namespace Namines.Tests.Services;
 

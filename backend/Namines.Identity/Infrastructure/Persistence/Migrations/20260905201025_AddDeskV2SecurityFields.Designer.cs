@@ -547,7 +547,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                     b.ToTable("CrossDatabaseRelations");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.DeskHandoffToken", b =>
+            modelBuilder.Entity("Namines.Desk.Domain.DeskHandoffToken", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -860,7 +860,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                     b.ToTable("SchemaVersions");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.TeamInvite", b =>
+            modelBuilder.Entity("Namines.Identity.Domain.TeamInvite", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -1336,7 +1336,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                     b.Navigation("Project");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.TeamInvite", b =>
+            modelBuilder.Entity("Namines.Identity.Domain.TeamInvite", b =>
                 {
                     b.HasOne("Namines.Core.Models.Auth.Organization", "Organization")
                         .WithMany()

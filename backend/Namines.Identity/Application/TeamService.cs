@@ -5,6 +5,7 @@ using Namines.BuildingBlocks.Application;
 using Namines.BuildingBlocks.Contracts;
 using Namines.Core.Analysis;
 using Namines.Core.Models.Auth;
+using Namines.Identity.Domain;
 
 namespace Namines.Identity.Application;
 

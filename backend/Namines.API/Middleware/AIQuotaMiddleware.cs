@@ -1,29 +1,25 @@
 using Microsoft.AspNetCore.Http;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Namines.AI.Application;
+using Namines.BuildingBlocks.Contracts;
 using Namines.Core.Models.Auth;
-using Namines.Infrastructure.Data;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Namines.API.Middleware
 {
+    /// <summary>
+    /// HTTP ile AI kotası arasındaki ADAPTÖR. Hangi ucun AI özelliği olduğu ve ne kadar tuttuğu AI modülünde
+    /// (<see cref="AiFeatureCatalog"/>), kota defteri Billing'de (<see cref="IAiQuota"/>), kullanıcı politikası
+    /// Governance'ta (<see cref="IAiPolicies"/>). Burada yalnızca istek yaşam döngüsü var: rezerve et, çağır,
+    /// başarısızsa iade et, başarılıysa gerçek ölçümle uzlaştır.
+    /// </summary>
     public class AIQuotaMiddleware
     {
         private readonly RequestDelegate _next;
-
-        private static readonly HashSet<string> AIPathPrefixes = new()
-        {
-            "/api/aidba", "/api/smartseed", "/api/schema/generate",
-            "/api/schema/revise", "/api/schema/mockdata", "/api/coderai",
-            "/api/migration/parse", "/api/migration/generate",
-            "/api/documentation/pdf", "/api/reverseengineer", "/api/voice"
-        };
 
         public AIQuotaMiddleware(RequestDelegate next)
         {
@@ -32,20 +28,8 @@ namespace Namines.API.Middleware
 
         public async Task InvokeAsync(HttpContext context)
         {
-            var path = context.Request.Path.Value?.ToLowerInvariant() ?? "";
-
-            // Check if path matches any of the AI prefixes
-            bool isAIEndpoint = false;
-            foreach (var prefix in AIPathPrefixes)
-            {
-                if (path.StartsWith(prefix))
-                {
-                    isAIEndpoint = true;
-                    break;
-                }
-            }
-
-            if (!isAIEndpoint)
+            var feature = AiFeatureCatalog.Resolve(context.Request.Path.Value);
+            if (feature is null)
             {
                 await _next(context);
                 return;
@@ -57,90 +41,33 @@ namespace Namines.API.Middleware
             var userId = context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userId))
             {
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                context.Response.ContentType = "application/json";
-                var authErr = new { code = "AUTH_REQUIRED", message = "AI features require authentication." };
-                await context.Response.WriteAsync(JsonSerializer.Serialize(authErr));
+                await WriteAuthRequiredAsync(context, "AI features require authentication.");
                 return;
             }
 
-            // Check if it is a deterministic path requesting mock/seed/coder sandbox
-            bool isDeterministicRequest = false;
-            if (path.StartsWith("/api/smartseed") || path.StartsWith("/api/coderai"))
-            {
-                context.Request.EnableBuffering();
-                using (var reader = new System.IO.StreamReader(context.Request.Body, System.Text.Encoding.UTF8, true, 1024, true))
-                {
-                    var bodyText = await reader.ReadToEndAsync();
-                    context.Request.Body.Position = 0;
-                    if (!string.IsNullOrEmpty(bodyText))
-                    {
-                        try
-                        {
-                            using (var doc = JsonDocument.Parse(bodyText))
-                            {
-                                if (doc.RootElement.TryGetProperty("enhanceWithAI", out var enhanceProp) ||
-                                    doc.RootElement.TryGetProperty("EnhanceWithAI", out enhanceProp))
-                                {
-                                    if (enhanceProp.ValueKind == JsonValueKind.False)
-                                    {
-                                        isDeterministicRequest = true;
-                                    }
-                                }
-                            }
-                        }
-                        catch
-                        {
-                            // Let the controller handle any parsing issues
-                        }
-                    }
-                }
-            }
-
-            if (isDeterministicRequest)
+            // enhanceWithAI:false ile gelen mock/seed/coder sandbox isteği AI çağırmaz: kota yok.
+            if (feature.Deterministic && await RequestsDeterministicAsync(context))
             {
                 await _next(context);
                 return;
             }
 
-            // Get DB context from request services
-
-            // Ensure user exists before performing database operations to avoid foreign key errors on orphaned sessions
-            var userExists = (await context.RequestServices.GetRequiredService<Namines.BuildingBlocks.Contracts.IIdentityDirectory>().GetSessionStateAsync(userId)).Exists;
+            // Yetim oturumda veritabanı işlemi yapılmasın (yabancı anahtar hataları).
+            var userExists = (await context.RequestServices.GetRequiredService<IIdentityDirectory>().GetSessionStateAsync(userId)).Exists;
             if (!userExists)
             {
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                context.Response.ContentType = "application/json";
-                var errObj = new { code = "AUTH_REQUIRED", message = "User session is invalid. Please log in again." };
-                await context.Response.WriteAsync(JsonSerializer.Serialize(errObj));
+                await WriteAuthRequiredAsync(context, "User session is invalid. Please log in again.");
                 return;
             }
 
-            // ── Token havuzu yapılandırması ────────────────────────────────────────
-            // Paylaşımlı günlük havuz (tüm kullanıcılar) + kullanıcı-başı günlük tavan.
-            // Kayıtlı kullanıcı sayısına BÖLÜNMEZ (dormant hesaba token israf edilmez):
-            // tüketim talep üzerine havuzdan düşülür; tek kullanıcı tavanı havuzu drenlemesini önler.
-            // İleride config'ten havuzu büyütmek yeterli (100k → 1M).
-            // Kota kuralının TEK sahibi AiQuotaService. Havuz/tavan okuma, gün
-            // sıfırlama ve tavan normalizasyonu orada; burada tekrarlanmıyor ki
-            // Gateway'in /query/nl ucuyla ayrışmasın (bkz. AiQuotaService).
-            var quotaService = context.RequestServices.GetRequiredService<Namines.BuildingBlocks.Contracts.IAiQuota>();
+            // Kota kuralının TEK sahibi AiQuotaService (Billing). Havuz/tavan okuma, gün sıfırlama ve tavan
+            // normalizasyonu orada; burada tekrarlanmıyor ki Gateway'in /query/nl ucuyla ayrışmasın.
+            var quotaService = context.RequestServices.GetRequiredService<IAiQuota>();
             await quotaService.EnsureAsync(userId);
 
-            // ── Özellik başına tahmini token maliyeti + kullanıcı politikası ──
-            AIMode selectedMode = AIMode.Medium; // policy yoksa varsayılan
-            int estTokens = 2500;
-
-            var policy = await context.RequestServices.GetRequiredService<Namines.BuildingBlocks.Contracts.IAiPolicies>().FindAsync(userId);
-            if (path.StartsWith("/api/aidba")) { estTokens = 3500; if (policy != null) selectedMode = policy.DbaAnalysis; }
-            else if (path.StartsWith("/api/schema/revise")) { estTokens = 2500; if (policy != null) selectedMode = policy.SchemaRevision; }
-            else if (path.StartsWith("/api/smartseed") || path.StartsWith("/api/schema/mockdata")) { estTokens = 2000; if (policy != null) selectedMode = policy.SmartSeed; }
-            else if (path.StartsWith("/api/schema/generate")) { estTokens = 2500; if (policy != null) selectedMode = policy.SchemaGeneration; }
-            else if (path.StartsWith("/api/reverseengineer")) { estTokens = 4500; if (policy != null) selectedMode = policy.Scaffolding; }
-            else if (path.StartsWith("/api/coderai")) { estTokens = 6000; if (policy != null) selectedMode = policy.Scaffolding; }
-            else if (path.StartsWith("/api/documentation")) { estTokens = 3000; if (policy != null) selectedMode = policy.Documentation; }
-            else if (path.StartsWith("/api/migration")) { estTokens = 3000; if (policy != null) selectedMode = policy.Migration; }
-            else if (path.StartsWith("/api/voice")) { estTokens = 1500; if (policy != null) selectedMode = policy.Voice; }
+            var policy = await context.RequestServices.GetRequiredService<IAiPolicies>().FindAsync(userId);
+            var selectedMode = AiFeatureCatalog.ModeFor(feature, policy);
+            var estTokens = feature.EstimatedTokens;
 
             // DefaultNamines → zaten ücretsiz/yerel; havuzdan düşme.
             if (selectedMode == AIMode.DefaultNamines)
@@ -151,34 +78,29 @@ namespace Namines.API.Middleware
             }
 
             // ── Bütçe ÇAĞRIDAN ÖNCE ve ATOMİK rezerve edilir ──
-            // Eskiden önce okunur (CheckAsync), yanıt başarılıysa sonradan düşülürdü (ConsumeAsync): bütçe tükenmeden önce
-            // gelen N paralel istek hepsi "Allowed" görür, havuz ve ekip sayacı sınırsız artardı (spec: kota yarışsız).
-            // Şimdi kullanıcı tavanı, paylaşılan havuz ve ekip havuzu tek işlemde koşullu artırılır; sığmayan istek
+            // Kullanıcı tavanı, paylaşılan havuz ve ekip havuzu tek işlemde koşullu artırılır; sığmayan istek
             // yerel yedeğe düşer (BLOKLAMA YOK), başarısız yanıt rezervasyonu iade eder.
             //
-            // /api/schema/generate kendi bütçesini ucun içinde rezerve edip uzlaştırıyor (tur çarpanı, gerçek kullanım):
-            // burada ikinci kez düşmek aynı işi İKİ KEZ ücretlendirirdi, o yol eskisi gibi yalnızca karar için okunur.
-            var selfReserving = path.StartsWith("/api/schema/generate");
-            Namines.BuildingBlocks.Contracts.AiQuotaDecision decision;
-            if (selfReserving)
-                decision = await quotaService.CheckAsync(userId, estTokens);
-            else
-                decision = await quotaService.TryReserveAsync(userId, estTokens);
+            // Kendi bütçesini ucun içinde rezerve edip uzlaştıran özellik (şema üretimi: tur çarpanı, gerçek
+            // kullanım) için burada ikinci kez düşmek aynı işi İKİ KEZ ücretlendirirdi; yalnızca karar için okunur.
+            var decision = feature.SelfReserving
+                ? await quotaService.CheckAsync(userId, estTokens)
+                : await quotaService.TryReserveAsync(userId, estTokens);
 
-            if (decision != Namines.BuildingBlocks.Contracts.AiQuotaDecision.Allowed)
+            if (decision != AiQuotaDecision.Allowed)
             {
                 context.Items["FallbackToLocal"] = true;
                 context.Response.Headers["X-AI-Fallback"] = decision switch
                 {
-                    Namines.BuildingBlocks.Contracts.AiQuotaDecision.PoolExhausted => "pool-exhausted",
-                    Namines.BuildingBlocks.Contracts.AiQuotaDecision.TeamExhausted => "team-exhausted",
+                    AiQuotaDecision.PoolExhausted => "pool-exhausted",
+                    AiQuotaDecision.TeamExhausted => "team-exhausted",
                     _ => "quota-exhausted",
                 };
                 await _next(context);
                 return;
             }
 
-            if (selfReserving)
+            if (feature.SelfReserving)
             {
                 await _next(context);
                 if (context.Response.StatusCode >= 200 && context.Response.StatusCode < 300 && !quotaService.HasReservedInScope)
@@ -203,11 +125,63 @@ namespace Namines.API.Middleware
             {
                 await quotaService.RefundAsync(userId, estTokens, CancellationToken.None);
             }
-            else if (context.Items["AiQuotaActualTokens"] is int actualTokens && actualTokens >= 0 && actualTokens != estTokens)
+            else if (ActualTokens(context) is int actualTokens && actualTokens != estTokens)
             {
-                // Uç gerçek kullanımı biliyorsa tahmin gerçeğe çekilir (fazla ayrılan iade, eksik ayrılan eklenir).
-                await quotaService.ReconcileAsync(userId, estTokens, actualTokens, CancellationToken.None);
+                // 0 = uç modele gitmediğini açıkça söyledi: rezervasyonun tamamı iade. (Billing'in ReconcileAsync'i 0'ı
+                // bilinçli olarak "bilgi yok" sayar; o savunmayı gevşetmek yerine açık sinyal burada iadeye çevrilir.)
+                if (actualTokens == 0)
+                    await quotaService.RefundAsync(userId, estTokens, CancellationToken.None);
+                else
+                    // Gerçek kullanım biliniyorsa tahmin gerçeğe çekilir (fazla ayrılan iade, eksik ayrılan eklenir).
+                    await quotaService.ReconcileAsync(userId, estTokens, actualTokens, CancellationToken.None);
             }
+        }
+
+        /// <summary>
+        /// İsteğin GERÇEK token kullanımı: önce ucun açıkça bildirdiği değer, yoksa sağlayıcı katmanının
+        /// istek kapsamlı ölçere (<see cref="Namines.Core.Interfaces.IAiUsageTracker"/>) yazdığı toplam.
+        ///
+        /// 14.2D-2 kabul edilen borç 4: yalnızca <c>schema/generate</c> gerçek kullanımı bildiriyordu; diğer AI
+        /// uçları (aidba, smartseed, coderai, revise, mockdata, documentation, migration, reverseengineer, voice)
+        /// sağlayıcı <c>usage</c> bloğunu ölçere yazdığı hâlde sabit tahminle ücretlendiriliyordu.
+        /// Ölçüm yoksa (yerel/ölçümsüz sağlayıcı) tahmin kalır: eksik ölçümü "0 token" saymak bedava kullanım olurdu.
+        /// </summary>
+        internal static int? ActualTokens(HttpContext context)
+        {
+            if (context.Items["AiQuotaActualTokens"] is int reported && reported >= 0)
+                return reported;
+            var tracker = context.RequestServices.GetService<Namines.Core.Interfaces.IAiUsageTracker>();
+            if (tracker is null) return null;
+            if (tracker.HasMeasurement) return tracker.TotalTokens;
+            // Uç modele gitmediğini AÇIKÇA söyledi (önbellek isabeti, boş şema, deterministik üretici): ücret yok.
+            return tracker.ServedWithoutModel ? 0 : null;
+        }
+
+        private static async Task<bool> RequestsDeterministicAsync(HttpContext context)
+        {
+            context.Request.EnableBuffering();
+            using var reader = new System.IO.StreamReader(context.Request.Body, System.Text.Encoding.UTF8, true, 1024, true);
+            var bodyText = await reader.ReadToEndAsync();
+            context.Request.Body.Position = 0;
+            if (string.IsNullOrEmpty(bodyText)) return false;
+            try
+            {
+                using var doc = JsonDocument.Parse(bodyText);
+                return (doc.RootElement.TryGetProperty("enhanceWithAI", out var enhance) ||
+                        doc.RootElement.TryGetProperty("EnhanceWithAI", out enhance))
+                       && enhance.ValueKind == JsonValueKind.False;
+            }
+            catch (JsonException)
+            {
+                return false; // ayrıştırma sorununu denetleyici ele alır
+            }
+        }
+
+        private static async Task WriteAuthRequiredAsync(HttpContext context, string message)
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsync(JsonSerializer.Serialize(new { code = "AUTH_REQUIRED", message }));
         }
     }
 }

@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Namines.Core.Models.Auth;
 using Namines.Vault.Application;
 using Namines.Vault.Infrastructure.Persistence;
+using Namines.Vault.Domain;
 
 namespace Namines.Vault.Infrastructure.Workers;
 

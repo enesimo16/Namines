@@ -57,6 +57,7 @@
          yere düşmüş bir [ApiController] uygulamayı hiç BAŞLATMIYOR ve bunu ancak
          gerçek tipleri okuyan bir test yakalayabiliyor. -->
     <ProjectReference Include="..\Namines.API\Namines.API.csproj" />
+    <ProjectReference Include="..\Namines.AI\Namines.AI.csproj" />
   </ItemGroup>
 
 </Project>

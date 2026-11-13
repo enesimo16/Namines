@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Namines.Core.Models;
+using Namines.AI.Application;
 
 namespace Namines.Infrastructure.Services;
 

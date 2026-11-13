@@ -24,6 +24,9 @@ using Namines.Tests.Integration;
 using Namines.Studio.Infrastructure.Persistence;
 using Namines.Desk.Infrastructure.Persistence;
 using Namines.Studio.Domain;
+using Namines.Vault.Domain;
+using Namines.Ground.Domain;
+using Namines.Desk.Domain;
 
 namespace Namines.Tests.Services;
 

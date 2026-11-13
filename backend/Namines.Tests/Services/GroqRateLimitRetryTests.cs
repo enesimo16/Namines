@@ -8,7 +8,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Namines.Core.Interfaces;
-using Namines.Infrastructure.AI;
+using Namines.AI.Application;
+using Namines.AI.Infrastructure.Providers;
 using Xunit;
 
 namespace Namines.Tests.Services;

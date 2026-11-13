@@ -2,7 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Namines.Core.Interfaces;
 
-namespace Namines.Infrastructure.AI;
+namespace Namines.AI.Infrastructure.Providers;
 
 /// <summary>
 /// <c>Ai:Provider</c> yapılandırmasına göre sağlayıcıyı seçer.

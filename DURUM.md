@@ -4,7 +4,7 @@
 > [docs/new-phase/CHECKLIST.md](docs/new-phase/CHECKLIST.md) (iş tarihçesi) ·
 > [docs/last-review/](docs/last-review/) (son güvenlik turu).
 >
-> Son güncelleme: 2026-10-02 (v3)
+> Son güncelleme: 2026-11-13 (v4)
 
 ---
 
@@ -25,7 +25,25 @@ Stratejik yön: [docs/new-phase/27-LIFECYCLE-PIVOT.md](docs/new-phase/27-LIFECYC
 - **MCP sunucusu + CLI + Claude Skill**, **GitHub botu** (PR'a şema incelemesi)
 - İki dilli arayüz (EN/TR)
 
-## Son tur: ikinci güvenlik incelemesi (G59)
+## Son tur: Faz 14 — modüler monolit (Kasım)
+
+Backend artık **12 gerçek modül**: Identity, Studio, Hub, Gateway, Ops, Billing, Governance, Vault, Ground, Flow,
+Desk ve **AI**. Her modülün kendi projesi, Domain/Application/Infrastructure katmanı, (kalıcılığı olanların) kendi
+`DbContext`'i, şeması ve migration geçmişi var. Sınırlar derleyici ve IL taramalı mimari testlerle zorlanıyor.
+
+- 14.2B, 14.2C, 14.2D-1, 14.2D-2 bağımsız denetimleri **ACCEPTED**.
+- **14.3** (bu tur): denetimin kabul ettiği borçlar kapandı ve AI ayrı modül oldu
+  (sağlayıcılar, maliyet kataloğu, gerçek token ölçümü, sesten metne; LLM adresleri yalnızca orada).
+  Ayrıntı: [docs/architecture/PHASE_14_3_DEBT_CLOSURE_AND_AI_MODULE.md](docs/architecture/PHASE_14_3_DEBT_CLOSURE_AND_AI_MODULE.md).
+- Durum tablosu: [docs/architecture/IMPLEMENTATION_STATUS.md](docs/architecture/IMPLEMENTATION_STATUS.md).
+
+**Hâlâ sınanmayanlar:** gerçek Stripe, canlı AI sağlayıcısı, üretim DB ve yük altında kilit davranışı.
+Sıradaki doğrulama: staging'de Stripe test modu + gerçek Groq anahtarıyla bir tur.
+
+**Yerel çalıştırma notu:** `Vault__BackupEncryptionKey` Development dışında zorunlu (açılışta kontrol edilir);
+Development'ta eksikse yalnızca Vault yedekleri reddedilir, giriş çalışır.
+
+## Önceki tur: ikinci güvenlik incelemesi (G59)
 
 63 bölümlük çekişmeli bir denetim prompt'uyla bulunan **30 bulgunun tamamı kapandı**:
 1 CRITICAL · 7 HIGH · 17 MEDIUM · 5 LOW.

@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Namines.Core.Models.Auth;
 using Namines.Desk.Abstractions;
+using Namines.Desk.Domain;
 
 namespace Namines.Desk.Services
 {

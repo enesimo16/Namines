@@ -1,7 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace Namines.Core.Models.Auth;
+namespace Namines.Desk.Domain;
 
 /// <summary>
 /// Desk SQL konsolunda çalıştırılan bir sorgunun kaydı (F-01).

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Namines.Core.Interfaces;
-using Namines.Infrastructure.AI;
+using Namines.AI.Application;
+using Namines.AI.Infrastructure.Providers;
 using Xunit;
 
 namespace Namines.Tests.Services;

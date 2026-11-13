@@ -18,6 +18,9 @@ using Namines.Ground.DependencyInjection;
 using Namines.Vault.Configurations;
 using Namines.Vault.DependencyInjection;
 using Xunit;
+using Namines.Vault.Domain;
+using Namines.Ground.Domain;
+using Namines.Desk.Domain;
 
 namespace Namines.Tests.Architecture
 {

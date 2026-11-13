@@ -2,7 +2,7 @@ using System;
 using System.Text.Json.Serialization;
 using System.ComponentModel.DataAnnotations;
 
-namespace Namines.Core.Models.Auth;
+namespace Namines.Desk.Domain;
 
 /// <summary>
 /// Namines Desk v2 §E1.2 — ana uygulamadan Desk'e tek tıkla, PAROLA SORMADAN

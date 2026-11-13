@@ -1,7 +1,7 @@
 using System;
 using System.Text;
 
-namespace Namines.Infrastructure.Services;
+namespace Namines.AI.Application;
 
 public static class JsonSanitizerPreprocessor
 {

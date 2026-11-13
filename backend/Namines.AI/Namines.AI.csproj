@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!--
+    AI MODÜLÜ: LLM sağlayıcıları (Groq, DeepSeek, Ollama), sağlayıcı seçimi, istek kapsamlı gerçek token ölçümü
+    ve "bir AI özelliği ne kadar tutar" kataloğu. Kota DEFTERİ Billing'de kalır (IAiQuota sözleşmesi), kullanıcı
+    AI politikası Governance'ta (IAiPolicies); bu modül ikisine yalnızca BuildingBlocks sözleşmeleriyle ulaşır.
+
+    MODÜL SINIRI, DERLEYİCİ TARAFINDAN ZORLANIYOR: Infrastructure ve başka modül referansı yok
+    (Phase14_2D1ModuleArchitectureTests.Modules). AI'yı kullanan özellikler (AIDba, SmartSeed, şema hattı...)
+    tüketicidir ve bu modüle bağımlıdır, tersi değil.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
+    <ProjectReference Include="..\Namines.BuildingBlocks\Namines.BuildingBlocks.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- IHttpContextAccessor (istek kapsamlı ölçer ve retry bütçesi), typed HttpClient, IMemoryCache. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Namines.Tests" />
+  </ItemGroup>
+
+</Project>

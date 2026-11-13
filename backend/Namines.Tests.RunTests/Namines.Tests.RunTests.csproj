@@ -25,6 +25,8 @@
   <ItemGroup>
     <Compile Include="..\Namines.Tests\TestSupport\TestModules.cs" Link="TestSupport\TestModules.cs" />
     <Compile Include="..\Namines.Tests\GlobalUsings.cs" Link="GlobalUsings.cs" />
+    <!-- Bilinen açıklı geçişli sürümleri sabitler (GHSA-8g4q-xg66-9fp4, GHSA-2m69-gcr7-jv3q). -->
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.8" />
     <ProjectReference Include="..\Namines.Core\Namines.Core.csproj" />
     <ProjectReference Include="..\Namines.Infrastructure\Namines.Infrastructure.csproj" />
@@ -51,6 +53,10 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Namines.AI\Namines.AI.csproj" />
   </ItemGroup>
 
 </Project>

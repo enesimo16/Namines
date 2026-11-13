@@ -34,7 +34,9 @@ public sealed class FileSystemBackupStore : IBackupStore
         _root = Path.GetFullPath(
             configuration["Vault:StoragePath"]
             ?? Path.Combine(AppContext.BaseDirectory, "vault-backups"));
-        Directory.CreateDirectory(_root);
+        // Dizin burada OLUŞTURULMAZ, ilk yazımda (PutAsync) oluşur. Bu depo singleton ve hesap silme yolu üzerinden
+        // AuthController'ın bağımlılık zincirinde: yazılamayan bir yol (ör. konteynerde root'a ait /app) kurucuda
+        // atınca Vault'u değil GİRİŞİ düşürüyordu (403). Okuma/silme dizin yoksa zaten "yok" döner.
     }
 
     public string Description => $"Local disk ({_root})";

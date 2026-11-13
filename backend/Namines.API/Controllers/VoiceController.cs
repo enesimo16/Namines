@@ -1,12 +1,11 @@
 using System;
 using System.IO;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
+using Namines.AI.Application;
+using Namines.Core.Interfaces;
 
 namespace Namines.API.Controllers;
 
@@ -14,22 +13,17 @@ namespace Namines.API.Controllers;
 [Route("api/[controller]")]
 public class VoiceController : ControllerBase
 {
-    private readonly HttpClient _httpClient;
-    private readonly string _apiKey;
-
-    public VoiceController(HttpClient httpClient, IConfiguration configuration)
-    {
-        _httpClient = httpClient;
-        _apiKey = configuration["Groq:ApiKey"] ?? throw new ArgumentNullException("Groq:ApiKey is missing");
-        
-        _httpClient.BaseAddress = new Uri("https://api.groq.com/openai/v1/");
-        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
-    }
-
     private const long MaxAudioBytes = 15 * 1024 * 1024; // 15 MB
 
+    private readonly ISpeechTranscriber _transcriber;
+
+    public VoiceController(ISpeechTranscriber transcriber)
+    {
+        _transcriber = transcriber;
+    }
+
     [HttpPost("transcribe")]
-    public async Task<IActionResult> TranscribeAudio([FromForm] IFormFile audio)
+    public async Task<IActionResult> TranscribeAudio([FromForm] IFormFile audio, CancellationToken ct)
     {
         if (audio == null || audio.Length == 0)
             return BadRequest("Audio file is required.");
@@ -42,31 +36,18 @@ public class VoiceController : ControllerBase
 
         try
         {
-            using var memoryStream = new MemoryStream();
-            await audio.CopyToAsync(memoryStream);
-            memoryStream.Position = 0;
+            using var buffer = new MemoryStream();
+            await audio.CopyToAsync(buffer, ct);
+            buffer.Position = 0;
 
-            using var content = new MultipartFormDataContent();
-
-            var audioContent = new StreamContent(memoryStream);
-            audioContent.Headers.ContentType = new MediaTypeHeaderValue(audio.ContentType);
-            content.Add(audioContent, "file", audio.FileName ?? "audio.webm");
-
-            content.Add(new StringContent("whisper-large-v3"), "model");
-            content.Add(new StringContent("tr"), "language"); // Assuming Turkish user base
-
-            using var response = await _httpClient.PostAsync("audio/transcriptions", content);
-            response.EnsureSuccessStatusCode();
-
-            var responseString = await response.Content.ReadAsStringAsync();
-            var result = JsonSerializer.Deserialize<JsonElement>(responseString);
-            var transcript = result.GetProperty("text").GetString();
+            var transcript = await _transcriber.TranscribeAsync(
+                buffer, audio.FileName ?? "audio.webm", audio.ContentType, language: "tr", ct);
 
             return Ok(new { text = transcript });
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is not AiNotConfiguredException and not OperationCanceledException)
         {
-            // İç/upstream detayını sızdırma.
+            // İç/upstream detayını sızdırma. Yapılandırılmamış sağlayıcı ise ExceptionMiddleware'de 503 olur.
             return StatusCode(500, "Transcription failed.");
         }
     }

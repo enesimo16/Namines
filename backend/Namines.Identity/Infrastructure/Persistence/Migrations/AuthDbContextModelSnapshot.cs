@@ -292,7 +292,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.TeamInvite", b =>
+            modelBuilder.Entity("Namines.Identity.Domain.TeamInvite", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text")
@@ -424,7 +424,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.TeamInvite", b =>
+            modelBuilder.Entity("Namines.Identity.Domain.TeamInvite", b =>
                 {
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", null)
                         .WithMany()

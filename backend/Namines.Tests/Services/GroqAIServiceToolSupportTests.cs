@@ -1,4 +1,5 @@
-using Namines.Infrastructure.AI;
+using Namines.AI.Application;
+using Namines.AI.Infrastructure.Providers;
 using Xunit;
 
 namespace Namines.Tests.Services;

@@ -283,9 +283,22 @@ public class BackupCipherTests
     }
 
     [Fact]
-    public void A_short_passphrase_is_refused()
+    public async Task A_short_passphrase_is_refused_before_anything_is_written()
     {
-        Assert.Throws<InvalidOperationException>(() => NewCipher("too-short"));
+        // Kurucu atmıyor (giriş akışını düşürmesin diye); ilk şifreleme reddediyor.
+        var cipher = NewCipher("too-short");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => EncryptAsync(cipher, Sample(10)));
+    }
+
+    [Fact]
+    public async Task A_missing_key_refuses_on_first_use_not_on_construction()
+    {
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        var cipher = new BackupCipher(config);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => EncryptAsync(cipher, Sample(10)));
+        Assert.Contains("Vault:BackupEncryptionKey", error.Message);
+        Assert.Throws<InvalidOperationException>(() => BackupCipher.ValidateConfiguration(config));
     }
 
     /// <summary>NVLT1 yazıcısının birebir kopyası: tuzsuz SHA-256 anahtarı, AAD'siz bloklar.</summary>

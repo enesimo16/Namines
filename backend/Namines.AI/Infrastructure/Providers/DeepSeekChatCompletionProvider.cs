@@ -5,7 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Namines.Core.Analysis;
 using Namines.Core.Interfaces;
 
-namespace Namines.Infrastructure.AI;
+namespace Namines.AI.Infrastructure.Providers;
 
 /// <summary>
 /// İkinci sağlayıcı. OpenAI uyumlu <c>chat/completions</c> kullandığı için gövde

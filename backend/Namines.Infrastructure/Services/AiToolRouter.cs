@@ -6,7 +6,8 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Namines.Core.Interfaces;
-using Namines.Infrastructure.AI;
+using Namines.AI.Application;
+using Namines.AI.Infrastructure.Providers;
 using Namines.Ops.Application;
 using Namines.Ops.Domain;
 

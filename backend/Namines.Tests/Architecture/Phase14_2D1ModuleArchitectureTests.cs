@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Namines.BuildingBlocks.Persistence;
 using Namines.Infrastructure.Data;
 using Xunit;
+using Namines.Identity.Domain;
 
 namespace Namines.Tests.Architecture;
 
@@ -21,7 +22,8 @@ namespace Namines.Tests.Architecture;
 /// </summary>
 public sealed class Phase14_2D1ModuleArchitectureTests
 {
-    private static readonly string[] Modules = { "Namines.Studio", "Namines.Hub", "Namines.Gateway", "Namines.Ops", "Namines.Billing", "Namines.Governance", "Namines.Identity", "Namines.Vault", "Namines.Ground", "Namines.Flow", "Namines.Desk" };
+    // Namines.AI: AI sağlayıcıları/ölçüm modülü; DbContext'i yok ama aynı derleme sınırına tabi.
+    private static readonly string[] Modules = { "Namines.Studio", "Namines.Hub", "Namines.Gateway", "Namines.Ops", "Namines.Billing", "Namines.Governance", "Namines.Identity", "Namines.Vault", "Namines.Ground", "Namines.Flow", "Namines.Desk", "Namines.AI" };
 
     /// <summary>
     /// AuthDbContext enjekte etmesine izin verilen controller'lar ve dokundukları D-2 verisi (14.2D-1 denetim
@@ -76,7 +78,7 @@ public sealed class Phase14_2D1ModuleArchitectureTests
     /// IL içindeki tip başvuruları: <c>GetService(typeof(AuthDbContext))</c> gibi yansıma yolları alan
     /// tiplerinde görünmez, ama metot gövdesinde token olarak durur.
     /// </summary>
-    private static IEnumerable<Type> TypesUsedInIl(Type type)
+    internal static IEnumerable<Type> TypesUsedInIl(Type type)
     {
         const BindingFlags all = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
         var methods = type.GetMethods(all).Cast<MethodBase>().Concat(type.GetConstructors(all));
@@ -230,6 +232,7 @@ public sealed class Phase14_2D1ModuleArchitectureTests
     [InlineData("Namines.Billing")]
     [InlineData("Namines.Governance")]
     [InlineData("Namines.Identity")]
+    [InlineData("Namines.AI")]
     public void Module_project_references_only_Core_and_BuildingBlocks(string project) =>
         Assert.Equal(new[] { "Namines.BuildingBlocks", "Namines.Core" }, ProjectReferences(project).OrderBy(x => x, StringComparer.Ordinal));
 
@@ -350,10 +353,15 @@ public sealed class Phase14_2D1ModuleArchitectureTests
         {
             var name = assembly.GetName().Name!;
             var namespaces = LoadableTypes(assembly).Select(t => t.Namespace).Distinct().ToHashSet();
-            // Identity'nin varlıkları (ApplicationUser, Organization...) ASP.NET Identity ile iç içe Core'da: Domain katmanı yok, bilinçli.
-            if (name is not ("Namines.Identity" or "Namines.Vault" or "Namines.Ground" or "Namines.Flow" or "Namines.Desk")) Assert.Contains(name + ".Domain", namespaces);
+            // 14.2D-2 kabul edilen borç 1 kapandı: Vault/Ground/Desk varlıkları ve TeamInvite kendi modüllerinin Domain'inde.
+            // ApplicationUser/Organization paylaşılan çekirdekte kalır (ASP.NET Identity ve Studio/Vault/Ground/Desk gezinti
+            // özellikleri; modüller Identity'ye başvuramaz). Tek istisna Flow: AutomationRule'u Core'daki saf kural
+            // değerlendiricisi (AutomationRuleMatcher) ve modülsüz çalışan MCP aracı da kullanıyor; gerçekten paylaşılan kavram.
+            if (name is not "Namines.Flow") Assert.Contains(name + ".Domain", namespaces);
             Assert.Contains(name + ".Application", namespaces);
-            Assert.Contains(name + ".Infrastructure.Persistence", namespaces);
+            // AI modülü durumsuz: kendi tablosu yok (kota defteri Billing'de, politika Governance'ta), dış adaptörleri
+            // (LLM sağlayıcıları) Infrastructure.Providers'ta. Kalıcılık katmanı uydurmak yerine adaptör katmanı aranır.
+            Assert.Contains(name + (name == "Namines.AI" ? ".Infrastructure.Providers" : ".Infrastructure.Persistence"), namespaces);
             Assert.Contains(name + ".DependencyInjection", namespaces);
         }
     }

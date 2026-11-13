@@ -22,7 +22,7 @@ using Namines.Core.Enums;
 using Namines.Core.Prompts;
 using System.Linq;
 
-namespace Namines.Infrastructure.AI;
+namespace Namines.AI.Infrastructure.Providers;
 
 /// <summary>
 /// Groq chat-completion yanıtından içeriği çıkaran saf yardımcı. Gerçek HTTP
@@ -758,7 +758,7 @@ public class GroqAIService : IAIService, IDbaSchemaAnalyzer, IAgentChatClient
         {
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             options.Converters.Add(new TolerantStringConverter());
-            jsonResponse = Namines.Infrastructure.Services.JsonSanitizerPreprocessor.Sanitize(jsonResponse);
+            jsonResponse = Namines.AI.Application.JsonSanitizerPreprocessor.Sanitize(jsonResponse);
             var aiIssues = JsonSerializer.Deserialize<List<DbaIssue>>(jsonResponse, options);
             return aiIssues ?? new List<DbaIssue>();
         }
@@ -809,7 +809,7 @@ public class GroqAIService : IAIService, IDbaSchemaAnalyzer, IAgentChatClient
             jsonResponse = jsonResponse.Substring(firstBrace, lastBrace - firstBrace + 1);
         }
 
-        jsonResponse = Namines.Infrastructure.Services.JsonSanitizerPreprocessor.Sanitize(jsonResponse);
+        jsonResponse = Namines.AI.Application.JsonSanitizerPreprocessor.Sanitize(jsonResponse);
         var schema = JsonSerializer.Deserialize<DatabaseSchema>(jsonResponse, _jsonOptions);
         if (schema == null)
             throw new Exception("Deserialized schema is null.");
@@ -857,7 +857,7 @@ public class GroqAIService : IAIService, IDbaSchemaAnalyzer, IAgentChatClient
             jsonResponse = jsonResponse.Substring(firstBrace, lastBrace - firstBrace + 1);
         }
 
-        jsonResponse = Namines.Infrastructure.Services.JsonSanitizerPreprocessor.Sanitize(jsonResponse);
+        jsonResponse = Namines.AI.Application.JsonSanitizerPreprocessor.Sanitize(jsonResponse);
         var result = JsonSerializer.Deserialize<MigrationResult>(jsonResponse, _jsonOptions);
         if (result == null)
             throw new Exception("Deserialized migration result is null.");
@@ -998,7 +998,7 @@ public class GroqAIService : IAIService, IDbaSchemaAnalyzer, IAgentChatClient
                     jsonResponse = jsonResponse.Substring(firstBrace, lastBrace - firstBrace + 1);
                 }
 
-                jsonResponse = Namines.Infrastructure.Services.JsonSanitizerPreprocessor.Sanitize(jsonResponse);
+                jsonResponse = Namines.AI.Application.JsonSanitizerPreprocessor.Sanitize(jsonResponse);
                 var schema = JsonSerializer.Deserialize<DatabaseSchema>(jsonResponse, _jsonOptions);
                 if (schema == null)
                     throw new Exception("Deserialized schema is null.");
@@ -1082,7 +1082,7 @@ public class GroqAIService : IAIService, IDbaSchemaAnalyzer, IAgentChatClient
                     jsonResponse = jsonResponse.Substring(firstBrace, lastBrace - firstBrace + 1);
                 }
 
-                jsonResponse = Namines.Infrastructure.Services.JsonSanitizerPreprocessor.Sanitize(jsonResponse);
+                jsonResponse = Namines.AI.Application.JsonSanitizerPreprocessor.Sanitize(jsonResponse);
                 var schema = JsonSerializer.Deserialize<DatabaseSchema>(jsonResponse, _jsonOptions);
                 if (schema == null)
                     throw new Exception("Deserialized schema is null.");
@@ -1459,7 +1459,7 @@ public class GroqAIService : IAIService, IDbaSchemaAnalyzer, IAgentChatClient
             jsonResponse = jsonResponse.Substring(firstBrace, lastBrace - firstBrace + 1);
         }
         
-        jsonResponse = Namines.Infrastructure.Services.JsonSanitizerPreprocessor.Sanitize(jsonResponse);
+        jsonResponse = Namines.AI.Application.JsonSanitizerPreprocessor.Sanitize(jsonResponse);
         var schema = JsonSerializer.Deserialize<DatabaseSchema>(jsonResponse, _jsonOptions);
         if (schema == null)
             throw new Exception("Deserialized vision schema is null.");

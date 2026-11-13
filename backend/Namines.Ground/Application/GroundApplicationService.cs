@@ -9,6 +9,7 @@ using Namines.BuildingBlocks.Security;
 using Namines.Core.Analysis;
 using Namines.Core.Models.Auth;
 using Namines.Ground.Abstractions;
+using Namines.Ground.Domain;
 
 namespace Namines.Ground.Application;
 

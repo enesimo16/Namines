@@ -10,7 +10,7 @@ using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Core.Prompts;
 
-namespace Namines.Infrastructure.AI;
+namespace Namines.AI.Infrastructure.Providers;
 
 public class OllamaAIService : IAIService
 {

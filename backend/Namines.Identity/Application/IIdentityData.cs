@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Namines.Core.Models.Auth;
+using Namines.Identity.Domain;
 
 namespace Namines.Identity.Application;
 

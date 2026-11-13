@@ -3,7 +3,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Namines.Core.Enums;
-using Namines.Infrastructure.AI;
+using Namines.AI.Application;
+using Namines.AI.Infrastructure.Providers;
 using Namines.Infrastructure.Services;
 using Namines.Tests.Fixtures;
 

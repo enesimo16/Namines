@@ -10,6 +10,7 @@ using Namines.Ground.Infrastructure.Persistence;
 using Namines.Infrastructure.Data;
 using Xunit;
 using Namines.Tests.TestSupport;
+using Namines.Ground.Domain;
 
 namespace Namines.Tests.Services;
 

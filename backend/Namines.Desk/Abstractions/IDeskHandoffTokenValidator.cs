@@ -1,4 +1,5 @@
 using Namines.Core.Models.Auth;
+using Namines.Desk.Domain;
 
 namespace Namines.Desk.Abstractions
 {

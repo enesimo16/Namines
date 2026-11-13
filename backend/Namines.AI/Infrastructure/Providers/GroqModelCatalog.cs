@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Namines.Core.Analysis;
 
-namespace Namines.Infrastructure.AI;
+namespace Namines.AI.Infrastructure.Providers;
 
 /// <summary>
 /// Groq'taki model kimlikleri ve sınırları.

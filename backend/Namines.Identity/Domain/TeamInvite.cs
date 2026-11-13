@@ -1,8 +1,9 @@
 using System;
+using Namines.Core.Models.Auth;
 using System.Text.Json.Serialization;
 using System.ComponentModel.DataAnnotations;
 
-namespace Namines.Core.Models.Auth;
+namespace Namines.Identity.Domain;
 
 /// <summary>
 /// Team planındaki tek kullanımlık davet bağlantısı.

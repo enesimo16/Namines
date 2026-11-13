@@ -1,7 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace Namines.Core.Models.Auth;
+namespace Namines.Vault.Domain;
 
 /// <summary>Bir yedeğin yaşam döngüsündeki durumu.</summary>
 public enum VaultBackupStatus

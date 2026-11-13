@@ -5,7 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Namines.Core.Analysis;
 using Namines.Core.Interfaces;
 
-namespace Namines.Infrastructure.AI;
+namespace Namines.AI.Infrastructure.Providers;
 
 /// <summary>Varsayılan sağlayıcı. Bugünkü davranışın birebir karşılığı.</summary>
 public sealed class GroqChatCompletionProvider : IChatCompletionProvider

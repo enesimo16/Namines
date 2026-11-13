@@ -23,7 +23,7 @@ namespace Namines.Vault.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.VaultBackup", b =>
+            modelBuilder.Entity("Namines.Vault.Domain.VaultBackup", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -90,7 +90,7 @@ namespace Namines.Vault.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.VaultRestore", b =>
+            modelBuilder.Entity("Namines.Vault.Domain.VaultRestore", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -134,7 +134,7 @@ namespace Namines.Vault.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.VaultSchedule", b =>
+            modelBuilder.Entity("Namines.Vault.Domain.VaultSchedule", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -184,14 +184,14 @@ namespace Namines.Vault.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.VaultRestore", b =>
+            modelBuilder.Entity("Namines.Vault.Domain.VaultRestore", b =>
                 {
-                    b.HasOne("Namines.Core.Models.Auth.VaultBackup", null)
+                    b.HasOne("Namines.Vault.Domain.VaultBackup", null)
                         .WithMany()
                         .HasForeignKey("BackupId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("Namines.Core.Models.Auth.VaultBackup", null)
+                    b.HasOne("Namines.Vault.Domain.VaultBackup", null)
                         .WithMany()
                         .HasForeignKey("PreRestoreBackupId")
                         .OnDelete(DeleteBehavior.SetNull);

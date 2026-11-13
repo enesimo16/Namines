@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Models.Auth;
 using Namines.Desk.Abstractions;
+using Namines.Desk.Domain;
 
 namespace Namines.Desk.Application;
 

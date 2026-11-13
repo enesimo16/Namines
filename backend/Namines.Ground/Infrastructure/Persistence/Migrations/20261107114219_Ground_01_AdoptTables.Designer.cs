@@ -26,7 +26,7 @@ namespace Namines.Ground.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.GroundDatabase", b =>
+            modelBuilder.Entity("Namines.Ground.Domain.GroundDatabase", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");

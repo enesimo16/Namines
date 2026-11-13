@@ -8,6 +8,8 @@ using Namines.API.Middleware;
 using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Services;
 using Xunit;
+using Namines.Desk.Domain;
+using Namines.Identity.Domain;
 
 namespace Namines.Tests.Services;
 

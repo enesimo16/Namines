@@ -5,6 +5,8 @@ using Namines.Core.Models.Auth;
 using Namines.Infrastructure.Data;
 using Xunit;
 using static Namines.Tests.Services.ProjectDeletionTestKit;
+using Namines.Vault.Domain;
+using Namines.Ground.Domain;
 
 namespace Namines.Tests.Services;
 

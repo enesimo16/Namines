@@ -1,7 +1,8 @@
 using Namines.BuildingBlocks.Contracts;
 using System;
 using Microsoft.Extensions.Logging;
-using Namines.Infrastructure.AI;
+using Namines.AI.Application;
+using Namines.AI.Infrastructure.Providers;
 using System.Security.Claims;
 using System.Data.Common;
 using System.Collections.Generic;

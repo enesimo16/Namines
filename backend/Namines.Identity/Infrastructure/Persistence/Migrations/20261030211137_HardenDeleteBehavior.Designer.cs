@@ -680,7 +680,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                     b.ToTable("CrossDatabaseRelations");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.DeskHandoffToken", b =>
+            modelBuilder.Entity("Namines.Desk.Domain.DeskHandoffToken", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -879,7 +879,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                     b.ToTable("GlobalAiUsages");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.GroundDatabase", b =>
+            modelBuilder.Entity("Namines.Ground.Domain.GroundDatabase", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -1009,7 +1009,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                     b.ToTable("OrganizationMembers");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.SavedQuery", b =>
+            modelBuilder.Entity("Namines.Desk.Domain.SavedQuery", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -1157,7 +1157,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                     b.ToTable("SqlExecutionAudits");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.SqlQueryHistoryEntry", b =>
+            modelBuilder.Entity("Namines.Desk.Domain.SqlQueryHistoryEntry", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -1229,7 +1229,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                     b.ToTable("StripeWebhookEvents");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.TeamInvite", b =>
+            modelBuilder.Entity("Namines.Identity.Domain.TeamInvite", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -1390,7 +1390,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                     b.ToTable("UserBillingSettings");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.VaultBackup", b =>
+            modelBuilder.Entity("Namines.Vault.Domain.VaultBackup", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -1459,7 +1459,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                     b.ToTable("vault_backups", "namines_vault");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.VaultRestore", b =>
+            modelBuilder.Entity("Namines.Vault.Domain.VaultRestore", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -1507,7 +1507,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                     b.ToTable("vault_restores", "namines_vault");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.VaultSchedule", b =>
+            modelBuilder.Entity("Namines.Vault.Domain.VaultSchedule", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -1982,7 +1982,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                     b.Navigation("TargetProject");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.DeskHandoffToken", b =>
+            modelBuilder.Entity("Namines.Desk.Domain.DeskHandoffToken", b =>
                 {
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", null)
                         .WithMany()
@@ -2020,7 +2020,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                     b.Navigation("Project");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.GroundDatabase", b =>
+            modelBuilder.Entity("Namines.Ground.Domain.GroundDatabase", b =>
                 {
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", null)
                         .WithMany()
@@ -2077,7 +2077,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.SavedQuery", b =>
+            modelBuilder.Entity("Namines.Desk.Domain.SavedQuery", b =>
                 {
                     b.HasOne("Namines.Core.Models.Auth.CloudProject", null)
                         .WithMany()
@@ -2118,7 +2118,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                     b.Navigation("Project");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.SqlQueryHistoryEntry", b =>
+            modelBuilder.Entity("Namines.Desk.Domain.SqlQueryHistoryEntry", b =>
                 {
                     b.HasOne("Namines.Core.Models.Auth.CloudProject", null)
                         .WithMany()
@@ -2133,7 +2133,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.TeamInvite", b =>
+            modelBuilder.Entity("Namines.Identity.Domain.TeamInvite", b =>
                 {
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", null)
                         .WithMany()
@@ -2197,7 +2197,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.VaultBackup", b =>
+            modelBuilder.Entity("Namines.Vault.Domain.VaultBackup", b =>
                 {
                     b.HasOne("Namines.Core.Models.Auth.ApplicationUser", null)
                         .WithMany()
@@ -2216,9 +2216,9 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.VaultRestore", b =>
+            modelBuilder.Entity("Namines.Vault.Domain.VaultRestore", b =>
                 {
-                    b.HasOne("Namines.Core.Models.Auth.VaultBackup", null)
+                    b.HasOne("Namines.Vault.Domain.VaultBackup", null)
                         .WithMany()
                         .HasForeignKey("BackupId")
                         .OnDelete(DeleteBehavior.SetNull);
@@ -2233,7 +2233,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                         .HasForeignKey("PerformedByUserId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("Namines.Core.Models.Auth.VaultBackup", null)
+                    b.HasOne("Namines.Vault.Domain.VaultBackup", null)
                         .WithMany()
                         .HasForeignKey("PreRestoreBackupId")
                         .OnDelete(DeleteBehavior.SetNull);
@@ -2245,7 +2245,7 @@ namespace Namines.Identity.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Namines.Core.Models.Auth.VaultSchedule", b =>
+            modelBuilder.Entity("Namines.Vault.Domain.VaultSchedule", b =>
                 {
                     b.HasOne("Namines.Core.Models.Auth.Organization", null)
                         .WithMany()

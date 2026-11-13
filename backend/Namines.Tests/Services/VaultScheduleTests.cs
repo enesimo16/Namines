@@ -1,6 +1,7 @@
 using System;
 using Namines.Core.Models.Auth;
 using Xunit;
+using Namines.Vault.Domain;
 
 namespace Namines.Tests.Services;
 

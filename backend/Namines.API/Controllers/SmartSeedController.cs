@@ -23,13 +23,16 @@ public class SmartSeedController : ControllerBase
     private readonly Namines.BuildingBlocks.Contracts.IAiPolicies _policies;
     private readonly SemanticCacheService _cacheService;
     private readonly ILogger<SmartSeedController> _logger;
+    private readonly IAiUsageTracker _usage;
 
     public SmartSeedController(
         ISmartSeedService smartSeedService, 
         Namines.BuildingBlocks.Contracts.IAiPolicies policies,
         SemanticCacheService cacheService,
-        ILogger<SmartSeedController> logger)
+        ILogger<SmartSeedController> logger,
+        IAiUsageTracker usage)
     {
+        _usage = usage;
         _smartSeedService = smartSeedService;
         _policies = policies;
         _cacheService = cacheService;
@@ -78,6 +81,7 @@ public class SmartSeedController : ControllerBase
         if (forceDeterministic)
         {
             _logger.LogInformation("SmartSeed: Policy or Request forces Deterministic local generator.");
+            _usage.RecordServedWithoutModel(); // yerel üretici: modele gidilmedi
         }
         else
         {
@@ -88,6 +92,7 @@ public class SmartSeedController : ControllerBase
                 if (cached != null)
                 {
                     _logger.LogInformation("SmartSeed: Cache HIT.");
+                    _usage.RecordServedWithoutModel(); // önbellekten: modele gidilmedi
                     var cachedResult = JsonSerializer.Deserialize<SmartSeedResult>(cached, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                     if (cachedResult != null)
                     {

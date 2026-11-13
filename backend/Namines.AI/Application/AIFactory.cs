@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Namines.Core.Interfaces;
+using Namines.AI.Infrastructure.Providers;
 
-namespace Namines.Infrastructure.AI;
+namespace Namines.AI.Application;
 
 public class AIFactory : IAIFactory
 {

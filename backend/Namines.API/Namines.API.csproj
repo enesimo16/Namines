@@ -12,7 +12,7 @@
     <PackageReference Include="AspNetCore.HealthChecks.UI.Client" Version="8.0.1" />
     <PackageReference Include="DotNetEnv" Version="3.2.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.8" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="8.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="8.0.34" />
     <!-- 21 §1: satıcı-bağımsız enstrümantasyon.
 
          OTLP DIŞA AKTARICISI BİLİNÇLİ OLARAK YOK. OpenTelemetry.Exporter.
@@ -22,11 +22,11 @@
          bir derlemeye açıklı bir bağımlılık sokmak net bir gerileme olurdu.
          Collector kurulduğunda ve açık kapandığında eklenecek; o zamana kadar
          metrikler Prometheus scrape ucundan okunuyor. -->
-    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.10.0" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.10.1" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.10.0" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.10.0" />
-    <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.10.0-beta.1" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
+    <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.15.3-beta.1" />
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
     <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
     <PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0" />
@@ -55,6 +55,7 @@
     <ProjectReference Include="..\Namines.Ground\Namines.Ground.csproj" />
     <ProjectReference Include="..\Namines.Flow\Namines.Flow.csproj" />
     <ProjectReference Include="..\Namines.Desk\Namines.Desk.csproj" />
+    <ProjectReference Include="..\Namines.AI\Namines.AI.csproj" />
   </ItemGroup>
 
   <ItemGroup>

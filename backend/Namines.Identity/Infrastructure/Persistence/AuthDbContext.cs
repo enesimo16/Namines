@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Namines.Core.Models.Auth;
+using Namines.Identity.Domain;
 
 namespace Namines.Identity.Infrastructure.Persistence
 {

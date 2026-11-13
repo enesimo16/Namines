@@ -18,6 +18,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Bilinen açıklı geçişli sürümleri sabitler (GHSA-8g4q-xg66-9fp4, GHSA-2m69-gcr7-jv3q). -->
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.12" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.8" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.8" />
