@@ -265,7 +265,7 @@ export default function ConflictResolverModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/70 backdrop-blur-sm p-2 sm:p-4 animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-scrim/70 backdrop-blur-sm p-2 sm:p-4 animate-in fade-in duration-300">
       <div ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="merge-modal-title" className="bg-surface-800 border border-content-primary/12 rounded-[var(--radius-modal)] w-full sm:w-[90vw] max-w-4xl h-[90vh] sm:h-[85vh] flex flex-col shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden">
 
         {/* Header */}

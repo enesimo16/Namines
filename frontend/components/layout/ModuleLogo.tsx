@@ -114,170 +114,126 @@ export function ModuleSymbol({
       role="img"
       aria-label={`${meta.name} ${meta.sub} Symbol`}
     >
-      {/* 1. Namines (.n) */}
+      {/* Ortak U3-B Açık Köşe Çerçevesi + Mint Çekirdek Düğüm */}
+      <path
+        d="M62 16H34C24.06 16 16 24.06 16 34V66C16 75.94 24.06 84 34 84H66C75.94 84 84 75.94 84 66V38"
+        stroke="currentColor"
+        strokeWidth="8"
+        strokeLinecap="round"
+      />
+      <circle cx="80" cy="20" r="7.5" fill="#00F5C4" />
+
+      {/* 1. Namines (Katmanlı Veri Akışı) */}
       {module === 'namines' && (
         <g>
-          <circle cx="16" cy="74" r="7" fill="var(--namines-teal-vibrant)" />
+          <rect x="30" y="32" width="38" height="10" rx="5" fill="#6366F1" />
+          <rect x="30" y="47.5" width="24" height="10" rx="5" fill="currentColor" />
+          <rect x="30" y="63" width="38" height="7" rx="3.5" fill="#00F5C4" />
+        </g>
+      )}
+
+      {/* 2. Diagram (İlişkisel Şema Düğümleri) */}
+      {module === 'diagram' && (
+        <g>
           <path
-            d="M36 74V48C36 38 43 32 55 32C67 32 74 38 74 48V74"
+            d="M44 40H56C60 40 60 60 56 60"
             stroke="currentColor"
-            strokeWidth="8"
+            strokeWidth="6"
+            strokeLinecap="round"
+          />
+          <rect x="29" y="32" width="18" height="16" rx="4.5" fill="#6366F1" />
+          <rect x="44" y="52" width="22" height="16" rx="4.5" fill="#00F5C4" />
+        </g>
+      )}
+
+      {/* 3. Build (Kod & Derleyici Köşebentleri) */}
+      {module === 'build' && (
+        <g>
+          <path
+            d="M42 36L30 50L42 64"
+            stroke="#6366F1"
+            strokeWidth="7"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+          <path
+            d="M58 36L70 50L58 64"
+            stroke="#00F5C4"
+            strokeWidth="7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <line x1="53" y1="34" x2="47" y2="66" stroke="currentColor" strokeWidth="6" strokeLinecap="round" />
         </g>
       )}
 
-      {/* 2. Diagram (Namines İç Çekirdek — İlişkisel Şema Düğümleri) */}
-      {module === 'diagram' && (
-        <g stroke="currentColor" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="18" y="22" width="28" height="24" rx="5" />
-          <line x1="18" y1="33" x2="46" y2="33" stroke="var(--namines-teal-vibrant)" strokeWidth="5" />
-          <rect x="54" y="54" width="28" height="24" rx="5" />
-          <line x1="54" y1="65" x2="82" y2="65" stroke="var(--namines-teal-vibrant)" strokeWidth="5" />
-          <path d="M46 33H58C64 33 64 54 54 54" stroke="var(--namines-teal-vibrant)" strokeWidth="5" />
-        </g>
-      )}
-
-      {/* 3. Build (Namines İç Çekirdek — Derleyici Çekiç & Kıvılcım) */}
-      {module === 'build' && (
-        <g stroke="currentColor" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M52 24L74 46L64 56L42 34L52 24Z" fill="currentColor" fillOpacity="0.15" />
-          <path d="M42 34L22 54C19 57 19 62 22 65C25 68 30 68 33 65L53 45" />
-          <path d="M76 18L79 26L87 29L79 32L76 40L73 32L65 29L73 26Z" fill="var(--namines-teal-vibrant)" stroke="none" />
-        </g>
-      )}
-
-      {/* 4. Flow (.nf / Dynamic event surge) */}
+      {/* 4. Flow (Olay Güdümlü S-Eğrisi Akışı) */}
       {module === 'flow' && (
         <g>
-          <circle cx="12" cy="74" r="6" fill="var(--namines-teal-vibrant)" />
           <path
-            d="M26 74V48C26 40 31 35 38 35C45 35 50 40 50 48V74"
+            d="M35 63C35 49 65 51 65 37"
             stroke="currentColor"
-            strokeWidth="7.5"
+            strokeWidth="6.5"
             strokeLinecap="round"
-            strokeLinejoin="round"
           />
           <path
-            d="M66 74V30C66 22 72 17 82 17"
-            stroke="currentColor"
-            strokeWidth="7.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M58 43H84"
-            stroke="var(--namines-teal-vibrant)"
-            strokeWidth="7.5"
+            d="M35 37V51"
+            stroke="#6366F1"
+            strokeWidth="6.5"
             strokeLinecap="round"
           />
+          <circle cx="35" cy="37" r="6.5" fill="#6366F1" />
+          <circle cx="35" cy="63" r="6.5" fill="currentColor" />
+          <circle cx="65" cy="37" r="6.5" fill="#00F5C4" />
         </g>
       )}
 
-      {/* 5. Ground (.ng / Database container fleet) */}
+      {/* 5. Ground (Yönetilen Postgres & Telemetri Sütunları) */}
       {module === 'ground' && (
         <g>
-          <circle cx="12" cy="74" r="6" fill="var(--namines-teal-vibrant)" />
-          <path
-            d="M26 74V48C26 40 31 35 38 35C45 35 50 40 50 48V74"
-            stroke="currentColor"
-            strokeWidth="7.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M86 48C86 39 79 35 71 35C61 35 56 42 56 54C56 65 61 72 71 72C79 72 86 67 86 58"
-            stroke="currentColor"
-            strokeWidth="7.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M86 37V74C86 86 78 92 68 92C59 92 56 87 56 87"
-            stroke="var(--namines-teal-vibrant)"
-            strokeWidth="7.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          <rect x="31" y="50" width="10" height="19" rx="5" fill="#6366F1" />
+          <rect x="45" y="40" width="10" height="29" rx="5" fill="currentColor" />
+          <rect x="59" y="32" width="10" height="37" rx="5" fill="#00F5C4" />
         </g>
       )}
 
-      {/* 6. Vault (.nv / Cryptographic shield) */}
+      {/* 6. Vault (Şifreli Kasa & Kilit) */}
       {module === 'vault' && (
         <g>
-          <circle cx="12" cy="74" r="6" fill="var(--namines-teal-vibrant)" />
           <path
-            d="M26 74V48C26 40 31 35 38 35C45 35 50 40 50 48V74"
-            stroke="currentColor"
-            strokeWidth="7.5"
+            d="M40 46V40C40 34.48 44.48 30 50 30C55.52 30 60 34.48 60 40V46"
+            stroke="#6366F1"
+            strokeWidth="6.5"
             strokeLinecap="round"
-            strokeLinejoin="round"
           />
-          <path
-            d="M60 36L74 74L88 36"
-            stroke="currentColor"
-            strokeWidth="7.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <circle cx="74" cy="48" r="4" fill="var(--namines-teal-vibrant)" />
+          <rect x="33" y="45" width="34" height="24" rx="7" fill="currentColor" />
+          <circle cx="50" cy="57" r="4.5" fill="#00F5C4" />
         </g>
       )}
 
-      {/* 7. Desk (.nd / Relational table column) */}
+      {/* 7. Desk (2x2 Veri Tablosu Izgarası) */}
       {module === 'desk' && (
         <g>
-          <circle cx="12" cy="74" r="6" fill="var(--namines-teal-vibrant)" />
-          <path
-            d="M26 74V48C26 40 31 35 38 35C45 35 50 40 50 48V74"
-            stroke="currentColor"
-            strokeWidth="7.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M84 58C84 67 77 72 69 72C59 72 54 65 54 54C54 43 59 35 69 35C77 35 84 40 84 49"
-            stroke="currentColor"
-            strokeWidth="7.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M84 18V74"
-            stroke="var(--namines-teal-vibrant)"
-            strokeWidth="7.5"
-            strokeLinecap="round"
-          />
+          <rect x="31" y="33" width="16" height="15" rx="4" fill="#6366F1" />
+          <rect x="52" y="33" width="16" height="15" rx="4" fill="currentColor" />
+          <rect x="31" y="53" width="16" height="15" rx="4" fill="currentColor" />
+          <rect x="52" y="53" width="16" height="15" rx="4" fill="#00F5C4" />
         </g>
       )}
 
-      {/* 8. Hub (.nh / Git branch nexus) */}
+      {/* 8. Hub (Dal & Birleştirme Ağı) */}
       {module === 'hub' && (
         <g>
-          <circle cx="12" cy="74" r="6" fill="var(--namines-teal-vibrant)" />
+          <line x1="36" y1="34" x2="36" y2="66" stroke="currentColor" strokeWidth="6.5" strokeLinecap="round" />
           <path
-            d="M26 74V48C26 40 31 35 38 35C45 35 50 40 50 48V74"
-            stroke="currentColor"
-            strokeWidth="7.5"
+            d="M36 58C36 47 62 50 62 40"
+            stroke="#6366F1"
+            strokeWidth="6.5"
             strokeLinecap="round"
-            strokeLinejoin="round"
           />
-          <path
-            d="M62 18V74"
-            stroke="currentColor"
-            strokeWidth="7.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M62 48C62 39 68 35 76 35C84 35 88 40 88 48V74"
-            stroke="currentColor"
-            strokeWidth="7.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <circle cx="88" cy="48" r="4" fill="var(--namines-teal-vibrant)" />
+          <circle cx="36" cy="36" r="6" fill="#6366F1" />
+          <circle cx="36" cy="64" r="6" fill="currentColor" />
+          <circle cx="62" cy="40" r="6" fill="#00F5C4" />
         </g>
       )}
     </svg>

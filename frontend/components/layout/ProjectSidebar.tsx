@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Trash2, FolderOpen, Database, Plus } from 'lucide-react';
 import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
+import { useActiveProjectStore } from '../../store/useActiveProjectStore';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { ProjectSnapshot } from '../../types/project';
 
@@ -50,6 +51,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
 
   const handleLoadProject = (project: ProjectSnapshot) => {
     setActiveProjectId(project.id);
+    useActiveProjectStore.getState().setScopedProject(project.id, project.name);
     setDbType(project.dbType);
     if (project.schema) {
       project.schema.name = project.name;
@@ -70,6 +72,7 @@ export default function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps)
   const handleNewProject = () => {
     resetProject();
     setActiveProjectId(null);
+    useActiveProjectStore.getState().clearProjectSession();
     onClose();
     router.push('/new');
   };

@@ -185,7 +185,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-200 select-none">
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-200 select-none">
       <div className="relative w-full max-w-md rounded-[var(--radius-modal)] bg-surface-900 border border-line-strong shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
 
         {/* Header */}
@@ -411,7 +411,7 @@ export default function VisionUploadModal({ isOpen, onClose }: VisionUploadModal
 
         {/* Overwrite warning dialog */}
         {showOverwriteWarning && (
-          <div className="absolute inset-0 z-[110] bg-scrim/80 backdrop-blur-sm flex items-center justify-center p-5 animate-in fade-in duration-200">
+          <div className="absolute inset-0 z-modal bg-scrim/80 backdrop-blur-sm flex items-center justify-center p-5 animate-in fade-in duration-200">
             <div className="w-full max-w-sm bg-surface-900 border border-line-strong rounded-[var(--radius-modal)] p-5 shadow-2xl text-center space-y-4">
               <div className="w-10 h-10 bg-danger-subtle border border-danger/30 text-danger-text flex items-center justify-center rounded-full mx-auto">
                 <AlertTriangle className="w-5 h-5" />

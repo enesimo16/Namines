@@ -34,6 +34,7 @@ import { schemaService } from '../../services/api';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { activateOnKey } from '../../lib/a11y';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import Footer from '../../components/layout/Footer';
 
 const DemoCanvas = dynamic(() => import('../../components/landing/DemoCanvas'), {
   ssr: false,
@@ -285,8 +286,8 @@ function DemoContent() {
   };
 
   return (
-    <div className="min-h-screen bg-surface-900 px-4 py-8 text-content-primary md:px-8">
-      <div className="mx-auto max-w-[var(--w-wide)] space-y-8">
+    <div className="min-h-screen bg-surface-900 text-content-primary flex flex-col">
+      <div className="mx-auto w-full max-w-[var(--w-wide)] space-y-8 px-4 py-8 md:px-8 flex-1">
         {/* Üst Karşılama Başlığı */}
         <header className="space-y-3">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
@@ -975,6 +976,7 @@ function DemoContent() {
           </div>
         </div>
       )}
+      <Footer />
     </div>
   );
 }

@@ -20,7 +20,7 @@ export default function GuestSchemaMigrationModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-scrim/70 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-modal flex items-center justify-center p-4 bg-scrim/70 backdrop-blur-sm animate-fade-in">
       <div className="relative w-full max-w-sm bg-surface-800 border border-content-primary/12 rounded-[var(--radius-modal)] shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] overflow-hidden flex flex-col p-5 animate-in zoom-in-95 duration-200">
 
         {/* Header */}

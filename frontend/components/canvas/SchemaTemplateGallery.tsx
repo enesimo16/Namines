@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { X, Search } from 'lucide-react';
 import { TEMPLATES, TEMPLATE_SIZES, type TemplateSize } from '../../lib/templates';
 import { useSchemaStore } from '../../store/useSchemaStore';
+import { useProjectHistoryStore } from '../../store/useProjectHistoryStore';
+import { useActiveProjectStore } from '../../store/useActiveProjectStore';
 import { useToastStore } from '../../store/useToastStore';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 
@@ -41,6 +43,17 @@ export default function SchemaTemplateGallery({ isOpen, onClose }: Props) {
     // isteniyor: 40 tablolu ERP yüklendikten sonra üstte hâlâ "E-Commerce"
     // yazıyordu ve tuvaldeki şemayla ekrandaki ad birbirini tutmuyordu.
     loadFromSchema(tpl.schema, undefined, false);
+    const nextName = tpl.schema.name || tpl.label;
+    const activeId = useProjectHistoryStore.getState().activeProjectId;
+    if (activeId) {
+      useProjectHistoryStore.getState().renameProject(activeId, nextName);
+      const { scopedProjectId, setScopedProject } = useActiveProjectStore.getState();
+      if (scopedProjectId === activeId || !scopedProjectId) {
+        setScopedProject(activeId, nextName);
+      }
+    } else {
+      useActiveProjectStore.getState().clearProjectSession();
+    }
     showToast(`"${tpl.label}" template loaded onto canvas.`, 'success');
     onClose();
   };

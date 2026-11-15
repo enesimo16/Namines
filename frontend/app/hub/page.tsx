@@ -27,6 +27,7 @@ import type { HubRepoSummary } from '../../types/hub';
 import { hubService } from '../../services/hubService';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useActiveProjectStore } from '../../store/useActiveProjectStore';
+import Footer from '../../components/layout/Footer';
 
 const CATEGORIES = [
   'All Categories',
@@ -128,7 +129,7 @@ export default function HubExplorePage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-surface-900 text-content-primary flex flex-col font-sans">
+    <div className="min-h-screen bg-surface-900 text-content-primary flex flex-col font-sans">
       {/* Top Polaris Global Control Strip */}
       <div className="border-b border-line bg-surface-900/90 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8 pb-3 flex flex-wrap items-center justify-between gap-3">
@@ -155,11 +156,6 @@ export default function HubExplorePage() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex-1 space-y-6 w-full">
         {/* Polaris Hero Banner Card */}
         <div className="rounded-[var(--radius-card)] border border-line bg-surface-850 p-6 sm:p-8 text-center shadow-xs space-y-3">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono bg-accent/20 border border-accent/40 text-accent-text">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Architecture Directory &amp; Blueprints</span>
-          </div>
-
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink-primary font-sans">
             Explore Production Database Schemas
           </h1>
@@ -432,6 +428,7 @@ export default function HubExplorePage() {
           </div>
         )}
       </main>
+      <Footer />
     </div>
   );
 }

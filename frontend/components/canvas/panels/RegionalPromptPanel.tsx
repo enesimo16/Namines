@@ -145,7 +145,7 @@ export default function RegionalPromptPanel() {
 
   return (
     <div
-      className={`fixed bottom-3 left-3 right-3 sm:bottom-5 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-[60] transition-all duration-300 ${
+      className={`fixed bottom-3 left-3 right-3 sm:bottom-5 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-sticky transition-all duration-300 ${
         isActive ? 'opacity-100 scale-100' : 'opacity-40 hover:opacity-100 scale-[0.98]'
       }`}
       onMouseEnter={() => setIsFocused(true)}

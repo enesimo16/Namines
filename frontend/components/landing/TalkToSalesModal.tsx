@@ -100,7 +100,7 @@ Notes: ${note.trim() || 'None provided'}`,
       role="dialog"
       aria-modal="true"
       aria-labelledby="sales-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-surface-950/80 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto"
+      className="fixed inset-0 z-modal flex items-center justify-center p-3 sm:p-4 bg-surface-950/80 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

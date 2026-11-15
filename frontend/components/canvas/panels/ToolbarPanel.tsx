@@ -323,18 +323,18 @@ export default function ToolbarPanel() {
         <div className="relative" ref={shareRef}>
           <button
             onClick={() => setIsShareOpen(v => !v)}
-            className={`${iconBtnBase} w-auto px-3 gap-1.5 ${isShareOpen ? iconBtnActive : iconBtnIdle}`}
+            className={`${iconBtnBase} w-auto px-2 2xl:px-3 gap-1 ${isShareOpen ? iconBtnActive : iconBtnIdle}`}
             title="Share"
             aria-label="Share"
           >
             <Link2 className="w-4 h-4" />
-            <span className="text-xs font-semibold">Share</span>
+            <span className="hidden 2xl:inline text-xs font-semibold">Share</span>
             
             <ChevronDown className={`w-3 h-3 transition-transform ${isShareOpen ? 'rotate-180' : ''}`} />
           </button>
 
           {isShareOpen && (
-            <div className="absolute right-0 top-full mt-1.5 w-60 rounded-[var(--radius-card)] border border-line-strong bg-surface-800/95 backdrop-blur-xl p-1 shadow-2xl z-50 flex flex-col gap-0.5 animate-dropdown-in">
+            <div className="absolute right-0 top-full mt-1.5 w-60 rounded-[var(--radius-card)] border border-line-strong bg-surface-800/95 backdrop-blur-xl p-1 shadow-2xl z-popover flex flex-col gap-0.5 animate-dropdown-in">
               <button
                 onClick={handleShareReadOnly}
                 disabled={isSharing}
@@ -409,12 +409,12 @@ export default function ToolbarPanel() {
           id="request-review-btn"
           onClick={handleRequestReview}
           disabled={isRequestingReview}
-          className={`${iconBtnBase} xl:w-auto xl:px-3 xl:gap-1.5 ${iconBtnIdle}`}
+          className={`${iconBtnBase} 2xl:w-auto 2xl:px-3 2xl:gap-1.5 ${iconBtnIdle}`}
           title="Request a database change review"
           aria-label="Request a database change review"
         >
           {isRequestingReview ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitPullRequest className="w-4 h-4" />}
-          <span className="hidden xl:inline text-xs font-semibold">Review PR</span>
+          <span className="hidden 2xl:inline text-xs font-semibold">Review PR</span>
         </button>
 
         </>
@@ -443,7 +443,7 @@ export default function ToolbarPanel() {
         createPortal(actions, actionSlot)
       ) : (
         <div
-          className="fixed z-[60] flex items-center gap-1.5 top-[60px] left-2 right-2 overflow-x-auto scrollbar-none
+          className="fixed z-sticky flex items-center gap-1.5 top-[60px] left-2 right-2 overflow-x-auto scrollbar-none
             rounded-[var(--radius-card)] border border-line bg-surface-800/95 backdrop-blur-xl p-1.5 shadow-lg"
         >
           {actions}
@@ -491,7 +491,7 @@ export default function ToolbarPanel() {
 
       {/* AI Schema Explanation Modal — ham markdown yerine gerçek render (bkz. MarkdownLite) */}
       {explanation !== null && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-scrim/70 backdrop-blur-sm" onClick={() => setExplanation(null)}>
+        <div className="fixed inset-0 z-modal flex items-center justify-center bg-scrim/70 backdrop-blur-sm" onClick={() => setExplanation(null)}>
           <div
             className="bg-surface-800 border border-line-strong rounded-[var(--radius-modal)] shadow-[0_20px_60px_color-mix(in srgb, var(--color-scrim) 60%, transparent)] w-full max-w-xl mx-4 flex flex-col animate-in fade-in zoom-in-95 duration-150"
             style={{ maxHeight: '80vh' }}

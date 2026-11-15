@@ -1,12 +1,10 @@
 import type { Metadata } from 'next';
 import Hero from '../components/landing/Hero';
 import EngineLogosStrip from '../components/landing/EngineLogosStrip';
-import ClickClickDone from '../components/landing/ClickClickDone';
-import StackRibbon from '../components/landing/StackRibbon';
-import ZeroDriftSection from '../components/landing/ZeroDriftSection';
-import ArchitectureSpotlights from '../components/landing/ArchitectureSpotlights';
-import BuilderGrid from '../components/landing/BuilderGrid';
-import SecurityResilience from '../components/landing/SecurityResilience';
+import PlatformSuite from '../components/landing/PlatformSuite';
+import LifecycleShowcase from '../components/landing/LifecycleShowcase';
+import ArchitectureCarousel from '../components/landing/ArchitectureCarousel';
+import SecurityAndDevelopers from '../components/landing/SecurityAndDevelopers';
 import CommunityFeedbackSection from '../components/landing/CommunityFeedbackSection';
 import OrbitingClosingCTA from '../components/landing/OrbitingClosingCTA';
 import Footer from '../components/layout/Footer';
@@ -106,40 +104,28 @@ export default function HomePage() {
       {/* ───────────────────────── 1. Hero ───────────────────────── */}
       <Hero />
 
-      {/* ────────────────── 2. Engine Logos Strip ────────────────── */}
+      {/* ────────────────── 2. Engines & Ecosystem Strip ─────────── */}
       <EngineLogosStrip />
 
-      {/* ──────────────── 3. "Click, click, done." ──────────────── */}
-      <ClickClickDone />
+      {/* ────────────────── 3. Platform Suite (5 Modules) ────────── */}
+      <PlatformSuite />
 
-      {/* ─────────────── 4. Full-Width Stack Ribbon ─────────────── */}
-      <StackRibbon />
+      {/* ────────────────── 4. Lifecycle Showcase (Tabbed) ───────── */}
+      <LifecycleShowcase />
 
-      {/* ───────────── 5. "Zero Drift" Feature Section ───────────── */}
-      <ZeroDriftSection />
+      {/* ────────────────── 5. Production Architectures ──────────── */}
+      <ArchitectureCarousel />
 
-      {/* ────────── 6. Deep Architecture Spotlights ────────────── */}
-      <div id="spotlights">
-        <ArchitectureSpotlights />
-      </div>
+      {/* ────────────────── 6. Security & Developer Platform ─────── */}
+      <SecurityAndDevelopers />
 
-      {/* ────────── 7. 8-Grid Builder Ecosystem ─────────────────── */}
-      <div id="builder-grid">
-        <BuilderGrid />
-      </div>
-
-      {/* ────────── 8. Security & Resilience by Default ─────────── */}
-      <div id="security">
-        <SecurityResilience />
-      </div>
-
-      {/* ────────── 9. Developer Community & Feedback Section ───── */}
+      {/* ────────────────── 7. Community & Feedback ──────────────── */}
       <CommunityFeedbackSection />
 
-      {/* ───────────────────────── 10. Orbiting Closing CTA ───────────────────────── */}
+      {/* ───────────────────────── 8. Orbiting Closing CTA ───────── */}
       <OrbitingClosingCTA />
 
-      {/* ────────────────────────── 10. Comprehensive Developer Footer ────────────── */}
+      {/* ────────────────────────── 9. Footer ────────────────────── */}
       <Footer />
     </div>
   );

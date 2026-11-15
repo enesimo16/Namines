@@ -1,6 +1,4 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 import Footer from '../../components/layout/Footer';
 
 export const metadata: Metadata = {
@@ -11,16 +9,7 @@ export const metadata: Metadata = {
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-surface-900 text-content-primary flex flex-col justify-between">
-      <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
-        {/* Back link */}
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-xs font-mono text-content-muted hover:text-content-primary mb-8 transition-colors"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to Namines</span>
-        </Link>
-
+      <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
         {/* Clean Polaris Header */}
         <div className="border-b border-surface-500/80 pb-8 mb-10">
           <p className="text-xs font-mono text-accent-text uppercase tracking-widest font-semibold mb-2">

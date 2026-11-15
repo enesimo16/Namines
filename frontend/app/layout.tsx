@@ -4,7 +4,6 @@ import "./globals.css";
 import Header from "../components/layout/Header";
 import ToastContainer from "../components/toast/ToastContainer";
 import ConfirmDialog from "../components/common/ConfirmDialog";
-import FeedbackWidget from "../components/feedback/FeedbackWidget";
 import TourOverlay from "../components/tour/TourOverlay";
 import BackToTop from "../components/landing/BackToTop";
 import PostHogProvider from "../components/providers/PostHogProvider";
@@ -49,13 +48,12 @@ export const metadata: Metadata = {
   creator: "Namines",
   icons: {
     icon: [
-      { url: '/icon.png', sizes: '512x512', type: 'image/png' },
       { url: '/icon.svg', type: 'image/svg+xml' },
       { url: '/favicon.svg', type: 'image/svg+xml' },
       { url: '/favicon.ico', sizes: 'any' },
     ],
     apple: [
-      { url: '/brand/namines-app-icon.png', sizes: '180x180', type: 'image/png' },
+      { url: '/icons/namines.svg', type: 'image/svg+xml' },
     ],
   },
   openGraph: {
@@ -155,9 +153,6 @@ export default function RootLayout({
 
         {/* Global kılavuz ve rehber turu (Spotlight Tour) */}
         <TourOverlay />
-
-        {/* Geri bildirim widget'ı (sol altta yüzen buton) */}
-        <FeedbackWidget />
 
         {/* Temaya uygun Başa Dön butonu (sağ altta) */}
         <BackToTop />

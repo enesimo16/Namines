@@ -207,7 +207,7 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
       {/* Option B: Double Click Popover Overlay (No Emojis) */}
       {showPopover && (
         <div
-          className="absolute inset-0 z-[45] bg-surface-900/95 backdrop-blur-md flex flex-col items-center justify-center p-4 gap-2 text-center animate-in fade-in duration-150"
+          className="absolute inset-0 z-20 bg-surface-900/95 backdrop-blur-md flex flex-col items-center justify-center p-4 gap-2 text-center animate-in fade-in duration-150"
           onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setShowPopover(false); } }}
         >
           <div className="text-[10px] font-bold text-content-muted uppercase tracking-wider mb-0.5">

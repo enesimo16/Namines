@@ -255,7 +255,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
               aria-labelledby={`${selectId}-button`}
               className={`absolute left-0 min-w-full w-max max-w-[min(100vw-2rem,360px)] ${
                 actualPlacement === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
-              } z-[250] max-h-60 overflow-y-auto rounded-[var(--radius-card)] border border-line-strong bg-surface-800/98 backdrop-blur-xl shadow-2xl p-1 animate-in fade-in zoom-in-95 duration-100`}
+              } z-popover max-h-60 overflow-y-auto rounded-[var(--radius-card)] border border-line-strong bg-surface-800/98 backdrop-blur-xl shadow-2xl p-1 animate-in fade-in zoom-in-95 duration-100`}
             >
               {parsedOptions.length === 0 ? (
                 <div className="py-2.5 px-3 text-center text-xs text-content-muted">No options available</div>

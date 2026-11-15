@@ -312,7 +312,14 @@ export const useProjectHistoryStore = create<ProjectHistoryState>()(
 
       renameProject: (id, name) => {
         const updated = get().projects.map(p =>
-          p.id === id ? { ...p, name, updatedAt: new Date().toISOString() } : p
+          p.id === id
+            ? {
+                ...p,
+                name,
+                schema: p.schema ? { ...p.schema, name } : p.schema,
+                updatedAt: new Date().toISOString(),
+              }
+            : p
         );
         set({ projects: updated });
       },

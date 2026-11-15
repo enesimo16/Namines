@@ -93,9 +93,11 @@ export default function Header() {
   const localProjects = useProjectHistoryStore((s) => s.projects);
   const activeProjectId = useProjectHistoryStore((s) => s.activeProjectId);
 
-  const currentActiveId = scopedProjectId || activeProjectId;
+  const currentActiveId = activeProjectId || scopedProjectId;
   const currentActiveProject = localProjects.find((p) => p.id === currentActiveId);
-  const currentSessionName = scopedProjectName || currentActiveProject?.name || projectName || 'New Project';
+  const currentSessionName = (isCanvas
+    ? (projectName || currentActiveProject?.name || scopedProjectName)
+    : (scopedProjectName || currentActiveProject?.name || projectName)) || 'New Project';
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -248,11 +250,11 @@ export default function Header() {
   const [draft, setDraft] = useState(isDefaultProjectName ? '' : projectName);
 
   useEffect(() => {
-    setDraft(isDefaultProjectName ? '' : projectName);
-  }, [projectName, isDefaultProjectName]);
+    setDraft(currentSessionName === 'New Project' ? '' : currentSessionName);
+  }, [currentSessionName]);
 
   const startEditing = () => {
-    setDraft(isDefaultProjectName ? '' : projectName);
+    setDraft(currentSessionName === 'New Project' ? '' : currentSessionName);
     setIsEditing(true);
     setTimeout(() => inputRef.current?.select(), 0);
   };
@@ -261,7 +263,7 @@ export default function Header() {
     const trimmed = draft.trim();
     const finalName = trimmed || 'New Project';
     setProjectName(finalName);
-    const activeId = scopedProjectId || useProjectHistoryStore.getState().activeProjectId;
+    const activeId = useProjectHistoryStore.getState().activeProjectId || scopedProjectId;
     if (activeId) {
       useProjectHistoryStore.getState().renameProject(activeId, finalName);
       setScopedProject(activeId, finalName);
@@ -289,7 +291,21 @@ export default function Header() {
     return null;
   }
 
-  const isMarketing = pathname === '/' || pathname === '/tr' || pathname === '/en' || pathname === '/demo';
+  const isMarketing =
+    pathname === '/' ||
+    pathname === '/tr' ||
+    pathname === '/en' ||
+    pathname === '/demo' ||
+    pathname === '/docs' ||
+    pathname === '/pricing' ||
+    pathname === '/solutions' ||
+    pathname === '/security' ||
+    pathname === '/privacy' ||
+    pathname === '/terms' ||
+    pathname === '/apps' ||
+    pathname?.startsWith('/apps/') ||
+    pathname === '/hub' ||
+    pathname?.startsWith('/hub/');
   if (isMarketing) {
     return (
       <>
@@ -305,7 +321,7 @@ export default function Header() {
 
       <header
         lang={lang}
-        className={`flex items-center justify-between h-14 px-2.5 sm:px-6 backdrop-blur-md sticky top-0 z-50 w-full transition-colors border-b ${
+        className={`flex items-center justify-between h-14 px-2.5 sm:px-6 backdrop-blur-md sticky top-0 z-dropdown w-full transition-colors border-b ${
           isHome
             ? 'bg-surface-900/90 border-surface-500'
             : 'bg-surface-800/85 border-line'
@@ -420,7 +436,7 @@ export default function Header() {
                         className="group flex items-center gap-1.5 px-2 py-1 rounded-[var(--radius-control)] hover:bg-surface-700/40 cursor-pointer select-none"
                         title={t('header.editProjectName')}
                       >
-                        <span className="text-xs font-semibold text-content-primary max-w-[150px] sm:max-w-[210px] truncate">
+                        <span className="text-xs font-semibold text-content-primary max-w-[110px] xl:max-w-[170px] truncate">
                           {currentSessionName}
                         </span>
                         <Pencil className="w-3 h-3 text-content-muted opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
@@ -477,18 +493,18 @@ export default function Header() {
           </button>
 
           {/* Desktop Right Actions Strip */}
-          <div className="hidden md:flex items-center gap-1.5 sm:gap-2 min-w-0">
-            {isCanvas && <div id="canvas-actions-slot" className="hidden lg:flex items-center gap-1.5" />}
+          <div className="hidden md:flex items-center gap-1 sm:gap-1.5 min-w-0">
+            {isCanvas && <div id="canvas-actions-slot" className="hidden lg:flex items-center gap-1" />}
             {/* Unified Rehber / Guide Trigger (Directly starts current page guide) */}
             <button
               type="button"
               onClick={() => handleStartGuide()}
               title={locale === 'tr' ? 'İnteraktif Sayfa Rehberini Başlat' : 'Start Interactive Page Guide'}
               aria-label={locale === 'tr' ? 'İnteraktif Sayfa Rehberi' : 'Interactive Page Guide'}
-              className="tap-44 inline-flex items-center gap-1.5 h-7.5 px-3 rounded-full border border-line-strong bg-surface-800/95 hover:bg-surface-700 text-content-secondary hover:text-content-primary text-micro font-semibold transition-all cursor-pointer shadow-xs select-none"
+              className="tap-44 inline-flex items-center justify-center gap-1.5 w-8 h-8 2xl:w-auto 2xl:px-3 rounded-full border border-line-strong bg-surface-800/95 hover:bg-surface-700 text-content-secondary hover:text-content-primary text-micro font-semibold transition-all cursor-pointer shadow-xs select-none shrink-0"
             >
               <Compass className="w-3.5 h-3.5 text-accent shrink-0" />
-              <span className="hidden lg:inline">{locale === 'tr' ? 'Rehber' : 'Guide'}</span>
+              <span className="hidden 2xl:inline">{locale === 'tr' ? 'Rehber' : 'Guide'}</span>
             </button>
             <div id="header-language-toggle">
               <LanguageToggle />
@@ -611,7 +627,7 @@ export default function Header() {
       {/* Mobile Menu Popover / Drawer */}
       {isMobileMenuOpen && (
         <div
-          className="fixed inset-0 top-14 z-[90] bg-surface-900/95 backdrop-blur-xl md:hidden flex flex-col p-4 overflow-y-auto animate-in fade-in slide-in-from-top-4 duration-150 border-b border-line shadow-2xl"
+          className="fixed inset-0 top-14 z-drawer bg-surface-900/95 backdrop-blur-xl md:hidden flex flex-col p-4 overflow-y-auto animate-in fade-in slide-in-from-top-4 duration-150 border-b border-line shadow-2xl"
           onClick={() => setIsMobileMenuOpen(false)}
         >
           <div className="space-y-3" onClick={e => e.stopPropagation()}>

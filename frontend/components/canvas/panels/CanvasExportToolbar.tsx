@@ -362,7 +362,7 @@ export default function CanvasExportToolbar() {
       <div id="canvas-toolbar" ref={dialRef} className="fixed bottom-[72px] left-3 lg:bottom-6 lg:left-6 z-50 select-none">
         {/* ── Zengin Shopify Polaris Toolkit Menü Çekmecesi (Scrollsuz, hizalı, yan flyout destekli) ── */}
         <div
-          className={`absolute bottom-[50px] left-0 w-[calc(100vw-24px)] sm:w-[340px] flex flex-col rounded-[var(--radius-modal)] bg-surface-900/98 border border-line-strong backdrop-blur-2xl shadow-2xl overflow-visible z-[100] transition-all duration-200 ${
+          className={`absolute bottom-[50px] left-0 w-[calc(100vw-24px)] sm:w-[340px] flex flex-col rounded-[var(--radius-modal)] bg-surface-900/98 border border-line-strong backdrop-blur-2xl shadow-2xl overflow-visible z-popover transition-all duration-200 ${
             isDialOpen
               ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
               : 'opacity-0 scale-95 translate-y-2 pointer-events-none'
@@ -682,7 +682,7 @@ export default function CanvasExportToolbar() {
                     isExportFlyoutOpen
                       ? 'block sm:opacity-100 sm:scale-100 sm:pointer-events-auto'
                       : 'hidden sm:block sm:opacity-0 sm:scale-95 sm:pointer-events-none'
-                  } mt-1.5 sm:mt-0 sm:absolute sm:left-full sm:bottom-0 sm:pl-2 z-[110] transition-all duration-150`}
+                  } mt-1.5 sm:mt-0 sm:absolute sm:left-full sm:bottom-0 sm:pl-2 z-popover transition-all duration-150`}
                 >
                   <div className="w-full sm:w-[300px] p-2 rounded-[var(--radius-modal)] bg-surface-900/98 border border-line-strong shadow-2xl backdrop-blur-2xl space-y-1.5">
                     <div className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-content-muted">
@@ -855,7 +855,7 @@ export default function CanvasExportToolbar() {
 
       {/* Zero-to-Cloud Infrastructure Selector Modal */}
       {isCloudModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-modal flex items-center justify-center bg-scrim/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="w-[450px] max-w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-[var(--radius-modal)] bg-surface-900 border border-line-strong shadow-2xl flex flex-col gap-5 text-sans select-none">
             {/* Title */}
             <div className="flex items-center justify-between">
@@ -964,7 +964,7 @@ export default function CanvasExportToolbar() {
 
       {/* Shared Hosting / Mobile Selector Modal — second-phase/13-DAGITIM-HEDEFLERI.md */}
       {isSharedHostingModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-scrim/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-modal flex items-center justify-center bg-scrim/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="w-[420px] max-w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-[var(--radius-modal)] bg-surface-900 border border-line-strong shadow-2xl flex flex-col gap-5 text-sans select-none">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">

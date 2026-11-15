@@ -136,9 +136,9 @@ export default function RelationEdge({
             transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
             fontSize: 10,
             pointerEvents: 'all',
-            zIndex: isOpen ? 10000 : 10,
+            zIndex: isOpen ? 30 : 10,
           }}
-          className={`nodrag nopan relative ${isOpen ? 'z-[10000]' : 'z-10'}`}
+          className={`nodrag nopan relative ${isOpen ? 'z-30' : 'z-10'}`}
         >
           <button
             type="button"
@@ -165,7 +165,7 @@ export default function RelationEdge({
           {isOpen && (
             <div
               role="menu"
-              className="absolute left-1/2 top-full mt-1.5 -translate-x-1/2 z-[10001] w-64 bg-surface-800/98 backdrop-blur-xl border border-content-primary/20 rounded-[var(--radius-card)] shadow-2xl p-1.5"
+              className="absolute left-1/2 top-full mt-1.5 -translate-x-1/2 z-40 w-64 bg-surface-800/98 backdrop-blur-xl border border-content-primary/20 rounded-[var(--radius-card)] shadow-2xl p-1.5"
             >
               <div className="px-2 py-1.5 text-[10px] uppercase tracking-wide text-content-subtle font-semibold">
                 Silinince (ON DELETE)

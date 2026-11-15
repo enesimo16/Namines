@@ -12,7 +12,7 @@ export default function AIGatewayModal() {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-scrim/75 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-modal flex items-center justify-center p-4 bg-scrim/75 backdrop-blur-sm animate-fade-in">
       {/* Click outside to close */}
       <div className="absolute inset-0" onClick={closeGateway} />
 

@@ -236,7 +236,7 @@ export default function SqlExplorerPanel() {
     <>
       {/* Mobile / Tablet Backdrop */}
       <div
-        className="fixed inset-0 top-14 bg-scrim/45 backdrop-blur-[1px] z-[64] lg:hidden"
+        className="fixed inset-0 top-14 bg-scrim/45 backdrop-blur-[1px] z-drawer-backdrop lg:hidden"
         onClick={() => setIsOpen(false)}
         aria-hidden="true"
       />
@@ -246,7 +246,7 @@ export default function SqlExplorerPanel() {
         ref={containerRef}
         aria-label="SQL Console"
         style={{ width: `${panelWidth}px` }}
-        className="fixed top-14 right-0 bottom-0 z-[65] max-w-[100vw] bg-surface-900 border-l border-line-strong shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200 font-sans"
+        className="fixed top-14 right-0 bottom-0 z-drawer max-w-[100vw] bg-surface-900 border-l border-line-strong shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200 font-sans"
       >
         {/* Resize Handle on left border */}
         <div

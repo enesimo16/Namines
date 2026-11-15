@@ -87,7 +87,7 @@ export default function DbConnectionPanel({ isOpen, onClose, onApplied }: Props)
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-200 select-none">
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-200 select-none">
       <div className="bg-surface-900 border border-line-strong rounded-[var(--radius-modal)] shadow-2xl w-full max-w-lg mx-4 flex flex-col overflow-hidden">
 
         {/* Header */}

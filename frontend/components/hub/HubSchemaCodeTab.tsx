@@ -1309,9 +1309,9 @@ export function HubSchemaCodeTab({ repo }: HubSchemaCodeTabProps) {
         </div>
       )}
 
-      {/* Fullscreen Overlay: Portal directly to document.body with z-[99999] so it cleanly covers everything */}
+      {/* Fullscreen Overlay: Portal directly to document.body with z-modal so it cleanly covers everything */}
       {isMounted && isFullscreen && activeFile === 'DIAGRAM' && createPortal(
-        <div className="fixed inset-0 z-[99999] bg-surface-950 flex flex-col w-screen h-screen">
+        <div className="fixed inset-0 z-modal bg-surface-950 flex flex-col w-screen h-screen">
           <ReactFlowProvider>
             {/* Solid Fullscreen Header Bar */}
             <div className="h-12 bg-surface-900 border-b border-line px-4 flex items-center justify-between text-xs font-mono shrink-0 select-none shadow-md z-10">

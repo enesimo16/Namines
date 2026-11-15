@@ -41,7 +41,7 @@ export default function AlternativeCompareModal({ current, alternative, onKeepCu
   const modified = entries.filter(t => t.status === 'modified');
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-200 select-none">
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-scrim/70 backdrop-blur-sm animate-in fade-in duration-200 select-none">
       <div className="bg-surface-900 border border-line-strong rounded-[var(--radius-modal)] w-[90vw] max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
         <div className="border-b border-line bg-surface-800/40 px-5 py-3.5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">

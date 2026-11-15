@@ -52,7 +52,7 @@ export default function QuotaExhaustedModal() {
   const progressPercent = Math.min(100, Math.round((used / dailyLimit) * 100));
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-modal flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-scrim/70 backdrop-blur-sm"
         onClick={() => setExhaustedModalOpen(false)}
