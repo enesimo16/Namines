@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowUpRight, ShieldCheck, Terminal, Sparkles } from 'lucide-react';
 import Logo from './Logo';
 import Footer3DModel from './Footer3DModel';
 import { useLocale } from '../../lib/i18n';
@@ -19,67 +18,8 @@ export default function Footer() {
       />
 
       <div className="w-full max-w-[var(--w-app)] mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Top 3D Architectural Showcase & CTA Card */}
-        <div className="mb-16 rounded-[var(--radius-modal)] border border-surface-500/70 bg-surface-800/35 p-6 sm:p-8 lg:p-10 grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-8 items-center overflow-hidden relative">
-          <div className="space-y-5">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/30 text-[11px] font-mono font-semibold text-accent-text uppercase tracking-wider">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>{isTr ? 'Deterministik Şema Motoru' : 'Deterministic Schema Engine'}</span>
-            </div>
-
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-content-primary leading-tight max-w-xl">
-              {isTr
-                ? 'Veritabanı değişikliklerini matematiksel kesinlikle yönetin.'
-                : 'Ship database changes with mathematical certainty.'}
-            </h2>
-
-            <p className="text-sm text-content-secondary leading-relaxed max-w-lg">
-              {isTr
-                ? 'Tek kanonik IR üzerinden 6 SQL motoruna derleyin, Docker sandbox içinde gerçek DDL doğrulaması yapın ve 19 hedefe sıfır kayma ile kod üretin.'
-                : 'Compile across 6 SQL dialects from a single canonical IR, verify migrations in ephemeral Docker sandboxes, and eject to 19 production targets with zero drift.'}
-            </p>
-
-            <div className="flex flex-wrap items-center gap-3 pt-1">
-              <Link
-                href="/new"
-                className="tap-44 inline-flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-control)] bg-accent hover:bg-accent-hover text-accent-on text-[13px] font-semibold transition-colors shadow-sm"
-              >
-                <span>{isTr ? 'Ücretsiz Başla' : 'Start building free'}</span>
-                <ArrowUpRight className="w-4 h-4" />
-              </Link>
-              <Link
-                href="/apps"
-                className="tap-44 inline-flex items-center gap-2 px-4 py-2.5 rounded-[var(--radius-control)] border border-surface-500 bg-surface-900/70 hover:bg-surface-800 text-content-primary text-[13px] font-semibold transition-colors"
-              >
-                <span>{isTr ? 'Uygulamaları Keşfet' : 'Explore Apps'}</span>
-              </Link>
-              <Link
-                href="/pricing"
-                className="tap-44 inline-flex items-center gap-1.5 px-3 py-2.5 text-[13px] font-medium text-content-muted hover:text-content-primary transition-colors"
-              >
-                <span>{isTr ? 'Fiyatlandırma' : 'Pricing'}</span>
-              </Link>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-4 pt-2 text-[11px] font-mono text-content-muted">
-              <span className="inline-flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-accent-text" />
-                <span>{isTr ? 'Sıfır Kalıcı Kimlik Bilgisi' : 'Zero-Persistence Introspect'}</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Terminal className="w-3.5 h-3.5 text-accent-text" />
-                <span>@namines/mcp · CLI</span>
-              </span>
-            </div>
-          </div>
-
-          <div className="w-full">
-            <Footer3DModel />
-          </div>
-        </div>
-
-        {/* Main Directory Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-6 sm:gap-8 mb-14">
+        {/* Main Directory Grid (Brand + 4 Link Columns + 3D Database Strata Model) */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-6 sm:gap-8 mb-14 items-start">
           {/* Brand Column */}
           <div className="col-span-2 sm:col-span-3 md:col-span-4 xl:col-span-2 flex flex-col gap-4">
             <div className="flex items-center">
@@ -153,11 +93,6 @@ export default function Footer() {
               <li>
                 <Link href="/solutions" className="hover:text-content-primary transition-colors">
                   {isTr ? 'Çözümler' : 'Solutions'}
-                </Link>
-              </li>
-              <li>
-                <Link href="/#zero-drift" className="hover:text-content-primary transition-colors">
-                  Zero Drift Engine
                 </Link>
               </li>
             </ul>
@@ -248,11 +183,6 @@ export default function Footer() {
                   {isTr ? 'Dokümantasyon' : 'Documentation'}
                 </Link>
               </li>
-              <li>
-                <Link href="/docs#cli-mcp" className="hover:text-content-primary transition-colors">
-                  MCP Server &amp; CLI
-                </Link>
-              </li>
             </ul>
           </div>
 
@@ -287,12 +217,12 @@ export default function Footer() {
                   {isTr ? 'Kullanım Şartları' : 'Terms of Service'}
                 </Link>
               </li>
-              <li>
-                <Link href="/security#disclosure" className="hover:text-content-primary transition-colors">
-                  Vulnerability Disclosure
-                </Link>
-              </li>
             </ul>
+          </div>
+
+          {/* Col 6 — Interactive 3D Database Strata Model (kutusuz, doğrudan footer içinde) */}
+          <div className="col-span-2 sm:col-span-3 md:col-span-2 xl:col-span-1 flex items-center justify-center">
+            <Footer3DModel />
           </div>
         </div>
 
