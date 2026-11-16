@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAdminConsoleStore } from '../../store/useAdminConsoleStore';
 import type { AdminAiToolRouteItem } from '../../services/adminService';
+import AutonomousEngineInspector from './AutonomousEngineInspector';
 
 interface AiRoutingTabProps {
   locale?: string;
@@ -108,6 +109,11 @@ const COMMON_MODELS: Record<string, string[]> = {
     'deepseek-chat',
     'deepseek-reasoner',
   ],
+  ollama: [
+    'qwen2.5-coder:32b',
+    'qwen2.5-coder:14b',
+    'llama3.1',
+  ],
   claude: [
     'claude-3-5-sonnet-20241022',
     'claude-3-5-haiku-20241022',
@@ -124,6 +130,7 @@ export default function AiRoutingTab({ locale = 'tr' }: AiRoutingTabProps) {
 
   const {
     aiRoutes: routes,
+    autonomousEngine,
     loadingAiRoutes: loading,
     aiRoutesError: error,
     fetchAiRoutes,
@@ -137,7 +144,7 @@ export default function AiRoutingTab({ locale = 'tr' }: AiRoutingTabProps) {
     bulkSetGlobalProvider,
   } = useAdminConsoleStore();
 
-  const providers = useMemo(() => ['groq', 'deepseek', 'claude', 'openai'], []);
+  const providers = useMemo(() => ['groq', 'deepseek', 'ollama', 'claude', 'openai'], []);
 
   useEffect(() => {
     fetchAiRoutes();
@@ -245,6 +252,9 @@ export default function AiRoutingTab({ locale = 'tr' }: AiRoutingTabProps) {
         </div>
       )}
 
+      {/* ── 1b. Otonom Diyalektik AI v2 Denetleyicisi ───────────────── */}
+      <AutonomousEngineInspector snapshot={autonomousEngine} isEn={isEn} />
+
       {/* ── 2. Filters Bar ─────────────────────────────────────────── */}
       <div className="rounded-[var(--radius-card)] bg-surface-800 border border-line-strong p-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
         <div className="relative flex-1">
@@ -267,7 +277,7 @@ export default function AiRoutingTab({ locale = 'tr' }: AiRoutingTabProps) {
         </div>
 
         <div className="flex items-center gap-1 shrink-0 overflow-x-auto scrollbar-none">
-          {['all', 'groq', 'deepseek', 'claude', 'openai'].map((p) => {
+          {['all', 'groq', 'deepseek', 'ollama', 'claude', 'openai'].map((p) => {
             const active = providerFilter.toLowerCase() === p;
             return (
               <button

@@ -3,6 +3,7 @@ import {
   adminService,
   type AdminFeatureFlagItem,
   type AdminAiToolRouteItem,
+  type AdminAutonomousEngineSnapshot,
 } from '../services/adminService';
 import { useToastStore } from './useToastStore';
 import { useFeatureStore } from './useFeatureStore';
@@ -21,6 +22,7 @@ export type FeatureStatusFilter = 'all' | 'enabled' | 'notice' | 'hidden';
 const PROVIDER_DEFAULT_MODELS: Record<string, string> = {
   groq: 'qwen-2.5-coder-32b',
   deepseek: 'deepseek-chat',
+  ollama: 'qwen2.5-coder:32b',
   claude: 'claude-3-5-sonnet-20241022',
   openai: 'gpt-4o',
 };
@@ -38,6 +40,7 @@ export interface AdminConsoleStore {
 
   // ── AI Routing State ────────────────────────────────────────────────────────
   aiRoutes: AdminAiToolRouteItem[];
+  autonomousEngine: AdminAutonomousEngineSnapshot | null;
   loadingAiRoutes: boolean;
   aiRoutesError: string | null;
   aiSearch: string;
@@ -88,6 +91,7 @@ export const useAdminConsoleStore = create<AdminConsoleStore>((set, get) => ({
   expandedDrawerKeys: {},
 
   aiRoutes: [],
+  autonomousEngine: null,
   loadingAiRoutes: false,
   aiRoutesError: null,
   aiSearch: '',
@@ -295,7 +299,11 @@ export const useAdminConsoleStore = create<AdminConsoleStore>((set, get) => ({
     set({ loadingAiRoutes: true, aiRoutesError: null });
     try {
       const data = await adminService.getAiRoutes();
-      set({ aiRoutes: data.routes || [], loadingAiRoutes: false });
+      set({
+        aiRoutes: data.routes || [],
+        autonomousEngine: data.autonomousEngine ?? null,
+        loadingAiRoutes: false,
+      });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'AI rotaları yüklenemedi';
       set({ loadingAiRoutes: false, aiRoutesError: msg });

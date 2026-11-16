@@ -423,6 +423,7 @@ export const adminService = {
     return {
       routes: Array.isArray(res.data?.routes) ? res.data.routes : [],
       providers: Array.isArray(res.data?.providers) ? res.data.providers : [],
+      autonomousEngine: res.data?.autonomousEngine ?? null,
     };
   },
 
@@ -456,8 +457,69 @@ export interface AdminAiToolRouteItem {
   updatedAt?: string;
 }
 
+export interface AdminAutonomousSubAgent {
+  kind: string;
+  name: string;
+  role: string;
+  zeroTokenCapable: boolean;
+  orchestratorParent: string;
+}
+
+export interface AdminAutonomousWorkspaceTool {
+  name: string;
+  description: string;
+}
+
+export interface AdminAutonomousPlanQuota {
+  plan: string;
+  dailyTokens: number;
+  maxAutonomyWaves: number;
+  maxOutputTokens: number;
+}
+
+export interface AdminAutonomousRunRecord {
+  runId: string;
+  timestamp: string;
+  sourceKind: string;
+  engine: string;
+  promptPreview: string;
+  converged: boolean;
+  qualityScore: number;
+  totalIterations: number;
+  tablesBuilt: number;
+  relationsBuilt: number;
+  lockedContractsCount: number;
+  spawnedSubAgents: number;
+  retiredSubAgents: number;
+  plusGains: string[];
+  minusBlockerCount: number;
+  minusGapCount: number;
+  minusDbaCount: number;
+  remainingFindings: string[];
+  portabilityNotes: string[];
+  timeline: string[];
+}
+
+export interface AdminAutonomousEngineSnapshot {
+  engineVersion: string;
+  contextArchitecture: string;
+  maxOutputTokensCeiling: number;
+  totalRuns: number;
+  convergedRuns: number;
+  averageQualityScore: number;
+  totalSubAgentsSpawned: number;
+  totalSubAgentsRetired: number;
+  totalTablesSynthesized: number;
+  totalLockedContracts: number;
+  subAgents: AdminAutonomousSubAgent[];
+  workspaceTools: AdminAutonomousWorkspaceTool[];
+  quotas: AdminAutonomousPlanQuota[];
+  recentRuns: AdminAutonomousRunRecord[];
+}
+
 export interface AdminAiRoutesResponse {
   routes: AdminAiToolRouteItem[];
   providers: string[];
+  autonomousEngine?: AdminAutonomousEngineSnapshot | null;
 }
 

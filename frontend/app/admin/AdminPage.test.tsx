@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import AdminPage from './AdminConsole';
+import AutonomousEngineInspector from './AutonomousEngineInspector';
 import { useAuthStore } from '../../store/useAuthStore';
 import { adminService } from '../../services/adminService';
 import { setLocale } from '../../lib/i18n';
@@ -186,6 +187,12 @@ vi.mock('../../services/adminService', () => ({
       history: [],
       incidents: [],
     }),
+    getAiRoutes: vi.fn().mockResolvedValue({
+      routes: [],
+      providers: ['groq', 'deepseek', 'ollama'],
+      autonomousEngine: null,
+    }),
+    getFeatureFlags: vi.fn().mockResolvedValue([]),
   },
 }));
 
@@ -301,5 +308,68 @@ describe('AdminPage', () => {
 
     expect(screen.getByText(/Operations Overview/i)).toBeTruthy();
     expect(screen.getByText(/Total Registered Members/i)).toBeTruthy();
+  });
+
+  it('renders AutonomousEngineInspector with 3-tier orchestrators, sub-agents, quotas and live runs', () => {
+    render(
+      <AutonomousEngineInspector
+        snapshot={{
+          engineVersion: 'Namines.AI v2 (Dialectical Swarm)',
+          contextArchitecture: 'NSL-First L0 Topological Skeleton + L1 Scoped Subgraph + L2 Locked Contracts',
+          maxOutputTokensCeiling: 65536,
+          totalRuns: 3,
+          convergedRuns: 3,
+          averageQualityScore: 0.96,
+          totalSubAgentsSpawned: 24,
+          totalSubAgentsRetired: 24,
+          totalTablesSynthesized: 64,
+          totalLockedContracts: 64,
+          subAgents: [
+            { kind: 'Cartographer', name: 'CartographerSubAgent', role: 'L0 Skeleton', zeroTokenCapable: true, orchestratorParent: 'MasterOrchestrator' },
+          ],
+          workspaceTools: [
+            { name: 'json_shape_infer', description: 'JSON shape inference' },
+          ],
+          quotas: [
+            { plan: 'Free', dailyTokens: 100000, maxAutonomyWaves: 4, maxOutputTokens: 65536 },
+          ],
+          recentRuns: [
+            {
+              runId: 'run-1',
+              timestamp: '2026-11-16T14:00:00Z',
+              sourceKind: 'PromptOnly',
+              engine: 'PostgreSQL',
+              promptPreview: '64 tablolu ERP şeması',
+              converged: true,
+              qualityScore: 0.98,
+              totalIterations: 4,
+              tablesBuilt: 64,
+              relationsBuilt: 48,
+              lockedContractsCount: 64,
+              spawnedSubAgents: 10,
+              retiredSubAgents: 10,
+              plusGains: ['[WaveGeneration] 64 tablo inşa edildi'],
+              minusBlockerCount: 0,
+              minusGapCount: 0,
+              minusDbaCount: 1,
+              remainingFindings: [],
+              portabilityNotes: ['ddl_PostgreSQL=ok:4200'],
+              timeline: ['[master] Final: Converged'],
+            },
+          ],
+        }}
+      />
+    );
+
+    expect(screen.getByText(/Sınırlı Özerkliğe Sahip Diyalektik AI Motoru/i)).toBeTruthy();
+    expect(screen.getByText(/IMasterOrchestrator/i)).toBeTruthy();
+    expect(screen.getByText(/CartographerSubAgent/i)).toBeTruthy();
+    expect(screen.getByText('96%')).toBeTruthy();
+
+    fireEvent.click(screen.getByText(/Kotalar & Bağlam/i));
+    expect(screen.getByText(/100\.000|100,000/)).toBeTruthy();
+
+    fireEvent.click(screen.getByText(/Canlı Oturumlar/i));
+    expect(screen.getByText(/64 tablolu ERP şeması/i)).toBeTruthy();
   });
 });
