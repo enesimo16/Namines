@@ -399,3 +399,87 @@ describe('useSchemaStore — Namines Flow olayları', () => {
     });
   });
 });
+
+describe('useSchemaStore — Triggers, Stored Procedures & Enums', () => {
+  beforeEach(() => {
+    useSchemaStore.setState({ schema: null, nodes: [], edges: [], _past: [], _future: [] } as never);
+    useSchemaStore.getState().loadFromSchema(schemaWith() as never);
+  });
+
+  it('addTrigger / updateTrigger / deleteTrigger ve undo çalışır', () => {
+    useSchemaStore.getState().addTrigger({
+      id: 'trg_orders_audit',
+      tableId: 't-orders',
+      timing: 'After',
+      event: 'Insert',
+      targetEngine: 'PostgreSQL',
+      body: 'CREATE TRIGGER trg_orders_audit ...',
+    });
+
+    expect(useSchemaStore.getState().schema!.triggers).toHaveLength(1);
+    const created = useSchemaStore.getState().schema!.triggers![0];
+    useSchemaStore.getState().updateTrigger({ ...created, event: 'Update' });
+    expect(useSchemaStore.getState().schema!.triggers![0].event).toBe('Update');
+
+    useSchemaStore.getState().undo();
+    expect(useSchemaStore.getState().schema!.triggers![0].event).toBe('Insert');
+
+    useSchemaStore.getState().deleteTrigger('trg_orders_audit');
+    expect(useSchemaStore.getState().schema!.triggers).toHaveLength(0);
+  });
+
+  it('addStoredProcedure / deleteStoredProcedure ve applyRevision birleştirir', () => {
+    useSchemaStore.getState().addStoredProcedure({
+      id: 'sp_daily',
+      name: 'sp_daily',
+      targetEngine: 'PostgreSQL',
+      parameters: [{ name: 'p_day', type: 'DATE' }],
+      body: 'CREATE PROCEDURE sp_daily() ...',
+    });
+
+    expect(useSchemaStore.getState().schema!.storedProcedures).toHaveLength(1);
+
+    useSchemaStore.getState().applyRevision({
+      schemaId: 's1',
+      name: 'test',
+      tables: [],
+      relations: [],
+      triggers: [
+        {
+          id: 'trg_ai_1',
+          tableId: 't-orders',
+          timing: 'After',
+          event: 'Insert',
+          targetEngine: 'PostgreSQL',
+          body: 'CREATE TRIGGER trg_ai_1 ...',
+        },
+      ],
+      storedProcedures: [
+        {
+          id: 'sp_monthly_revenue',
+          name: 'sp_monthly_revenue',
+          targetEngine: 'PostgreSQL',
+          parameters: [],
+          body: 'CREATE PROCEDURE sp_monthly_revenue() ...',
+        },
+      ],
+    } as never);
+
+    expect(useSchemaStore.getState().schema!.triggers).toHaveLength(1);
+    expect(useSchemaStore.getState().schema!.storedProcedures).toHaveLength(2);
+  });
+
+  it('deleteTable bağlı triggerları temizler', () => {
+    useSchemaStore.getState().addTrigger({
+      id: 'trg_orders_ins',
+      tableId: 't-orders',
+      timing: 'After',
+      event: 'Insert',
+      targetEngine: 'PostgreSQL',
+      body: 'CREATE TRIGGER ...',
+    });
+
+    useSchemaStore.getState().deleteTable('t-orders');
+    expect(useSchemaStore.getState().schema!.triggers).toHaveLength(0);
+  });
+});

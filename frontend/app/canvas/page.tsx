@@ -68,6 +68,7 @@ import CanvasExportToolbar from '../../components/canvas/panels/CanvasExportTool
 import CanvasContextMenu from '../../components/canvas/CanvasContextMenu';
 import NaminesFlowBar from '../../components/canvas/panels/NaminesFlowBar';
 import TableEditorDrawer from '../../components/canvas/TableEditorDrawer';
+import ProgrammabilityDrawer from '../../components/canvas/ProgrammabilityDrawer';
 import AutomationRuleDrawer from '../../components/canvas/AutomationRuleDrawer';
 import SqlExplorerPanel from '../../components/canvas/panels/SqlExplorerPanel';
 import BranchControlPanel from '../../components/canvas/panels/BranchControlPanel';
@@ -796,10 +797,23 @@ export default function CanvasPage() {
               <Panel id="schema-info-panel" position="top-left" className="!z-sticky bg-surface-800/95 backdrop-blur-md border border-line-strong px-3 py-2.5 lg:p-4 rounded-[var(--radius-card)] !mt-[120px] lg:!mt-4 !ml-2 lg:!ml-4 w-auto max-w-[calc(100vw-1rem)] lg:w-64 select-none pointer-events-auto shadow-2xl">
                 <div className="flex items-baseline gap-3 lg:block">
                   <h2 className="text-sm lg:text-base font-bold text-content-primary lg:mb-1 truncate tracking-tight" title={schema.name}>{schema.name || 'Untitled Schema'}</h2>
-                  <div className="text-[11px] lg:text-xs text-content-muted flex items-center gap-2 lg:gap-3 font-medium shrink-0">
+                  <div className="text-[11px] lg:text-xs text-content-muted flex flex-wrap items-center gap-2 lg:gap-2.5 font-medium shrink-0">
                     <span>{schema.tables.length} Tables</span>
                     <span className="text-surface-500">·</span>
                     <span>{schema.relations.length} Relations</span>
+                    {((schema.triggers?.length ?? 0) > 0 || (schema.storedProcedures?.length ?? 0) > 0) && (
+                      <>
+                        <span className="text-surface-500">·</span>
+                        <button
+                          type="button"
+                          onClick={() => window.dispatchEvent(new CustomEvent('namines:open-programmability'))}
+                          className="text-accent-text hover:text-content-primary underline-offset-2 hover:underline cursor-pointer"
+                          title="Open Routines, Triggers & Enums"
+                        >
+                          {(schema.storedProcedures?.length ?? 0)} Procs / {(schema.triggers?.length ?? 0)} Triggers
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
                 {/* Branch denetimi ve tablo listesi masaüstü araçları */}
@@ -833,6 +847,7 @@ export default function CanvasPage() {
       <VisionImportHost />
 
       <TableEditorDrawer />
+      <ProgrammabilityDrawer />
       <AutomationRuleDrawer />
       <SqlExplorerPanel />
       <AIGatewayModal />

@@ -1,7 +1,7 @@
 import React from 'react';
 import type { ColumnDiffDetails } from '../../../utils/schemaDiff';
 import { Handle, Position, NodeProps, Node } from '@xyflow/react';
-import { Key, Link, Pencil, Plus, Minus, RefreshCw } from 'lucide-react';
+import { Key, Link, Pencil, Plus, Minus, RefreshCw, Zap } from 'lucide-react';
 import { SchemaTable } from '../../../types/schema';
 
 /**
@@ -40,6 +40,9 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
   const setSelectedTableFilter = useDbaStore(state => state.setSelectedTableFilter);
 
   const linterResult = useLinterStore(s => s.result);
+  const triggerCount = useSchemaStore(
+    s => (s.schema?.triggers ?? []).filter(tr => tr.tableId === table.id || tr.tableId === table.name).length
+  );
 
   const [showPopover, setShowPopover] = React.useState(false);
 
@@ -300,6 +303,21 @@ function TableNode({ data, selected }: NodeProps<TableNodeType>) {
           )}
         </div>
         <div className="flex items-center gap-1.5">
+          {triggerCount > 0 && !diff && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('namines:open-programmability', { detail: { tab: 'triggers', tableId: table.id } }));
+              }}
+              className="flex items-center gap-0.5 text-micro font-mono font-medium text-accent-text bg-surface-700 border border-line hover:border-line-strong px-1.5 py-0.5 rounded-full transition-colors cursor-pointer"
+              title={`${triggerCount} trigger(s) attached to ${table.name}`}
+              aria-label={`${triggerCount} trigger(s) on ${table.name}`}
+            >
+              <Zap className="w-2.5 h-2.5 shrink-0" />
+              <span>{triggerCount}</span>
+            </button>
+          )}
           <span className="text-[10px] font-medium text-content-muted bg-surface-700 border border-line px-1.5 py-0.5 rounded-full">
             {table.columns.length} cols
           </span>

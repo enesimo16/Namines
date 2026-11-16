@@ -3,7 +3,10 @@ import type { PascalCaseSchema } from '../types/flow';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { Node, Edge, Connection, OnNodesChange, OnEdgesChange, applyNodeChanges, applyEdgeChanges } from '@xyflow/react';
 import localforage from 'localforage';
-import { DatabaseSchema, SchemaTable, SchemaColumn, SchemaRelation } from '../types/schema';
+import {
+  DatabaseSchema, SchemaTable, SchemaColumn, SchemaRelation,
+  SchemaTrigger, SchemaStoredProcedure, SchemaEnum,
+} from '../types/schema';
 import { schemaToFlow } from '../lib/schemaToFlow';
 import { getLayoutedNodes } from '../lib/autoLayout';
 import { naminesFlow, type NaminesFlowEvent } from '../lib/naminesFlowEventBus';
@@ -190,6 +193,17 @@ interface SchemaState {
   importFromVision: (schema: DatabaseSchema) => void;
   /** Merges tables + relations from another schema into the current one (re-IDs everything). */
   mergeFromSchema: (incoming: DatabaseSchema) => void;
+
+  // ── Programmability: Triggers, Stored Procedures & Enums ──
+  addTrigger: (trigger: Omit<SchemaTrigger, 'stableUuid'> & { stableUuid?: string }) => void;
+  updateTrigger: (trigger: SchemaTrigger) => void;
+  deleteTrigger: (triggerId: string) => void;
+  addStoredProcedure: (proc: Omit<SchemaStoredProcedure, 'stableUuid'> & { stableUuid?: string }) => void;
+  updateStoredProcedure: (proc: SchemaStoredProcedure) => void;
+  deleteStoredProcedure: (procId: string) => void;
+  addEnum: (schemaEnum: Omit<SchemaEnum, 'stableUuid'> & { stableUuid?: string }) => void;
+  updateEnum: (prevName: string, schemaEnum: SchemaEnum) => void;
+  deleteEnum: (name: string) => void;
 }
 
 export const useSchemaStore = create<SchemaState>()(
@@ -320,20 +334,54 @@ export const useSchemaStore = create<SchemaState>()(
         if (!state.schema) return;
 
         const updatedTables = [...state.schema.tables];
-        partialSchema.tables.forEach(t => {
-          const idx = updatedTables.findIndex(et => et.id === t.id);
+        (partialSchema.tables ?? []).forEach(t => {
+          const idx = updatedTables.findIndex(et => et.id === t.id || et.name.toLowerCase() === t.name.toLowerCase());
           if (idx !== -1) updatedTables[idx] = t;
           else updatedTables.push(t);
         });
 
         const updatedRelations = [...state.schema.relations];
-        partialSchema.relations.forEach(r => {
+        (partialSchema.relations ?? []).forEach(r => {
           const idx = updatedRelations.findIndex(er => er.id === r.id);
           if (idx !== -1) updatedRelations[idx] = r;
           else updatedRelations.push(r);
         });
 
-        const newSchema = { ...state.schema, tables: updatedTables, relations: updatedRelations };
+        const updatedTriggers = [...(state.schema.triggers ?? [])];
+        (partialSchema.triggers ?? []).forEach(trg => {
+          const idx = updatedTriggers.findIndex(et =>
+            et.id === trg.id ||
+            (et.tableId === trg.tableId && et.timing === trg.timing && et.event === trg.event && et.targetEngine === trg.targetEngine)
+          );
+          if (idx !== -1) updatedTriggers[idx] = trg;
+          else updatedTriggers.push(trg);
+        });
+
+        const updatedProcedures = [...(state.schema.storedProcedures ?? [])];
+        (partialSchema.storedProcedures ?? []).forEach(sp => {
+          const idx = updatedProcedures.findIndex(ep =>
+            ep.id === sp.id ||
+            (ep.name.toLowerCase() === sp.name.toLowerCase() && ep.targetEngine === sp.targetEngine)
+          );
+          if (idx !== -1) updatedProcedures[idx] = sp;
+          else updatedProcedures.push(sp);
+        });
+
+        const updatedEnums = [...(state.schema.enums ?? [])];
+        (partialSchema.enums ?? []).forEach(en => {
+          const idx = updatedEnums.findIndex(ee => ee.name.toLowerCase() === en.name.toLowerCase());
+          if (idx !== -1) updatedEnums[idx] = en;
+          else updatedEnums.push(en);
+        });
+
+        const newSchema: DatabaseSchema = {
+          ...state.schema,
+          tables: updatedTables,
+          relations: updatedRelations,
+          triggers: updatedTriggers,
+          storedProcedures: updatedProcedures,
+          enums: updatedEnums,
+        };
         const { nodes: newNodes, edges: newEdges } = schemaToFlow(newSchema);
         const finalNodes = newNodes.map(n => {
           const ex = state.nodes.find(en => en.id === n.id);
@@ -435,7 +483,13 @@ export const useSchemaStore = create<SchemaState>()(
         const newRelations = state.schema.relations.filter(
           r => r.sourceTableId !== tableId && r.targetTableId !== tableId
         );
-        const newSchema: DatabaseSchema = { ...state.schema, tables: newTables, relations: newRelations };
+        const newTriggers = (state.schema.triggers ?? []).filter(tr => tr.tableId !== tableId);
+        const newSchema: DatabaseSchema = {
+          ...state.schema,
+          tables: newTables,
+          relations: newRelations,
+          triggers: newTriggers,
+        };
 
         // Silinen tableId'ye bağlı edge'leri de temizle
         const relatedRelIds = state.schema.relations
@@ -867,6 +921,129 @@ export const useSchemaStore = create<SchemaState>()(
         };
         const { edges } = schemaToFlow(mergedSchema);
         set({ schema: mergedSchema, nodes: [...state.nodes, ...newNodes], edges });
+      },
+
+      addTrigger: (trigger) => {
+        const state = get();
+        if (!state.schema) return;
+        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
+        const item: SchemaTrigger = {
+          ...trigger,
+          id: trigger.id.trim() || `trg_${genId().slice(0, 8)}`,
+          stableUuid: trigger.stableUuid || genId(),
+        };
+        set({
+          schema: {
+            ...state.schema,
+            triggers: [...(state.schema.triggers ?? []), item],
+          },
+        });
+      },
+
+      updateTrigger: (trigger) => {
+        const state = get();
+        if (!state.schema) return;
+        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
+        set({
+          schema: {
+            ...state.schema,
+            triggers: (state.schema.triggers ?? []).map(t => t.id === trigger.id ? trigger : t),
+          },
+        });
+      },
+
+      deleteTrigger: (triggerId) => {
+        const state = get();
+        if (!state.schema) return;
+        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
+        set({
+          schema: {
+            ...state.schema,
+            triggers: (state.schema.triggers ?? []).filter(t => t.id !== triggerId),
+          },
+        });
+      },
+
+      addStoredProcedure: (proc) => {
+        const state = get();
+        if (!state.schema) return;
+        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
+        const item: SchemaStoredProcedure = {
+          ...proc,
+          id: proc.id.trim() || `sp_${genId().slice(0, 8)}`,
+          stableUuid: proc.stableUuid || genId(),
+        };
+        set({
+          schema: {
+            ...state.schema,
+            storedProcedures: [...(state.schema.storedProcedures ?? []), item],
+          },
+        });
+      },
+
+      updateStoredProcedure: (proc) => {
+        const state = get();
+        if (!state.schema) return;
+        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
+        set({
+          schema: {
+            ...state.schema,
+            storedProcedures: (state.schema.storedProcedures ?? []).map(p => p.id === proc.id ? proc : p),
+          },
+        });
+      },
+
+      deleteStoredProcedure: (procId) => {
+        const state = get();
+        if (!state.schema) return;
+        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
+        set({
+          schema: {
+            ...state.schema,
+            storedProcedures: (state.schema.storedProcedures ?? []).filter(p => p.id !== procId),
+          },
+        });
+      },
+
+      addEnum: (schemaEnum) => {
+        const state = get();
+        if (!state.schema) return;
+        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
+        const item: SchemaEnum = {
+          ...schemaEnum,
+          id: schemaEnum.id.trim() || `enum_${genId().slice(0, 8)}`,
+          stableUuid: schemaEnum.stableUuid || genId(),
+        };
+        set({
+          schema: {
+            ...state.schema,
+            enums: [...(state.schema.enums ?? []), item],
+          },
+        });
+      },
+
+      updateEnum: (prevName, schemaEnum) => {
+        const state = get();
+        if (!state.schema) return;
+        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
+        set({
+          schema: {
+            ...state.schema,
+            enums: (state.schema.enums ?? []).map(e => e.name === prevName ? schemaEnum : e),
+          },
+        });
+      },
+
+      deleteEnum: (name) => {
+        const state = get();
+        if (!state.schema) return;
+        set({ _past: [...state._past, { schema: state.schema, nodes: state.nodes }].slice(-HISTORY_LIMIT), _future: [] });
+        set({
+          schema: {
+            ...state.schema,
+            enums: (state.schema.enums ?? []).filter(e => e.name !== name),
+          },
+        });
       },
 
     }),

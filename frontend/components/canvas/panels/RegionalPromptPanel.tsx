@@ -77,17 +77,39 @@ export default function RegionalPromptPanel() {
       if (!currentSchema) return;
 
       const selectedTableIds = selectedNodes.map(n => n.id);
-      const selectedTables = currentSchema.tables.filter(t => selectedTableIds.includes(t.id));
+      const selectedTables = selectedTableIds.length > 0
+        ? currentSchema.tables.filter(t => selectedTableIds.includes(t.id))
+        : currentSchema.tables;
 
-      const existingRelations = currentSchema.relations.filter(r =>
-        selectedTableIds.includes(r.sourceTableId) || selectedTableIds.includes(r.targetTableId)
+      const existingRelations = selectedTableIds.length > 0
+        ? currentSchema.relations.filter(r =>
+            selectedTableIds.includes(r.sourceTableId) || selectedTableIds.includes(r.targetTableId)
+          )
+        : currentSchema.relations;
+
+      const partialSchema = await schemaService.reviseSchema(
+        selectedTables,
+        existingRelations,
+        prompt,
+        naiModel,
+        {
+          triggers: currentSchema.triggers ?? [],
+          storedProcedures: currentSchema.storedProcedures ?? [],
+          enums: currentSchema.enums ?? [],
+          dbType,
+        }
       );
-
-      const partialSchema = await schemaService.reviseSchema(selectedTables, existingRelations, prompt, naiModel);
 
       applyRevision(partialSchema);
       addPromptToHistory(prompt);
       setPrompt('');
+      const trgCount = partialSchema.triggers?.length ?? 0;
+      const spCount = partialSchema.storedProcedures?.length ?? 0;
+      if (trgCount > 0 || spCount > 0) {
+        showToast(`Schema updated (${spCount} procedure(s), ${trgCount} trigger(s) synced).`, 'success');
+      } else {
+        showToast('Schema updated with AI revision.', 'success');
+      }
     } catch (error) {
       if (apiErrorStatus(error) === 429) {
         showToast("Daily AI limit reached! Please upgrade your plan for unlimited access.", "warning");
@@ -139,8 +161,8 @@ export default function RegionalPromptPanel() {
   const placeholder = isInitialGeneration
     ? 'Describe the database schema you want to generate…'
     : selectedNodes.length > 0
-      ? 'Ask AI to modify the selected tables…'
-      : 'Select a table, or click here to ask AI…';
+      ? 'Ask AI to modify the selected tables or add triggers…'
+      : 'Ask AI to evolve schema, add triggers or stored procedures…';
 
 
   return (

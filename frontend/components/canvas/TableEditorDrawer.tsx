@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { X, Plus, Trash2, Key, Link as LinkIcon, AlertTriangle, Check, ChevronDown, ChevronRight } from 'lucide-react';
+import { X, Plus, Trash2, Key, Link as LinkIcon, AlertTriangle, Check, ChevronDown, ChevronRight, Zap } from 'lucide-react';
 import { useSchemaStore } from '../../store/useSchemaStore';
 import { useToastStore } from '../../store/useToastStore';
-import { SchemaTable, SchemaColumn, SchemaIndex } from '../../types/schema';
+import { SchemaTable, SchemaColumn, SchemaIndex, SchemaTrigger } from '../../types/schema';
 import { token, TABLE_SWATCHES } from '../../lib/designTokens';
 
 const COLUMN_TYPES = [
@@ -30,12 +30,18 @@ const genId = (): string =>
 const inputClass = 'bg-surface-700/60 border border-line rounded-[var(--radius-control)] text-content-primary placeholder:text-content-muted focus:outline-none focus:ring-1 focus:ring-line-strong transition-colors';
 
 export default function TableEditorDrawer() {
-  const { schema, selectedTableForEdit, setSelectedTableForEdit, updateTable } = useSchemaStore();
+  const {
+    schema, dbType, selectedTableForEdit, setSelectedTableForEdit,
+    updateTable, addTrigger, updateTrigger, deleteTrigger,
+  } = useSchemaStore();
   const showToast = useToastStore(state => state.showToast);
 
   const originalTable = schema?.tables.find((t: SchemaTable) => t.id === selectedTableForEdit) ?? null;
 
   const [draft, setDraft] = useState<SchemaTable | null>(null);
+  const tableTriggers = (schema?.triggers ?? []).filter(
+    tr => draft && (tr.tableId === draft.id || tr.tableId === draft.name)
+  );
 
   // Aynı anda tek kolonun gelişmiş bölümü açık. Hepsini birden açık tutmak,
   // uzun bir tabloda listeyi taranamaz hâle getirirdi.
@@ -177,6 +183,20 @@ export default function TableEditorDrawer() {
     }));
     setDraft({ ...draft, indexes: [...(draft.indexes ?? []), ...added] });
     showToast(`Added ${added.length} foreign key index${added.length === 1 ? '' : 'es'}.`, 'success');
+  };
+
+  const handleAddTableTrigger = () => {
+    if (!draft) return;
+    const count = tableTriggers.length + 1;
+    const trg: Omit<SchemaTrigger, 'stableUuid'> = {
+      id: `trg_${draft.name.toLowerCase().replace(/[^a-z0-9_]/g, '_')}_${count}`,
+      tableId: draft.id,
+      timing: 'After',
+      event: 'Insert',
+      targetEngine: dbType,
+      body: `-- ${dbType} trigger on ${draft.name}\nCREATE OR REPLACE FUNCTION fn_${draft.name.toLowerCase()}_audit() RETURNS TRIGGER AS $$\nBEGIN\n  RETURN NEW;\nEND;\n$$ LANGUAGE plpgsql;`,
+    };
+    addTrigger(trg);
   };
 
   /**
@@ -621,6 +641,79 @@ export default function TableEditorDrawer() {
                     <p className="text-[11px] text-content-subtle py-1">No indexes defined yet.</p>
                   )}
                 </div>
+              </div>
+
+              {/* ── Triggers ──────────────────────────────────────────────── */}
+              <div className="pt-2 border-t border-line">
+                <div className="flex items-center justify-between mb-2.5">
+                  <div>
+                    <h3 className="text-xs font-semibold text-content-primary flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-accent-text" />
+                      <span>Table Triggers ({tableTriggers.length})</span>
+                    </h3>
+                    <p className="text-micro text-content-subtle mt-0.5">
+                      Event hooks compiled for {dbType}.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddTableTrigger}
+                    className={`text-micro px-2 py-1.5 rounded-[var(--radius-control)] flex items-center gap-1 ${inputClass} hover:border-line-strong text-content-primary cursor-pointer`}
+                  >
+                    <Plus className="w-3 h-3" />
+                    Add trigger
+                  </button>
+                </div>
+
+                {tableTriggers.length === 0 ? (
+                  <p className="text-micro text-content-subtle py-1">
+                    No triggers attached to {draft.name}.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {tableTriggers.map(trg => (
+                      <div key={trg.id} className="p-2.5 rounded-[var(--radius-control)] bg-surface-700 border border-line space-y-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-mono font-semibold text-content-primary truncate flex-1">{trg.id}</span>
+                          <select
+                            aria-label={`Timing for ${trg.id}`}
+                            value={trg.timing}
+                            onChange={e => updateTrigger({ ...trg, timing: e.target.value as 'Before' | 'After' })}
+                            className={`px-1.5 py-0.5 text-micro font-mono ${inputClass}`}
+                          >
+                            <option value="Before">BEFORE</option>
+                            <option value="After">AFTER</option>
+                          </select>
+                          <select
+                            aria-label={`Event for ${trg.id}`}
+                            value={trg.event}
+                            onChange={e => updateTrigger({ ...trg, event: e.target.value as 'Insert' | 'Update' | 'Delete' })}
+                            className={`px-1.5 py-0.5 text-micro font-mono ${inputClass}`}
+                          >
+                            <option value="Insert">INSERT</option>
+                            <option value="Update">UPDATE</option>
+                            <option value="Delete">DELETE</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => deleteTrigger(trg.id)}
+                            aria-label={`Delete trigger ${trg.id}`}
+                            className="p-1 rounded-[var(--radius-control)] text-content-subtle hover:text-danger-text hover:bg-danger-subtle transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <textarea
+                          aria-label={`SQL body for ${trg.id}`}
+                          rows={3}
+                          value={trg.body}
+                          onChange={e => updateTrigger({ ...trg, body: e.target.value })}
+                          className={`w-full px-2 py-1.5 text-micro font-mono ${inputClass} resize-y`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

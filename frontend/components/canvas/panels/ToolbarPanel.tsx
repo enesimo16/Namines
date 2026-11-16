@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { Users, Terminal, Link2, Loader2, BookOpen, X, ChevronDown, Copy, Check, GitPullRequest, Wand2, Moon, Sun } from 'lucide-react';
+import { Users, Terminal, Link2, Loader2, BookOpen, X, ChevronDown, Copy, Check, GitPullRequest, Wand2, Moon, Sun, Code2 } from 'lucide-react';
 import MarkdownLite from '../../common/MarkdownLite';
 import { useSchemaStore } from '../../../store/useSchemaStore';
 import { useHomeThemeStore } from '../../../store/useHomeThemeStore';
@@ -41,6 +41,10 @@ export default function ToolbarPanel() {
   const schema = useSchemaStore(s => s.schema);
   // Şemaya bağlı eylemlerin görünürlüğü (bkz. aşağıdaki not).
   const hasTables = (schema?.tables.length ?? 0) > 0;
+  const programmabilityCount =
+    (schema?.triggers?.length ?? 0) +
+    (schema?.storedProcedures?.length ?? 0) +
+    (schema?.enums?.length ?? 0);
   const loadFromSchema = useSchemaStore(s => s.loadFromSchema);
   const autoLayout = useSchemaStore(s => s.autoLayout);
   const dbType = useSchemaStore(s => s.dbType);
@@ -387,6 +391,25 @@ export default function ToolbarPanel() {
         >
           <Terminal className="w-4 h-4" />
         </button>
+
+        {/* Routines, Triggers & Enums */}
+        {hasTables && (
+          <button
+            id="programmability-drawer-btn"
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('namines:open-programmability'))}
+            className={`${iconBtnBase} ${programmabilityCount > 0 ? 'w-auto px-2 gap-1.5' : ''} ${iconBtnIdle}`}
+            title="Stored Procedures, Triggers & Enums"
+            aria-label="Open Stored Procedures, Triggers and Enums"
+          >
+            <Code2 className="w-4 h-4 text-accent-text" />
+            {programmabilityCount > 0 && (
+              <span className="text-micro font-mono font-semibold text-content-primary">
+                {programmabilityCount}
+              </span>
+            )}
+          </button>
+        )}
 
         {/*
           ŞEMAYA BAĞLI EYLEMLER — yalnızca tuvalde tablo varken.

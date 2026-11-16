@@ -4,7 +4,9 @@ import type {
   SmartSeedResult, SubscriptionStatusDto, SyncProjectPayload, SyncResult,
 } from '../types/api';
 import { csrfHeaders } from '@/lib/csrf';
-import { DatabaseSchema, SchemaRelation, SchemaTable } from '../types/schema';
+import {
+  DatabaseSchema, SchemaEnum, SchemaRelation, SchemaStoredProcedure, SchemaTable, SchemaTrigger,
+} from '../types/schema';
 import { SchemaDiffResult, MigrationResult } from '../types/migration';
 import { ChangeRequestSummary, ChangeRequestDetail, ApprovalDecision, ChangeRequestStatus, AffectedCodeScanResult, ChangeRequestAuditEntry } from '../types/changeRequest';
 import { GatewayListResult, GatewayRow } from '../types/gateway';
@@ -132,12 +134,26 @@ export const schemaService = {
     return response.data;
   },
 
-  reviseSchema: async (selectedTables: SchemaTable[], existingRelations: SchemaRelation[], prompt: string, naiModel: string): Promise<DatabaseSchema> => {
+  reviseSchema: async (
+    selectedTables: SchemaTable[],
+    existingRelations: SchemaRelation[],
+    prompt: string,
+    naiModel: string,
+    options?: {
+      triggers?: SchemaTrigger[];
+      storedProcedures?: SchemaStoredProcedure[];
+      enums?: SchemaEnum[];
+      dbType?: string;
+    }
+  ): Promise<DatabaseSchema> => {
     const response = await api.post<DatabaseSchema>('/schema/revise', {
       revisionPrompt: prompt,
       selectedTables,
       existingRelations,
-      aiProvider: 'Groq',
+      triggers: options?.triggers ?? [],
+      storedProcedures: options?.storedProcedures ?? [],
+      enums: options?.enums ?? [],
+      aiProvider: options?.dbType ? `Groq:${options.dbType}` : 'Groq',
       modelName: naiModel
     });
     return response.data;

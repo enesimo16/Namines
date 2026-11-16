@@ -83,6 +83,32 @@ export default function SchemaTextualSummary() {
           </ul>
         </>
       )}
+
+      {schema.triggers && schema.triggers.length > 0 && (
+        <>
+          <h3>Database Triggers</h3>
+          <ul>
+            {schema.triggers.map(tr => (
+              <li key={tr.id}>
+                Trigger {tr.id}: {tr.timing} {tr.event} on {findTableName(tr.tableId)} ({tr.targetEngine})
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {schema.storedProcedures && schema.storedProcedures.length > 0 && (
+        <>
+          <h3>Stored Procedures</h3>
+          <ul>
+            {schema.storedProcedures.map(sp => (
+              <li key={sp.id}>
+                Procedure {sp.name} ({sp.targetEngine}) with {sp.parameters.length} parameters
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }
