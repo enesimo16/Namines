@@ -1,3 +1,5 @@
+using Namines.AI.Application;
+using Namines.AI.Domain;
 using Namines.BuildingBlocks.Contracts;
 using Namines.API.Filters;
 using System;
@@ -25,21 +27,24 @@ namespace Namines.API.Controllers;
 [Route("api/[controller]")]
 public class SchemaController : ControllerBase
 {
+    private const int DefaultOrchestrationWaves = 4;
+    private const int FixedOrchestrationWaves = 2;
+
     private readonly IAIFactory _aiFactory;
     private readonly ISmartSeedService _smartSeedService;
-    private readonly SchemaAgentPipeline? _agent;
+    private readonly IMasterOrchestrator? _orchestrator;
     private readonly IAiQuota? _quota;
-    private readonly Namines.Infrastructure.Generators.DdlGenerator.IDdlGeneratorFactory _ddlFactory;
+    private readonly Namines.Core.Interfaces.IDdlGeneratorFactory _ddlFactory;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly IAiUsageTracker _usage;
 
     public SchemaController(
         IAIFactory aiFactory,
         ISmartSeedService smartSeedService,
-        Namines.Infrastructure.Generators.DdlGenerator.IDdlGeneratorFactory ddlFactory,
+        Namines.Core.Interfaces.IDdlGeneratorFactory ddlFactory,
         IOptions<Microsoft.AspNetCore.Mvc.JsonOptions> jsonOptions,
         IAiUsageTracker usage,
-        SchemaAgentPipeline? agent = null,
+        IMasterOrchestrator? orchestrator = null,
         IAiQuota? quota = null)
     {
         _aiFactory = aiFactory;
@@ -53,7 +58,7 @@ public class SchemaController : ControllerBase
         // "Kind"/"Message"/"Schema" ile karşılaşınca `undefined` okur — bu da
         // ProductionScreen'in ikon seçimini ve canvas'ın şema yüklemesini kırar.
         _jsonOptions = jsonOptions.Value.JsonSerializerOptions;
-        _agent = agent;
+        _orchestrator = orchestrator;
         _quota = quota;
     }
 
@@ -281,10 +286,9 @@ public class SchemaController : ControllerBase
 
         var aiService = _aiFactory.GetService(request.AIProvider);
 
-        // Groq dışındaki sağlayıcılarda (Ollama, yerel) eski tek-çağrı yolu
-        // korunuyor: ajan hattı Groq'a bağlı ve olmayan bir yolu varmış gibi
-        // davranmak, o sağlayıcıyı sessizce bozardı.
-        if (_agent is null || !string.Equals(request.AIProvider, "Groq", StringComparison.OrdinalIgnoreCase))
+        // Görsel/beyaz tahta çizimi veya orkestratör enjekte edilmemiş birim testleri
+        // için doğrudan IAIService yoluna düş.
+        if (_orchestrator is null || request.Image is not null)
             return Ok(await aiService.GenerateSchemaAsync(request));
 
         // Netleştirme cevapları prompt'a ekleniyor. Cevaplanmamış sorular
@@ -374,19 +378,10 @@ public class SchemaController : ControllerBase
             ? NaiCatalog.ClampToPlan(NaiCatalog.Resolve(request.ModelName), await _quota.TierAsync(userId))
             : NaiCatalog.Resolve(request.ModelName);
 
-        // Bütçe ÖNCEDEN rezerve ediliyor — eskiden yalnızca iş bittikten sonra
-        // düşülüyordu ve aradaki pencerede eşzamanlı N istek aynı bütçeyi
-        // harcayabiliyordu (bkz. IAiQuota.TryReserveAsync).
-        //
-        // Düz "budgetRounds * SchemaRoundTokenEstimate" DEĞİL: bir onarım turu
-        // araç döngüsü yüzünden birden çok upstream çağrıya açılabiliyor (bkz.
-        // AgentQuotaReservation). Bunu görmezden gelmek, kullanıcının günlük
-        // bütçesini tek bir istekte, önceden hiç uyarılmadan tükettirebilirdi.
-        var fixedRoundsForBudget = budgetRounds >= 3
-            ? SchemaAgentPipeline.FixedRounds
-            : Math.Min(budgetRounds, 1);
-        var roundEquivalents = AgentQuotaReservation.RoundEquivalents(budgetRounds, fixedRoundsForBudget);
-        var reserved = NaiCatalog.CostOf(effectiveModel, roundEquivalents * SchemaRoundTokenEstimate);
+        // Bütçe ÖNCEDEN rezerve ediliyor — eşzamanlı isteklerde kota aşımını önler.
+        var reserved = NaiCatalog.CostOf(
+            effectiveModel,
+            Math.Max(1, budgetRounds) * SchemaRoundTokenEstimate);
         if (_quota is not null && !string.IsNullOrEmpty(userId))
         {
             var decision = await _quota.TryReserveAsync(userId, reserved, HttpContext.RequestAborted);
@@ -394,42 +389,29 @@ public class SchemaController : ControllerBase
                 return StatusCode(429, new { message = QuotaMessage(decision) });
         }
 
-        // Plan turu kapsamı (kaç tablo) söyler söylemez çağrılan ikinci-aşama
-        // rezervasyon. Peşin `reserved` yalnızca sabit tur-başı tahmine göre
-        // hesaplandı; 50-60 tablolu parçalı bir üretim bunun katlarını
-        // harcayabiliyor. Kapsam bilinir bilinmez GERÇEKÇİ bir ek rezervasyon
-        // yapılıyor ve `reserved` güncelleniyor ki SettleAsync doğru tutarı
-        // uzlaştırsın — aksi hâlde iade hesabı yanlış olur.
-        async Task OnScopePlannedAsync(int tableCount, CancellationToken ct)
-        {
-            if (_quota is null || string.IsNullOrEmpty(userId)) return;
-
-            var scopeTokens = NaiCatalog.CostOf(
-                effectiveModel,
-                AgentQuotaReservation.TokensForScope(tableCount, budgetRounds - SchemaAgentPipeline.FixedRounds));
-
-            var extra = scopeTokens - reserved;
-            if (extra <= 0) return;
-
-            var decision = await _quota.TryReserveAsync(userId, extra, ct);
-            if (decision != AiQuotaDecision.Allowed)
-                throw new InvalidOperationException(
-                    $"This request needs about {scopeTokens:N0} tokens for {tableCount} tables, " +
-                    "which is more than your remaining daily budget. Try a narrower request.");
-
-            reserved = scopeTokens;
-        }
+        var taskInput = new OrchestrationTaskInput(
+            Prompt: enrichedPrompt,
+            Engine: request.DbType,
+            SourceKind: string.IsNullOrWhiteSpace(request.ApiSpecUrl)
+                ? SchemaInputSourceKind.PromptOnly
+                : SchemaInputSourceKind.OpenApiOrGraphQl,
+            ClarifyingAnswers: parsedAnswers,
+            ApiSpecUrl: request.ApiSpecUrl,
+            ModelHint: string.IsNullOrWhiteSpace(request.ModelName) ? effectiveModel.ToString() : request.ModelName,
+            ProviderHint: request.AIProvider,
+            MaxAutonomyWaves: Math.Max(1, budgetRounds),
+            DeepDbaAudit: request.Advanced,
+            EnableAutonomyRepair: request.Advanced);
 
         if (!wantsStream)
         {
             try
             {
-                var result = await _agent.RunAsync(
-                    enrichedPrompt, request.DbType, budgetRounds, HttpContext.RequestAborted,
-                    onScopePlanned: OnScopePlannedAsync);
-                await SettleAsync(userId, reserved, result.Rounds, effectiveModel);
+                var verdict = await _orchestrator.OrchestrateAsync(
+                    taskInput, progress: null, HttpContext.RequestAborted);
+                await SettleAsync(userId, reserved, Math.Max(1, verdict.TotalIterations), effectiveModel);
 
-                return Ok(BuildResultPayload(archetype, result));
+                return Ok(BuildResultPayload(archetype, verdict));
             }
             catch (InvalidOperationException ex)
             {
@@ -494,13 +476,12 @@ public class SchemaController : ControllerBase
 
         try
         {
-            var result = await _agent.RunAsync(
-                enrichedPrompt, request.DbType, budgetRounds, HttpContext.RequestAborted, progress,
-                onScopePlanned: OnScopePlannedAsync);
+            var verdict = await _orchestrator.OrchestrateAsync(
+                taskInput, progress, HttpContext.RequestAborted);
 
-            await SettleAsync(userId, reserved, result.Rounds, effectiveModel);
+            await SettleAsync(userId, reserved, Math.Max(1, verdict.TotalIterations), effectiveModel);
 
-            await WriteEventAsync("result", BuildResultPayload(archetype, result));
+            await WriteEventAsync("result", BuildResultPayload(archetype, verdict));
         }
         catch (InvalidOperationException ex)
         {
@@ -589,24 +570,30 @@ public class SchemaController : ControllerBase
         _ => "AI budget unavailable right now.",
     };
 
-    private static object BuildResultPayload(ProjectArchetype archetype, SchemaAgentResult result) =>
-        // Bulgular GİZLENMİYOR. "Çalışıyor gibi görünen" bir şema vermek, hiç
-        // vermemekten kötüdür: kullanıcı onu kullanmaya kalkar ve hata
-        // veritabanında patlar.
-        new
+    private static object BuildResultPayload(ProjectArchetype archetype, MasterVerdict verdict)
+    {
+        var portableEverywhere = verdict.RemainingMinus.PortabilityNotes
+            .All(note => !note.Contains("=fail:", StringComparison.OrdinalIgnoreCase));
+
+        return new
         {
-            schema = result.Schema,
+            schema = verdict.FinalSchema,
             agent = new
             {
                 archetype = archetype.ToString(),
-                result.Rounds,
-                result.Clean,
-                result.PortableEverywhere,
-                findings = result.RemainingFindings,
-                portability = result.PortabilityNotes,
-                mergeNotes = result.MergeNotes,
+                Rounds = verdict.TotalIterations,
+                Clean = verdict.Converged,
+                PortableEverywhere = portableEverywhere,
+                findings = verdict.RemainingMinus.Findings.Select(f => f.ProblemDescription).ToList(),
+                portability = verdict.RemainingMinus.PortabilityNotes,
+                mergeNotes = verdict.MergeNotes,
+                qualityScore = verdict.QualityScore,
+                spawnedSubAgents = verdict.TotalSubAgentsSpawned,
+                retiredSubAgents = verdict.TotalSubAgentsRetired,
+                plusSummary = $"{verdict.CumulativePlus.TotalTablesBuilt} tablo, {verdict.CumulativePlus.TotalRelationsBuilt} ilişki, {verdict.CumulativePlus.LockedContracts.Count} kilitli sözleşme",
             },
         };
+    }
 
     /// <summary>
     /// Cevap sözlüğünü JSON'dan okur.
@@ -642,22 +629,15 @@ public class SchemaController : ControllerBase
     private async Task<int> AffordableRoundsAsync(string? userId)
     {
         if (_quota is null || string.IsNullOrEmpty(userId))
-            return SchemaAgentPipeline.DefaultTotalRounds;
+            return DefaultOrchestrationWaves;
 
         var quota = await _quota.EnsureAsync(userId, HttpContext.RequestAborted);
         var remaining = Math.Max(0, quota.DailyLimit - quota.Used);
 
         var affordable = remaining / SchemaRoundTokenEstimate;
 
-        // Tavan var: bütçesi çok olan bir kullanıcı için sınırsız tur açmak,
-        // modelin çözemediği bir bulguda bütçeyi tek istekte yakardı.
-        //
-        // Tavan artık PLANA bağlı. Önceden herkes aynı tavandaydı: ödeyen
-        // kullanıcının tek farkı daha büyük bir token havuzuydu, agent yine
-        // aynı noktada pes ediyordu — yani derinlik için ödenen para bir
-        // karşılık üretmiyordu.
         var tier = await _quota.TierAsync(userId);
-        var ceiling = PlanQuotas.For(tier).MaxAgentRepairTurns + SchemaAgentPipeline.FixedRounds;
+        var ceiling = PlanQuotas.For(tier).MaxAgentRepairTurns + FixedOrchestrationWaves;
 
         return Math.Min(affordable, ceiling);
     }
@@ -677,7 +657,8 @@ public class SchemaController : ControllerBase
         }
 
         bool forceLocal = HttpContext.Items.ContainsKey("FallbackToLocal") && HttpContext.Items["FallbackToLocal"] is true;
-        bool isOllama = string.Equals(request.AIProvider, "Ollama", StringComparison.OrdinalIgnoreCase);
+        var baseProvider = (request.AIProvider ?? "Groq").Split(':', 2)[0];
+        bool isOllama = string.Equals(baseProvider, "Ollama", StringComparison.OrdinalIgnoreCase);
 
         if (forceLocal && !isOllama)
         {
@@ -687,24 +668,20 @@ public class SchemaController : ControllerBase
                 return BadRequest(new { message = "Local engine (Default/Namines) does not support prompt-based schema revisions. Please switch your Schema Revision policy to a cloud AI model or local Ollama in preferences." });
             }
 
-            System.Console.WriteLine("[SchemaController] Local Fallback active: executing programmatic schema optimizer.");
-            var optimizedSchema = Namines.Infrastructure.Services.ProgrammaticSchemaOptimizer.Optimize(
-                request.SelectedTables, 
-                request.ExistingRelations, 
-                request.RevisionPrompt
-            );
+            System.Console.WriteLine("[SchemaController] Local Fallback active: executing deterministic repair sub-agent.");
+            var optimizedSchema = await RunLocalDeterministicOptimizeAsync(request);
             return Ok(optimizedSchema);
         }
 
         try
         {
-            var aiService = _aiFactory.GetService(request.AIProvider);
+            var aiService = _aiFactory.GetService(baseProvider);
             var schema = await aiService.ReviseSchemaAsync(request);
             return Ok(schema);
         }
         catch (System.Exception ex)
         {
-            System.Console.WriteLine($"[SchemaController] AI Revision failed: {ex.Message}. Falling back to programmatic schema optimizer.");
+            System.Console.WriteLine($"[SchemaController] AI Revision failed: {ex.Message}. Falling back to deterministic repair sub-agent.");
             
             bool isRegionalRevision = !request.RevisionPrompt.Contains("DBA Analysis") && !request.RevisionPrompt.Contains("Automatically resolve the following");
             if (isRegionalRevision)
@@ -712,15 +689,33 @@ public class SchemaController : ControllerBase
                 return StatusCode(500, new { message = "AI Revision failed." });
             }
 
-            // Invoke the high-performance local optimization engine to fix all DBA findings
-            var optimizedSchema = Namines.Infrastructure.Services.ProgrammaticSchemaOptimizer.Optimize(
-                request.SelectedTables, 
-                request.ExistingRelations, 
-                request.RevisionPrompt
-            );
-            
+            var optimizedSchema = await RunLocalDeterministicOptimizeAsync(request);
             return Ok(optimizedSchema);
         }
+    }
+
+    private static async Task<DatabaseSchema> RunLocalDeterministicOptimizeAsync(ReviseRequest request)
+    {
+        var schema = new DatabaseSchema
+        {
+            Name = "canvas_schema",
+            Tables = request.SelectedTables ?? new List<SchemaTable>(),
+            Relations = request.ExistingRelations ?? new List<SchemaRelation>(),
+            Enums = request.Enums ?? new List<SchemaEnum>(),
+            Triggers = request.Triggers ?? new List<SchemaTrigger>(),
+            StoredProcedures = request.StoredProcedures ?? new List<SchemaStoredProcedure>(),
+        };
+
+        var swarm = new AgentSwarmRuntime();
+        var workspace = new OrchestrationWorkspace(
+            new OrchestrationTaskInput(request.RevisionPrompt, Namines.Core.Enums.DatabaseType.PostgreSQL),
+            swarm,
+            schema);
+
+        var repairer = new DeterministicRepairSubAgent();
+        var agent = swarm.SpawnAgent(AgentKind.SchemaMutator, "local-fallback-repair", "Yerel deterministik şema onarımı");
+        await repairer.ExecuteAsync(agent, workspace).ConfigureAwait(false);
+        return workspace.CurrentSchema;
     }
 
     [HttpPost("mockdata")]

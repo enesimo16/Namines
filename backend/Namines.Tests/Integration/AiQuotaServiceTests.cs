@@ -236,13 +236,13 @@ public class AiQuotaServiceTests : IAsyncLifetime
         // tavanı DÜŞER — ilk beş kullanıcının havuzu bitirmesini engelleyen
         // kural bu.
         await ResetAsync();
-        var (context, service) = Service(perUserCap: 20_000, pool: 100_000);
+        var (context, service) = Service(perUserCap: 100_000, pool: 500_000);
         await using var _ = context;
 
         var limit = (await service.EnsureQuotaAsync("u1")).DailyLimit;
 
-        Assert.True(limit < 20_000, $"tavan havuza göre düşmeliydi, {limit} kaldı");
-        Assert.True(100_000 / limit >= 10, "havuz en az 10 kullanıcıya yetmeli");
+        Assert.True(limit < 100_000, $"tavan havuza göre düşmeliydi, {limit} kaldı");
+        Assert.True(500_000 / limit >= 10, "havuz en az 10 kullanıcıya yetmeli");
     }
 
     [RequiresDockerFact]
@@ -323,7 +323,7 @@ public class AiQuotaServiceTests : IAsyncLifetime
         await using var _ = context;
 
         await service.EnsureQuotaAsync("t1");
-        await service.ConsumeAsync("t1", 600_000);   // havuzun tamami
+        await service.ConsumeAsync("t1", 3_000_000);   // havuzun tamami
 
         Assert.Equal(AiQuotaDecision.TeamExhausted, await service.CheckAsync("t2", 1_000));
     }
@@ -332,17 +332,17 @@ public class AiQuotaServiceTests : IAsyncLifetime
     public async Task A_teammate_can_use_more_than_one_share_when_others_are_idle()
     {
         // Havuzu uyeye bolmemenin tek sebebi bu: bosta duran uyenin payi
-        // cope gitmemeli. Uye basi tavan payin iki kati (400K).
+        // cope gitmemeli. Uye basi tavan payin iki kati (2M).
         await ResetAsync();
         await SeedTeamAsync();
         var (context, service) = Service();
         await using var _ = context;
 
-        Assert.Equal(400_000, await service.PerUserCapAsync("t1"));
+        Assert.Equal(2_000_000, await service.PerUserCapAsync("t1"));
 
         await service.EnsureQuotaAsync("t1");
-        // Tek payindan (200K) fazlasi -- havuzda yer oldugu icin gecmeli.
-        Assert.Equal(AiQuotaDecision.Allowed, await service.CheckAsync("t1", 300_000));
+        // Tek payindan (1M) fazlasi -- havuzda yer oldugu icin gecmeli.
+        Assert.Equal(AiQuotaDecision.Allowed, await service.CheckAsync("t1", 1_500_000));
     }
 
     [RequiresDockerFact]
@@ -357,7 +357,7 @@ public class AiQuotaServiceTests : IAsyncLifetime
 
         await service.EnsureQuotaAsync("t1");
 
-        Assert.Equal(AiQuotaDecision.UserExhausted, await service.CheckAsync("t1", 600_000));
+        Assert.Equal(AiQuotaDecision.UserExhausted, await service.CheckAsync("t1", 3_000_000));
     }
 
     [RequiresDockerFact]

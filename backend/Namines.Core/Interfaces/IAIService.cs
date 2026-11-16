@@ -1,12 +1,22 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
+using Namines.Core.Enums;
 using Namines.Core.Models;
 
 namespace Namines.Core.Interfaces;
 
-public interface IAIService
+/// <summary>
+/// Namines yaşam döngüsü boyunca tüm yapay zekâ yeteneklerinin birleşik arayüzü.
+/// Tüm tüketiciler (Controller ve Infrastructure servisleri) yalnızca bu sözleşmeye
+/// bağımlıdır — hiçbir somut sağlayıcı sınıfına doğrudan bağlanmaz.
+/// </summary>
+public interface IAIService : IDbaSchemaAnalyzer
 {
     Task<DatabaseSchema> GenerateSchemaAsync(GenerateRequest request);
     Task<DatabaseSchema> ReviseSchemaAsync(ReviseRequest request);
+    Task<DatabaseSchema> ParseDbContextToSchemaAsync(string dbContextCode, DatabaseType dbType);
+    Task<MigrationResult> GenerateMigrationCodeAsync(DatabaseSchema oldSchema, DatabaseSchema newSchema, DatabaseType dbType);
+    Task<string> GenerateSmartSeedSqlAsync(DatabaseSchema schema, DatabaseType dbType, string domain, int rowCount);
     Task<string> GenerateMockDataAsync(DatabaseSchema schema);
 
     /// <summary>
@@ -15,7 +25,7 @@ public interface IAIService
     /// </summary>
     Task<string> GenerateProjectSummaryAsync(DatabaseSchema schema, string projectName);
 
-    Task<string> GenerateStreamlitAppAsync(DatabaseSchema schema, Namines.Core.Enums.DatabaseType dbType);
+    Task<string> GenerateStreamlitAppAsync(DatabaseSchema schema, DatabaseType dbType);
 
     /// <summary>
     /// Elle çizilmiş veritabanı şeması görselini analiz eder ve DatabaseSchema şemasına dönüştürür.
@@ -29,4 +39,9 @@ public interface IAIService
     /// yapıyı özetler/açıklar (doc'un kuralı: "motor kanıtladı, AI özetledi").
     /// </summary>
     Task<string> ExplainImpactAsync(ImpactReport impact);
+
+    /// <summary>
+    /// Doğal dil sorusundan hedef motor lehçesine uygun salt-okunur SQL üretir.
+    /// </summary>
+    Task<string> GenerateSqlFromQuestionAsync(DatabaseSchema schema, DatabaseType dbType, string question);
 }

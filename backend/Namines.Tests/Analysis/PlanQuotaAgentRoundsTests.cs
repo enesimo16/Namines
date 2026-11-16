@@ -16,7 +16,7 @@ public class PlanQuotaAgentRoundsTests
     [Fact]
     public void A_free_plan_gets_the_shallow_repair_budget()
     {
-        Assert.Equal(2, PlanQuotas.For(PlanTier.Free).MaxAgentRepairTurns);
+        Assert.Equal(4, PlanQuotas.For(PlanTier.Free).MaxAgentRepairTurns);
     }
 
     [Fact]

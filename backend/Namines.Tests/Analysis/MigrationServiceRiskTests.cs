@@ -23,12 +23,7 @@ public class MigrationServiceRiskTests
 {
     private static MigrationService CreateService()
     {
-        var httpClient = new HttpClient();
-        var configuration = new ConfigurationBuilder().Build();
-        var httpContextAccessor = new HttpContextAccessor();
-        var cache = new MemoryCache(new MemoryCacheOptions());
-        var groqService = new GroqAIService(httpClient, configuration, httpContextAccessor, cache);
-        return new MigrationService(groqService);
+        return new MigrationService(null!);
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using System;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -7,7 +8,9 @@ using Namines.Core.Interfaces;
 
 namespace Namines.AI.DependencyInjection;
 
-/// <summary>AI modülünün tek kayıt noktası. Önceden bu kayıtlar API'nin genel servis listesine dağılmıştı.</summary>
+/// <summary>
+/// Namines.AI v2 otonom diyalektik orkestrasyon ve çoklu sağlayıcı DI kayıtları.
+/// </summary>
 public static class AiServiceCollectionExtensions
 {
     public static IServiceCollection AddAiModule(this IServiceCollection services)
@@ -15,16 +18,11 @@ public static class AiServiceCollectionExtensions
         services.AddHttpContextAccessor();
         services.AddMemoryCache();
 
-        // Sohbet sağlayıcısı: yapılandırmayla seçilir, varsayılan Groq. Singleton çünkü tamamen durumsuz:
-        // yalnızca adres, anahtar ve model tablosu taşıyor.
         services.AddSingleton<IChatCompletionProvider>(sp =>
             ChatCompletionProviderFactory.Create(
                 sp.GetRequiredService<IConfiguration>(),
                 sp.GetService<ILoggerFactory>()?.CreateLogger(nameof(ChatCompletionProviderFactory))));
 
-        // Hız-sınırı bekleme bütçesi İSTEK başına, çağrı başına DEĞİL: parçalı bir şema üretimi yedi ayrı
-        // sağlayıcı çağrısı yapıyor ve her birine ayrı bütçe vermek, söz verilen toplam bekleme süresini parça
-        // sayısıyla çarpardı. Aynı istekteki paralel parçalar bu tek nesneyi paylaşıyor.
         services.AddScoped(sp =>
         {
             var config = sp.GetRequiredService<IConfiguration>();
@@ -34,29 +32,54 @@ public static class AiServiceCollectionExtensions
                 ReadInt(config, "Ai:RateLimitRetry:MaxAttempts", AiRetryPolicy.DefaultMaxAttempts)));
         });
 
-        // AddHttpClient<T> T'yi typed-client olarak kaydeder; ayrıca AddScoped<T> yazmak bu kaydı ezer ve
-        // kurucudaki HttpClient DI'dan çözülemez. Bu yüzden eklenmez.
-        services.AddHttpClient<GroqAIService>(client => client.Timeout = TimeSpan.FromMinutes(5));
-        services.AddHttpClient<OllamaAIService>(client => client.Timeout = TimeSpan.FromMinutes(5));
+        services.AddHttpClient<OpenAiCompatibleLlmEngine>(client => client.Timeout = TimeSpan.FromMinutes(5));
+        services.AddScoped<ILlmCompletionEngine>(sp => sp.GetRequiredService<OpenAiCompatibleLlmEngine>());
+        services.AddScoped<IAgentChatClient>(sp => sp.GetRequiredService<OpenAiCompatibleLlmEngine>());
         services.AddHttpClient<ISpeechTranscriber, GroqSpeechTranscriber>(client => client.Timeout = TimeSpan.FromMinutes(2));
 
-        services.AddScoped<IAIFactory>(sp => new AIFactory(new IAIService[]
-        {
-            sp.GetRequiredService<GroqAIService>(),
-            sp.GetRequiredService<OllamaAIService>(),
-        }));
+        // Bağlam & dinamik sürü çalışma zamanı + canlı admin telemetrisi
+        services.AddSingleton<ISchemaContextEngine, SchemaContextEngine>();
+        services.AddSingleton<IAutonomousSwarmTelemetry, AutonomousSwarmTelemetry>();
+        services.AddScoped<IAgentSwarmRuntime, AgentSwarmRuntime>();
+        services.AddScoped<IAiWorkspaceToolRegistry>(sp => new WorkspaceToolRegistry(
+            sp.GetRequiredService<ISchemaContextEngine>(),
+            sp.GetService<IDdlGeneratorFactory>(),
+            sp.GetService<IApiSpecExtractor>(),
+            sp.GetService<IRepositoryScanner>()));
 
-        // Varsayılan IAIService = Groq (diğer denetleyicilerle geriye dönük uyum).
-        services.AddScoped<IAIService>(sp => sp.GetRequiredService<GroqAIService>());
-        services.AddScoped<IDbaSchemaAnalyzer>(sp => sp.GetRequiredService<GroqAIService>());
+        // Uzman sub-agent'lar (16 ajanlık diyalektik sürü)
+        services.AddScoped<CartographerSubAgent>();
+        services.AddScoped<TopologicalPlannerSubAgent>();
+        services.AddScoped<NslDomainArchitectSubAgent>();
+        services.AddScoped<CanvasEvolutionSubAgent>();
+        services.AddScoped<RelationWeaverSubAgent>();
+        services.AddScoped<AuditAndTemporalWeaverSubAgent>();
+        services.AddScoped<ProgrammabilityArchitectSubAgent>();
+        services.AddScoped<DeterministicRepairSubAgent>();
+        services.AddScoped<SurgicalMutationSubAgent>();
+        services.AddScoped<SemanticAndPortabilityCriticSubAgent>();
+        services.AddScoped<NormalizationCriticSubAgent>();
+        services.AddScoped<MultiTenancyAndRlsCriticSubAgent>();
+        services.AddScoped<IndexAndConstraintCriticSubAgent>();
+        services.AddScoped<TriggerAndProcedureCriticSubAgent>();
+        services.AddScoped<AdversarialDbaSubAgent>();
+        services.AddScoped<LifecycleTaskSubAgent>();
 
-        // İstek kapsamlı: bir isteğin tüm sağlayıcı çağrılarında biriken GERÇEK token kullanımı. Kota sabit
-        // tahminle değil bununla uzlaştırılıyor (bkz. IAiUsageTracker, AIQuotaMiddleware.ActualTokens).
+        // 3 Katmanlı Diyalektik Orkestrasyon: Master + [+] + [-]
+        services.AddScoped<IPositiveOrchestrator, PositiveOrchestrator>();
+        services.AddScoped<INegativeOrchestrator, NegativeOrchestrator>();
+        services.AddScoped<IMasterOrchestrator, MasterOrchestrator>();
+
+        // Birleşik cephe & yaşam döngüsü sözleşmeleri
+        services.AddScoped<UnifiedAiService>();
+        services.AddScoped<IAIService>(sp => sp.GetRequiredService<UnifiedAiService>());
+        services.AddScoped<IDbaSchemaAnalyzer>(sp => sp.GetRequiredService<UnifiedAiService>());
+        services.AddScoped<IAIFactory, UnifiedAiFactory>();
         services.AddScoped<IAiUsageTracker, AiUsageTracker>();
 
         return services;
     }
 
-    private static int ReadInt(IConfiguration configuration, string key, int fallback)
-        => int.TryParse(configuration[key], out var value) ? value : fallback;
+    private static int ReadInt(IConfiguration config, string key, int fallback)
+        => int.TryParse(config[key], out var parsed) ? parsed : fallback;
 }

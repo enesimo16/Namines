@@ -19,16 +19,16 @@ public class TokenCeilingTests
         AiAdvancedSettings.Default with { MaxTokens = value };
 
     [Fact]
-    public void A_free_user_cannot_request_the_full_provider_ceiling()
+    public void Output_ceiling_respects_user_request_without_artificial_plan_truncation()
     {
         var settings = WithMaxTokens("32000");
 
-        Assert.Equal(32_000, settings.MaxTokensValue);          // ham istek
-        Assert.Equal(6_000, settings.MaxTokensFor(PlanTier.Free)); // plana çekilmiş
+        Assert.Equal(32_000, settings.MaxTokensValue);
+        Assert.Equal(32_000, settings.MaxTokensFor(PlanTier.Free));
     }
 
     [Fact]
-    public void Paid_plans_get_progressively_higher_ceilings()
+    public void Paid_plans_keep_equal_non_truncating_ceilings()
     {
         var settings = WithMaxTokens("32000");
 
@@ -36,7 +36,7 @@ public class TokenCeilingTests
         var pro = settings.MaxTokensFor(PlanTier.Pro);
         var team = settings.MaxTokensFor(PlanTier.Team);
 
-        Assert.True(free < pro, "Pro, Free'den yüksek olmalı");
+        Assert.True(free <= pro, "Pro, Free'den düşük olmamalı");
         Assert.True(pro <= team, "Team, Pro'dan düşük olmamalı");
     }
 
@@ -44,7 +44,7 @@ public class TokenCeilingTests
     public void A_modest_request_is_never_raised_to_the_ceiling()
     {
         // Tavan bir SINIR, bir varsayılan değil — kullanıcı 1.000 istediyse
-        // 6.000 vermek, istemediği bir maliyeti ona yüklemek olurdu.
+        // daha fazlasını zorlamak istemediği bir maliyeti ona yüklemek olurdu.
         var settings = WithMaxTokens("1000");
 
         Assert.Equal(1_000, settings.MaxTokensFor(PlanTier.Free));
@@ -52,12 +52,12 @@ public class TokenCeilingTests
     }
 
     [Fact]
-    public void A_garbage_value_falls_back_to_the_default_and_is_still_capped()
+    public void A_garbage_value_falls_back_to_the_default_and_is_not_truncated()
     {
         var settings = WithMaxTokens("sonsuz");
 
-        Assert.Equal(4_096, settings.MaxTokensValue);
-        Assert.Equal(4_096, settings.MaxTokensFor(PlanTier.Free));
+        Assert.Equal(65_536, settings.MaxTokensValue);
+        Assert.Equal(65_536, settings.MaxTokensFor(PlanTier.Free));
     }
 
     // ── Gerçek kullanım ölçümü ───────────────────────────────────────────────

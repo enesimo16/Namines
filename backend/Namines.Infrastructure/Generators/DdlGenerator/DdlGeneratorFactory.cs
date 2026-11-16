@@ -4,11 +4,6 @@ using Namines.Core.Interfaces;
 
 namespace Namines.Infrastructure.Generators.DdlGenerator;
 
-public interface IDdlGeneratorFactory
-{
-    IDdlGenerator GetGenerator(DatabaseType dbType);
-}
-
 public class DdlGeneratorFactory : IDdlGeneratorFactory
 {
     public IDdlGenerator GetGenerator(DatabaseType dbType)

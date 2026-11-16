@@ -88,11 +88,16 @@ public sealed class AuthControllerAutomationTests : IAsyncLifetime
     {
         public Task<Namines.Core.Models.DatabaseSchema> GenerateSchemaAsync(Namines.Core.Models.GenerateRequest request) => Task.FromResult(new Namines.Core.Models.DatabaseSchema());
         public Task<Namines.Core.Models.DatabaseSchema> ReviseSchemaAsync(Namines.Core.Models.ReviseRequest request) => Task.FromResult(new Namines.Core.Models.DatabaseSchema());
+        public Task<List<Namines.Core.Models.DbaIssue>> AnalyzeSchemaDbaAsync(Namines.Core.Models.DatabaseSchema schema, Namines.Core.Enums.DatabaseType dbType) => Task.FromResult(new List<Namines.Core.Models.DbaIssue>());
+        public Task<Namines.Core.Models.DatabaseSchema> ParseDbContextToSchemaAsync(string dbContextCode, Namines.Core.Enums.DatabaseType dbType) => Task.FromResult(new Namines.Core.Models.DatabaseSchema());
+        public Task<Namines.Core.Models.MigrationResult> GenerateMigrationCodeAsync(Namines.Core.Models.DatabaseSchema oldSchema, Namines.Core.Models.DatabaseSchema newSchema, Namines.Core.Enums.DatabaseType dbType) => Task.FromResult(new Namines.Core.Models.MigrationResult());
+        public Task<string> GenerateSmartSeedSqlAsync(Namines.Core.Models.DatabaseSchema schema, Namines.Core.Enums.DatabaseType dbType, string domain, int rowCount) => Task.FromResult(string.Empty);
         public Task<string> GenerateMockDataAsync(Namines.Core.Models.DatabaseSchema schema) => Task.FromResult(string.Empty);
         public Task<string> GenerateProjectSummaryAsync(Namines.Core.Models.DatabaseSchema schema, string projectName) => Task.FromResult(string.Empty);
         public Task<string> GenerateStreamlitAppAsync(Namines.Core.Models.DatabaseSchema schema, Namines.Core.Enums.DatabaseType dbType) => Task.FromResult(string.Empty);
         public Task<Namines.Core.Models.DatabaseSchema> AnalyzeImageAsync(byte[] imageBytes, string mimeType) => Task.FromResult(new Namines.Core.Models.DatabaseSchema());
         public Task<string> ExplainImpactAsync(Namines.Core.Models.ImpactReport impact) => Task.FromResult(string.Empty);
+        public Task<string> GenerateSqlFromQuestionAsync(Namines.Core.Models.DatabaseSchema schema, Namines.Core.Enums.DatabaseType dbType, string question) => Task.FromResult(string.Empty);
     }
 
     private sealed class NoopHttpFactory : System.Net.Http.IHttpClientFactory

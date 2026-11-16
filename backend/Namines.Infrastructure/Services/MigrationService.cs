@@ -13,11 +13,11 @@ namespace Namines.Infrastructure.Services;
 
 public class MigrationService : IMigrationService
 {
-    private readonly GroqAIService _groqService;
+    private readonly IAIService _aiService;
 
-    public MigrationService(GroqAIService groqService)
+    public MigrationService(IAIService aiService)
     {
-        _groqService = groqService;
+        _aiService = aiService;
     }
 
     public async Task<DatabaseSchema> ParseDbContextAsync(string dbContextCode, DatabaseType dbType)
@@ -30,7 +30,7 @@ public class MigrationService : IMigrationService
             };
         }
 
-        return await _groqService.ParseDbContextToSchemaAsync(dbContextCode, dbType);
+        return await _aiService.ParseDbContextToSchemaAsync(dbContextCode, dbType);
     }
 
     private static bool AreTablesMatching(SchemaTable oldTable, SchemaTable newTable)
@@ -254,6 +254,6 @@ public class MigrationService : IMigrationService
         if (oldSchema == null) oldSchema = new DatabaseSchema();
         if (newSchema == null) newSchema = new DatabaseSchema();
 
-        return await _groqService.GenerateMigrationCodeAsync(oldSchema, newSchema, dbType);
+        return await _aiService.GenerateMigrationCodeAsync(oldSchema, newSchema, dbType);
     }
 }

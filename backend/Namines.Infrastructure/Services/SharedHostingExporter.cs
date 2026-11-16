@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Namines.Core.Enums;
+using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Infrastructure.Generators.DdlGenerator;
 

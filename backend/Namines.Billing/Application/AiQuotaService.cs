@@ -33,10 +33,10 @@ internal sealed class AiQuotaService : IAiQuota
     }
 
     public long DailyPool =>
-        long.TryParse(_configuration["AiPool:DailyTokenPool"], out var value) ? value : 500_000;
+        long.TryParse(_configuration["AiPool:DailyTokenPool"], out var value) ? value : 2_500_000;
 
     public long MaxDailyPool =>
-        long.TryParse(_configuration["AiPool:MaxDailyTokenPool"], out var value) ? value : 2_000_000;
+        long.TryParse(_configuration["AiPool:MaxDailyTokenPool"], out var value) ? value : 10_000_000;
 
     public int GrowthAfterFullDays =>
         int.TryParse(_configuration["AiPool:GrowthAfterFullDays"], out var value) && value > 0 ? value : 3;
@@ -45,7 +45,7 @@ internal sealed class AiQuotaService : IAiQuota
         int.TryParse(_configuration["AiPool:MinDailyFreeUsers"], out var value) && value > 0 ? value : 100;
 
     public int MinUsefulDailyTokens =>
-        int.TryParse(_configuration["AiPool:MinUsefulDailyTokens"], out var value) && value > 0 ? value : 8_000;
+        int.TryParse(_configuration["AiPool:MinUsefulDailyTokens"], out var value) && value > 0 ? value : 25_000;
 
     /// <summary>
     /// Kullanıcı başına günlük token tavanı. Free için plan tavanı havuzdan adil paya göre daraltılır

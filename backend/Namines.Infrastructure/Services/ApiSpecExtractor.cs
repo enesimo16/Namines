@@ -1,28 +1,21 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Namines.Core.Analysis;
+using Namines.Core.Interfaces;
 using Namines.Core.Security;
 
 namespace Namines.Infrastructure.Services;
 
-/// <param name="Success">Herhangi bir kaynak işe yaradıysa true.</param>
-/// <param name="SourceKind">"graphql" | "openapi" | "none" — hangi kademenin işe yaradığı.</param>
-/// <param name="SourceUrl">Gerçekten veri döndüren URL — kullanıcının verdiğinden farklı olabilir (well-known yol denemesi).</param>
-/// <param name="Tables">Çıkarılan varlık adayları. Başarısızsa boş.</param>
-/// <param name="FailureReason">
-/// Başarısızsa neden — kullanıcıya gösterilecek. <b>"Sayfa metnine düş"
-/// YOK</b>: bu tip, o eski davranışın yerine geçen dürüst boşluk.
-/// </param>
-public sealed record ApiSpecExtractionResult(
-    bool Success,
-    string SourceKind,
-    string? SourceUrl,
-    IReadOnlyList<PlannedTable> Tables,
-    string? FailureReason);
+public sealed class ApiSpecExtractorService : IApiSpecExtractor
+{
+    public Task<ApiSpecExtractionResult> ExtractAsync(string userUrl, CancellationToken ct = default) =>
+        ApiSpecExtractor.ExtractAsync(userUrl, ct);
+}
 
 /// <summary>
 /// Kullanıcının verdiği bir URL'den, kademeli bir zincirle veri modeli

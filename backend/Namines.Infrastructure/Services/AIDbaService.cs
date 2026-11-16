@@ -12,11 +12,11 @@ namespace Namines.Infrastructure.Services;
 
 public class AIDbaService : IAIDbaService
 {
-    private readonly GroqAIService _groqService;
+    private readonly IDbaSchemaAnalyzer _dbaAnalyzer;
 
-    public AIDbaService(GroqAIService groqService)
+    public AIDbaService(IDbaSchemaAnalyzer dbaAnalyzer)
     {
-        _groqService = groqService;
+        _dbaAnalyzer = dbaAnalyzer;
     }
 
     public async Task<DbaAnalysisResult> AnalyzeSchemaAsync(DatabaseSchema schema, DatabaseType dbType)
@@ -39,7 +39,7 @@ public class AIDbaService : IAIDbaService
         // AŞAMA B: AI Destekli Derin DBA Analizi (Groq API)
         try
         {
-            var aiIssues = await _groqService.AnalyzeSchemaDbaAsync(schema, dbType);
+            var aiIssues = await _dbaAnalyzer.AnalyzeSchemaDbaAsync(schema, dbType);
             if (aiIssues != null && aiIssues.Count > 0)
             {
                 foreach (var aiIssue in aiIssues)

@@ -43,11 +43,7 @@ public class BranchDatabaseProvisionerTests
     /// INSERT'lerin gerçek motorda çalışmasını — kaybettirirdi.
     /// </summary>
     private static ISmartSeedService SeedService() =>
-        new SmartSeedService(new GroqAIService(
-            new HttpClient(),
-            new ConfigurationBuilder().Build(),
-            new HttpContextAccessor(),
-            new MemoryCache(new MemoryCacheOptions())));
+        new SmartSeedService(null!);
 
     private static DatabaseSchema UsersSchema() => new()
     {

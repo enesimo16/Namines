@@ -81,10 +81,6 @@ public sealed class GatewayKeyStoredConnectionSqlTests : IAsyncLifetime
 
     private static GatewayController NewController(AuthDbContext db, string rawApiKey)
     {
-        var httpContextAccessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
-        var groq = new GroqAIService(
-            new System.Net.Http.HttpClient(), new ConfigurationBuilder().Build(),
-            httpContextAccessor, new MemoryCache(new MemoryCacheOptions()));
         var quota = TestModules.For(db).AiQuota();
 
         var httpContext = new DefaultHttpContext();
@@ -92,7 +88,7 @@ public sealed class GatewayKeyStoredConnectionSqlTests : IAsyncLifetime
 
         return new GatewayController(
             gateway: null!, gate: TestModules.For(db).GatewayGate(new ConfigurationBuilder().Build()), audit: TestModules.For(db).GatewayAudit, usage: TestModules.For(db).Usage, configuration: new ConfigurationBuilder().Build(),
-            groq: groq, logger: NullLogger<GatewayController>.Instance, quota: quota,
+            aiService: null!, logger: NullLogger<GatewayController>.Instance, quota: quota,
             secrets: TestModules.For(db).Authority(new PassthroughProtector()), studio: TestModules.For(db).StudioService, introspection: null!, workbench: null!, authority: TestModules.For(db).DefaultAuthority, projects: TestModules.For(db).Projects, branches: TestModules.For(db).Branches)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext },

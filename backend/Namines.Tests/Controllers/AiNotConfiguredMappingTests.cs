@@ -41,11 +41,16 @@ public sealed class AiNotConfiguredMappingTests
     {
         public Task<DatabaseSchema> GenerateSchemaAsync(GenerateRequest request) => throw error;
         public Task<DatabaseSchema> ReviseSchemaAsync(ReviseRequest request) => throw error;
+        public Task<List<DbaIssue>> AnalyzeSchemaDbaAsync(DatabaseSchema schema, DatabaseType dbType) => throw error;
+        public Task<DatabaseSchema> ParseDbContextToSchemaAsync(string dbContextCode, DatabaseType dbType) => throw error;
+        public Task<MigrationResult> GenerateMigrationCodeAsync(DatabaseSchema oldSchema, DatabaseSchema newSchema, DatabaseType dbType) => throw error;
+        public Task<string> GenerateSmartSeedSqlAsync(DatabaseSchema schema, DatabaseType dbType, string domain, int rowCount) => throw error;
         public Task<string> GenerateMockDataAsync(DatabaseSchema schema) => throw error;
         public Task<string> GenerateProjectSummaryAsync(DatabaseSchema schema, string projectName) => throw error;
         public Task<string> GenerateStreamlitAppAsync(DatabaseSchema schema, DatabaseType dbType) => throw error;
         public Task<DatabaseSchema> AnalyzeImageAsync(byte[] imageBytes, string mimeType) => throw error;
         public Task<string> ExplainImpactAsync(ImpactReport impact) => throw error;
+        public Task<string> GenerateSqlFromQuestionAsync(DatabaseSchema schema, DatabaseType dbType, string question) => throw error;
     }
 
     private static MigrationController Migration(Exception error) =>

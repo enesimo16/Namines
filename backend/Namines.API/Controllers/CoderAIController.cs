@@ -86,7 +86,7 @@ public class CoderAIController : ControllerBase
 
             var aiFactory = sp.GetRequiredService<IAIFactory>();
             var packager = sp.GetRequiredService<ICoderAIPackager>();
-            var ddlFactory = sp.GetRequiredService<Namines.Infrastructure.Generators.DdlGenerator.IDdlGeneratorFactory>();
+            var ddlFactory = sp.GetRequiredService<Namines.Core.Interfaces.IDdlGeneratorFactory>();
 
             try
             {

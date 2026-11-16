@@ -25,8 +25,7 @@ namespace Namines.Tests.Services;
 ///
 /// <b>Yapılandırma seçiminin de buradan sınanması bilinçli:</b> fabrikanın kendi
 /// birim testi doğru sağlayıcıyı ÜRETTİĞİNİ kanıtlıyor, ama o sağlayıcının
-/// <c>GroqAIService</c>'e gerçekten ULAŞTIĞINI kanıtlamıyor. İkisinin arası —
-/// yani DI kaydının doğru bağlanması — bu testin kapsadığı yer.
+/// <c>OpenAiCompatibleLlmEngine</c>'e ve <c>IMasterOrchestrator</c>'a gerçekten ULAŞTIĞINI kanıtlar.
 /// </summary>
 public sealed class ChatProviderDependencyInjectionTests
 {
@@ -70,18 +69,17 @@ public sealed class ChatProviderDependencyInjectionTests
     }
 
     [Fact]
-    public void GroqAIService_uretim_kayitlariyla_cozumlenebiliyor()
+    public void OpenAiCompatibleLlmEngine_ve_MasterOrchestrator_uretim_kayitlariyla_cozumlenebiliyor()
     {
-        // Kurucusu HttpClient, IConfiguration, IHttpContextAccessor, IMemoryCache,
-        // ILogger ve artık IChatCompletionProvider istiyor. Sonuncusu typed-client
-        // kaydıyla birlikte çözümlenemezse uygulama açılışta düşer.
         using var connection = new SqliteConnection("DataSource=:memory:");
         connection.Open();
 
         using var provider = BuildProductionLikeProvider(connection);
         using var scope = provider.CreateScope();
 
-        Assert.NotNull(scope.ServiceProvider.GetRequiredService<GroqAIService>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<OpenAiCompatibleLlmEngine>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IMasterOrchestrator>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IAIService>());
     }
 
     [Fact]

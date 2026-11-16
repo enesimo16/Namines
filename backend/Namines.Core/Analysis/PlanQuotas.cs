@@ -119,83 +119,41 @@ public static class PlanQuotas
 {
     public static PlanLimits For(PlanTier tier) => tier switch
     {
-        // Free'de branch veritabanı yok: her biri host'ta kalıcı bir container ve
-        // bellek tutuyor, ücretsiz katmanda sınırsız açılması sunucuyu düşürür.
-        //
-        // ⚠️ AI token ve rpm sayıları GEÇİCİ VARSAYILAN. Gerçek rakamlar ürün
-        // kararıdır ve 34-SENDEN-BEKLENENLER.md §4'te bekliyor. Free bilerek
-        // "kullanılabilir ama dar": sıfır vermek ürünü denenemez kılar, cömert
-        // vermek ücretliye geçme sebebini yok eder.
         PlanTier.Free => new PlanLimits(
             BranchDatabases: 0, EphemeralRunsPerDay: 3, ByodbConnections: 1,
-            DailyAiTokens: 20_000, GatewayRequestsPerMinute: 60, TeamSeats: 1,
+            DailyAiTokens: 100_000, GatewayRequestsPerMinute: 60, TeamSeats: 1,
             CrossDatabaseRelations: 3,
-            // Namines Ground: ucretsiz kullaniciya bile KENDI barindirdigimiz
-            // (LocalPostgres) bir veritabani icin ZEMIN -- Ground'un kendisi
-            // Supabase gibi bir sey olmak icin var; bunu Free'de tamamen
-            // kapatmak Ground'u yalnizca odeyen kullanicinin gordugu bir
-            // ozellige indirger. 1: BranchDatabases: 0'in aksine bu bizim
-            // isletmedigimiz gecici bir container degil, tek bir kalici
-            // veritabani -- maliyeti bir ekleme sorgusu kadar dusuk.
             ManagedDatabases: 1,
-            // 500 MB: gercek bir deneme/kucuk proje icin yeterli, sunucu
-            // diskini tek bir ucretsiz kullanicinin doldurmasina izin
-            // vermeyecek kadar dar. Kisitlama degil UYARI -- bkz. yukaridaki
-            // parametre yorumu.
             ManagedDatabaseStorageWarningBytes: 500L * 1024 * 1024,
-            // İki tur ampirik denge (bkz. SchemaAgentPipeline.DefaultRepairRounds):
-            // biri unutulmuş anahtarı/ilişkiyi düzeltiyor, ikincisi ilkinin yan
-            // etkisini topluyor. Ücretsiz katmanda daha derine inmek, ürünü
-            // denemenin maliyetini karşılıksız büyütürdü.
-            MaxAgentRepairTurns: 2),
-
-        // Pro sınırsız DEĞİL: AI gerçek para harcıyor, "sınırsız" demek tek bir
-        // kullanıcının aylık ücretinin kat kat üstünde fatura üretebilmesi demek.
-        PlanTier.Pro => new PlanLimits(2, 20, 3,
-            DailyAiTokens: 200_000, GatewayRequestsPerMinute: 600, TeamSeats: 1,
-            CrossDatabaseRelations: 25,
-            // BranchDatabases ile hizali: bir uretim + bir hazirlik ortami.
-            ManagedDatabases: 2,
-            // Free'nin iki katı: ödeyen kullanıcının agent'ı, üçüncü turda
-            // pes etmek yerine zor şemalarda ısrar edebiliyor.
+            // Yeni NSL-first diyalektik orkestratör için temel özerklik derinliği.
             MaxAgentRepairTurns: 4),
 
-        // Team'de DailyAiTokens KOLTUK BAŞINA pay: 3 koltuk × 200.000 = 600.000
-        // günlük ekip havuzu. Pro ile aynı sayı olması bilinçli — bir Team koltuğu
-        // bir Pro hesabıyla aynı hakkı taşıyor, ekip olmak kimseyi kısıtlamıyor.
-        //
-        // Havuz ORTAK, üyeye bölünmüş değil: bölseydik kullanıcının kotası birini
-        // davet ettiği anda düşerdi (600K → 300K) ve bu, planın teşvik etmesi
-        // gereken tek davranışı cezalandırırdı. Açlığa karşı üye başına ayrı bir
-        // tavan var (bkz. AiQuotaService).
+        PlanTier.Pro => new PlanLimits(2, 20, 3,
+            DailyAiTokens: 1_000_000, GatewayRequestsPerMinute: 600, TeamSeats: 1,
+            CrossDatabaseRelations: 25,
+            ManagedDatabases: 2,
+            MaxAgentRepairTurns: 8),
+
+        // Team'de DailyAiTokens KOLTUK BAŞINA pay: 3 koltuk × 1.000.000 = 3.000.000
+        // günlük ekip havuzu.
         PlanTier.Team => new PlanLimits(20, -1, 20,
-            DailyAiTokens: 200_000, GatewayRequestsPerMinute: 3_000, TeamSeats: 3,
+            DailyAiTokens: 1_000_000, GatewayRequestsPerMinute: 3_000, TeamSeats: 3,
             CrossDatabaseRelations: 100,
             ManagedDatabases: 20,
-            // Pro ile AYNI: bir Team koltuğu bir Pro hesabıyla aynı hakkı
-            // taşıyor, ekip olmak kimseyi kısıtlamıyor.
-            MaxAgentRepairTurns: 4),
+            MaxAgentRepairTurns: 8),
 
-        // Enterprise sözleşmeyle belirlenir; bu değerler tavan değil, sözleşme
-        // yapılandırılana kadar geçerli bir başlangıç.
         PlanTier.Enterprise => new PlanLimits(-1, -1, -1,
-            DailyAiTokens: 10_000_000, GatewayRequestsPerMinute: 10_000, TeamSeats: -1,
+            DailyAiTokens: 25_000_000, GatewayRequestsPerMinute: 10_000, TeamSeats: -1,
             CrossDatabaseRelations: -1,
             ManagedDatabases: -1,
-            MaxAgentRepairTurns: 6),
+            MaxAgentRepairTurns: 12),
 
-        // Sahip hesabında sınır yok. Token tavanı -1 DEĞİL, int.MaxValue:
-        // -1 "sınırsız" anlamına gelen sayaç alanları için doğru ama günlük
-        // token bütçesi bir ARİTMETİK sınır (kullanılan + istenen > tavan);
-        // oraya -1 koymak her isteği "tavanı aştın" saydırırdı — yani sınırsız
-        // hesap hiçbir şey yapamazdı.
+        // Sahip hesabında sınır yok.
         PlanTier.Dev => new PlanLimits(-1, -1, -1,
             DailyAiTokens: int.MaxValue, GatewayRequestsPerMinute: int.MaxValue, TeamSeats: -1,
             CrossDatabaseRelations: -1,
             ManagedDatabases: -1,
-            // Tur sayısı -1 DEĞİL: DailyAiTokens'daki aynı gerekçe. Bu bir
-            // sayaç değil DÖNGÜ sınırı; -1 koymak döngüyü hiç çalıştırmazdı.
-            MaxAgentRepairTurns: 6),
+            MaxAgentRepairTurns: 16),
 
         _ => For(PlanTier.Free),
     };

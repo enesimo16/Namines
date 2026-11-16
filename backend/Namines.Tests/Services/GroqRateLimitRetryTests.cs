@@ -24,7 +24,7 @@ namespace Namines.Tests.Services;
 /// </summary>
 public class GroqRateLimitRetryTests
 {
-    private static (GroqAIService Service, List<TimeSpan> Waits) Build(
+    private static (OpenAiCompatibleLlmEngine Service, List<TimeSpan> Waits) Build(
         RecordingHttpMessageHandler handler,
         int maxTotalWaitSeconds = 600,
         int maxSingleWaitSeconds = 60,
@@ -41,13 +41,16 @@ public class GroqRateLimitRetryTests
             .Build();
 
         var waits = new List<TimeSpan>();
+        var policy = new AiRetryPolicy(maxTotalWaitSeconds, maxSingleWaitSeconds, maxAttempts);
 
-        var service = new GroqAIService(
+        var service = new OpenAiCompatibleLlmEngine(
             new HttpClient(handler),
             config,
-            new HttpContextAccessor(),
-            new MemoryCache(new MemoryCacheOptions()),
-            logger: null,
+            new GroqChatCompletionProvider(config),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<OpenAiCompatibleLlmEngine>.Instance,
+            usage: null,
+            retryBudget: new AiRetryBudget(policy),
+            httpContext: new HttpContextAccessor(),
             delay: (d, _) => { waits.Add(d); return Task.CompletedTask; });
 
         return (service, waits);
@@ -145,12 +148,15 @@ public class GroqRateLimitRetryTests
 
         using var cts = new CancellationTokenSource();
 
-        var service = new GroqAIService(
+        var policy = new AiRetryPolicy(600, 60, AiRetryPolicy.DefaultMaxAttempts);
+        var service = new OpenAiCompatibleLlmEngine(
             new HttpClient(handler),
             config,
-            new HttpContextAccessor(),
-            new MemoryCache(new MemoryCacheOptions()),
-            logger: null,
+            new GroqChatCompletionProvider(config),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<OpenAiCompatibleLlmEngine>.Instance,
+            usage: null,
+            retryBudget: new AiRetryBudget(policy),
+            httpContext: new HttpContextAccessor(),
             // Beklemeye girildiği anda kullanıcı iptal etmiş gibi davran.
             delay: (_, ct) => { cts.Cancel(); ct.ThrowIfCancellationRequested(); return Task.CompletedTask; });
 
@@ -186,7 +192,7 @@ public class GroqRateLimitRetryTests
     {
         using var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
 
-        Assert.True(GroqAIService.ParseRetryAfter(response, body, out var wait));
+        Assert.True(OpenAiCompatibleLlmEngine.ParseRetryAfter(response, body, out var wait));
         Assert.Equal(TimeSpan.FromSeconds(expected), wait);
     }
 
@@ -197,7 +203,7 @@ public class GroqRateLimitRetryTests
         response.Headers.RetryAfter =
             new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(9));
 
-        Assert.True(GroqAIService.ParseRetryAfter(response, "try again in 99s", out var wait));
+        Assert.True(OpenAiCompatibleLlmEngine.ParseRetryAfter(response, "try again in 99s", out var wait));
         Assert.Equal(TimeSpan.FromSeconds(9), wait);
     }
 
@@ -206,6 +212,6 @@ public class GroqRateLimitRetryTests
     {
         using var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
 
-        Assert.False(GroqAIService.ParseRetryAfter(response, "rate_limit_exceeded", out _));
+        Assert.False(OpenAiCompatibleLlmEngine.ParseRetryAfter(response, "rate_limit_exceeded", out _));
     }
 }

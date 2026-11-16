@@ -161,11 +161,16 @@ public sealed class AutomationControllerTests : IAsyncLifetime
     {
         public Task<DatabaseSchema> GenerateSchemaAsync(GenerateRequest request) => Task.FromResult(new DatabaseSchema());
         public Task<DatabaseSchema> ReviseSchemaAsync(ReviseRequest request) => Task.FromResult(new DatabaseSchema());
+        public Task<List<DbaIssue>> AnalyzeSchemaDbaAsync(DatabaseSchema schema, DatabaseType dbType) => Task.FromResult(new List<DbaIssue>());
+        public Task<DatabaseSchema> ParseDbContextToSchemaAsync(string dbContextCode, DatabaseType dbType) => Task.FromResult(new DatabaseSchema());
+        public Task<MigrationResult> GenerateMigrationCodeAsync(DatabaseSchema oldSchema, DatabaseSchema newSchema, DatabaseType dbType) => Task.FromResult(new MigrationResult());
+        public Task<string> GenerateSmartSeedSqlAsync(DatabaseSchema schema, DatabaseType dbType, string domain, int rowCount) => Task.FromResult(string.Empty);
         public Task<string> GenerateMockDataAsync(DatabaseSchema schema) => Task.FromResult(string.Empty);
         public Task<string> GenerateProjectSummaryAsync(DatabaseSchema schema, string projectName) => Task.FromResult(string.Empty);
         public Task<string> GenerateStreamlitAppAsync(DatabaseSchema schema, DatabaseType dbType) => Task.FromResult(string.Empty);
         public Task<DatabaseSchema> AnalyzeImageAsync(byte[] imageBytes, string mimeType) => Task.FromResult(new DatabaseSchema());
         public Task<string> ExplainImpactAsync(ImpactReport impact) => Task.FromResult(string.Empty);
+        public Task<string> GenerateSqlFromQuestionAsync(DatabaseSchema schema, DatabaseType dbType, string question) => Task.FromResult(string.Empty);
     }
 
     private sealed class NoopHttpClientFactory : System.Net.Http.IHttpClientFactory

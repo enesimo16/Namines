@@ -134,7 +134,7 @@ public class GatewayController : ControllerBase
     private readonly IGatewayAuditLog _audit;
     private readonly IUsageMeter _usage;
     private readonly IConfiguration _configuration;
-    private readonly GroqAIService _groq;
+    private readonly IAIService _aiService;
     private readonly ILogger<GatewayController> _logger;
     private readonly IAiQuota _quota;
     private readonly IProjectConnectionSecretProvider _secrets;
@@ -157,7 +157,7 @@ public class GatewayController : ControllerBase
 
     public GatewayController(
         IGatewayService gateway, IGatewayRequestGate gate, IGatewayAuditLog audit, IUsageMeter usage, IConfiguration configuration,
-        GroqAIService groq, ILogger<GatewayController> logger, IAiQuota quota,
+        IAIService aiService, ILogger<GatewayController> logger, IAiQuota quota,
         IProjectConnectionSecretProvider secrets, IStudioApplicationService studio, IDbIntrospectionService introspection,
         ISqlWorkbenchService workbench,
         ITenantProjectAuthority authority,
@@ -173,7 +173,7 @@ public class GatewayController : ControllerBase
         _audit = audit;
         _usage = usage;
         _configuration = configuration;
-        _groq = groq;
+        _aiService = aiService;
         _logger = logger;
         _quota = quota;
         _secrets = secrets;
@@ -1196,7 +1196,7 @@ public class GatewayController : ControllerBase
         string sql;
         try
         {
-            sql = await _groq.GenerateSqlFromQuestionAsync(schema, engine, request.Question);
+            sql = await _aiService.GenerateSqlFromQuestionAsync(schema, engine, request.Question);
         }
         catch (Exception ex)
         {

@@ -68,9 +68,6 @@ public sealed class GatewayKeyScopeOnMetadataEndpointsTests : IAsyncLifetime
         if (withKey) http.Request.Headers[GatewayController.ApiKeyHeader] = _rawKey;
         if (origin is not null) http.Request.Headers.Origin = origin;
 
-        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
-        var groq = new GroqAIService(new HttpClient(), new ConfigurationBuilder().Build(), accessor,
-            new MemoryCache(new MemoryCacheOptions()));
         var quota = TestModules.For(db).AiQuota();
 
         // ForwardedHeaders:KnownNetworks TANIMLI: istemci adresi güvenilir sayılıyor, IP kısıtı
@@ -81,7 +78,7 @@ public sealed class GatewayKeyScopeOnMetadataEndpointsTests : IAsyncLifetime
 
         return new GatewayController(
             gateway: null!, gate: TestModules.For(db).GatewayGate(configuration), audit: TestModules.For(db).GatewayAudit, usage: TestModules.For(db).Usage, configuration: configuration,
-            groq: groq, logger: NullLogger<GatewayController>.Instance, quota: quota,
+            aiService: null!, logger: NullLogger<GatewayController>.Instance, quota: quota,
             secrets: TestModules.For(db).Authority(new ThrowingProtector()), studio: TestModules.For(db).StudioService, introspection: null!, workbench: null!, authority: TestModules.For(db).DefaultAuthority, projects: TestModules.For(db).Projects, branches: TestModules.For(db).Branches)
         {
             ControllerContext = new ControllerContext { HttpContext = http },

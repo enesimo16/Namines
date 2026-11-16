@@ -18,6 +18,7 @@ using Namines.Ops.Application;
 using Namines.Ops.Domain;
 using Namines.Infrastructure.Data;
 
+using Namines.AI.Application;
 using Namines.API.Services;
 using Namines.Desk.Abstractions;
 using Namines.Flow.Abstractions;
@@ -48,6 +49,7 @@ public class AdminController : ControllerBase
     private readonly IGroundModule? _ground;
     private readonly IFlowModule? _flow;
     private readonly IDeskModule? _desk;
+    private readonly IAutonomousSwarmTelemetry? _swarmTelemetry;
 
     public AdminController(
         Namines.Identity.Application.IAdminUserService adminUsers,
@@ -65,7 +67,8 @@ public class AdminController : ControllerBase
         IVaultModule? vault = null,
         IGroundModule? ground = null,
         IFlowModule? flow = null,
-        IDeskModule? desk = null)
+        IDeskModule? desk = null,
+        IAutonomousSwarmTelemetry? swarmTelemetry = null)
     {
         _adminUsers = adminUsers;
         _users = users;
@@ -83,6 +86,7 @@ public class AdminController : ControllerBase
         _ground = ground;
         _flow = flow;
         _desk = desk;
+        _swarmTelemetry = swarmTelemetry;
     }
 
     private async Task<ApplicationUser?> EnsureAdminAsync()
@@ -1133,10 +1137,11 @@ public class AdminController : ControllerBase
         var admin = await EnsureAdminAsync();
         if (admin == null) return StatusCode(403, new { error = "Admin access required." });
 
-        if (_aiRouter == null) return Ok(new { routes = Array.Empty<AiToolRoute>(), providers = Array.Empty<string>() });
+        var autonomousEngine = _swarmTelemetry?.GetSnapshot();
+        if (_aiRouter == null) return Ok(new { routes = Array.Empty<AiToolRoute>(), providers = Array.Empty<string>(), autonomousEngine });
         var routes = await _ops.ListRoutesAsync(admin.Id);
         var providers = _aiRouter.GetAvailableProviders();
-        return Ok(new { routes, providers });
+        return Ok(new { routes, providers, autonomousEngine });
     }
 
     [HttpPut("ai-routes/{toolKey}")]

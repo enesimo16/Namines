@@ -69,18 +69,13 @@ public sealed record AiAdvancedSettings
     /// <summary>
     /// Şema üretiminde modelin üretebileceği en fazla token.
     ///
-    /// <b>Varsayılan 32000 (tavan) — 4096 DEĞİL, bilerek.</b> "Advanced AI
-    /// Tuning" panelini hiç açmamış (yani ezici çoğunluk) her kullanıcı
-    /// <see cref="Default"/>'u kullanır. Eskiden bu alan "4096" idi ve
-    /// <see cref="MaxTokensFor"/>'un `Math.Min(kullanıcı, plan tavanı)` mantığı
-    /// yüzünden HİÇ dokunulmamış bir tercih, Pro/Team kullanıcısını bile
-    /// planının tavanına (16.000/32.000) değil sabit 4.096'ya kilitliyordu —
-    /// "kapsamlı" istenen bir şema, çıktı kesildiği için 5-6 tabloda kalıyordu.
-    /// Tavanın kendi amacı zaten bütçeyi koruyor (bkz. MaxTokensFor doc'u);
-    /// burada ikinci, gizli bir küçültme olmamalı.
+    /// <b>Varsayılan 65536 (tam model kapasitesi).</b> Önceki yapay plan tavanları
+    /// (Free=6000, Pro=16000) çıktıların ortadan kesilmesine yol açıyordu. Artık
+    /// çıktı token sınırı tüm planlarda sağlayıcı modelinin tam kapasitesine kadar
+    /// açıktır; daraltma yalnızca kullanıcı açıkça daha düşük bir değer seçerse uygulanır.
     /// </summary>
     [JsonPropertyName("maxTokens")]
-    public string MaxTokens { get; init; } = "32000";
+    public string MaxTokens { get; init; } = "65536";
 
     /// <summary>Yabancı anahtarlar için otomatik index önerilsin mi.</summary>
     [JsonPropertyName("autoIndex")]
@@ -129,34 +124,21 @@ public sealed record AiAdvancedSettings
             : 0.2;
 
     /// <summary>
-    /// Şema üretiminde izin verilen en fazla çıktı token'ı — <b>plana bağlı
-    /// tavanla kısıtlanmamış</b> ham değer.
-    ///
-    /// Doğrudan kullanmayın; <see cref="MaxTokensFor"/> tercih edilmeli.
+    /// Şema üretiminde izin verilen en fazla çıktı token'ı — 65.536 tavanlı değer.
+    /// Bozuk/eksik ayarlar tam kapasiteye (65.536) düşer.
     /// </summary>
     public int MaxTokensValue =>
-        int.TryParse(MaxTokens, out var m) && m >= 256 && m <= 32_000 ? m : 4096;
+        int.TryParse(MaxTokens, out var m) && m >= 256 && m <= 65_536 ? m : 65_536;
 
     /// <summary>
-    /// Planın izin verdiği tavana çekilmiş çıktı sınırı.
-    ///
-    /// <b>Neden gerekli:</b> bu ayar kullanıcıdan geliyordu ve plana
-    /// bakılmıyordu — ücretsiz bir kullanıcı da 32.000 yazabiliyordu. Kota tur
-    /// başına sabit 2.500 düştüğü için bu, aynı kotayla gerçekte 10 kat fazla
-    /// harcamak demekti. Kota artık gerçek kullanımı ölçüyor, ama tavanı da
-    /// plana bağlamak gerekiyor: aksi hâlde ücretsiz bir kullanıcı tek çağrıda
-    /// günlük hakkının tamamını yakıp hiçbir şey bitiremez.
+    /// Çıktı token tavanı — eski yapay plan kırpmaları (Free=6000, Pro=16000)
+    /// tamamen kaldırıldı. Tüm planlarda modelin tam kapasitesi (veya kullanıcının
+    /// açıkça seçtiği sınır) geçerlidir.
     /// </summary>
     public int MaxTokensFor(PlanTier tier)
     {
-        var ceiling = tier switch
-        {
-            PlanTier.Free => 6_000,
-            PlanTier.Pro => 16_000,
-            _ => 32_000,
-        };
-
-        return Math.Min(MaxTokensValue, ceiling);
+        var _ = tier;
+        return MaxTokensValue;
     }
 
     /// <summary>

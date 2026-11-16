@@ -78,8 +78,7 @@ public static class ServiceCollectionExtensions
         // Şema üretimi artık tek bir LLM çağrısı değil: taslak → deterministik
         // denetim → düzeltme. Kapının kendisi (linter + DDL üreticileri) zaten
         // kayıtlı; hat onları AI döngüsüne sokuyor.
-        services.AddScoped<ISchemaDraftSource, GroqSchemaDraftSource>();
-        services.AddScoped<SchemaAgentPipeline>();
+        services.AddScoped<IApiSpecExtractor, ApiSpecExtractorService>();
         services.AddHttpClient<IGithubClient, GithubClient>();
         services.AddScoped<IGithubBotService, GithubBotService>();
         // Singleton: tek bir DockerClient tutar ve durumu container etiketlerinde

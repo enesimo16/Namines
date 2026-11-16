@@ -14,11 +14,11 @@ namespace Namines.Infrastructure.Services;
 
 public class SmartSeedService : ISmartSeedService
 {
-    private readonly GroqAIService _groqService;
+    private readonly IAIService _aiService;
 
-    public SmartSeedService(GroqAIService groqService)
+    public SmartSeedService(IAIService aiService)
     {
-        _groqService = groqService;
+        _aiService = aiService;
     }
 
     public async Task<SmartSeedResult> GenerateSmartSeedAsync(DatabaseSchema schema, DatabaseType dbType, string? domainHint, int rowCount = 50, bool forceDeterministic = false)
@@ -54,7 +54,7 @@ public class SmartSeedService : ISmartSeedService
         {
             try
             {
-                sqlScript = await _groqService.GenerateSmartSeedSqlAsync(schema, dbType, domain, rowCount);
+                sqlScript = await _aiService.GenerateSmartSeedSqlAsync(schema, dbType, domain, rowCount);
             }
             catch (Exception ex)
             {

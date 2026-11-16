@@ -56,10 +56,10 @@ public class TeamAndAdvancedSettingsTests
     [Fact]
     public void The_team_pool_is_the_seat_share_times_the_seats()
     {
-        // 3 koltuk × 200.000 = 600.000 günlük ekip havuzu.
+        // 3 koltuk × 1.000.000 = 3.000.000 günlük ekip havuzu.
         var team = PlanQuotas.For(PlanTier.Team);
 
-        Assert.Equal(600_000L, (long)team.DailyAiTokens * team.TeamSeats);
+        Assert.Equal(3_000_000L, (long)team.DailyAiTokens * team.TeamSeats);
     }
 
     [Fact]

@@ -159,11 +159,7 @@ public class LaunchServiceTests : IAsyncLifetime
     /// <c>forceDeterministic</c> ile çağırıyor, yapay zekâya hiç gidilmiyor.
     /// </summary>
     private static ISmartSeedService SeedService() =>
-        new SmartSeedService(new GroqAIService(
-            new HttpClient(),
-            new ConfigurationBuilder().Build(),
-            new HttpContextAccessor(),
-            new MemoryCache(new MemoryCacheOptions())));
+        new SmartSeedService(null!);
 
     private async Task<StudioProject> NewBareProjectAsync()
     {

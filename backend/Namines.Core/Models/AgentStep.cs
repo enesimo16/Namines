@@ -25,4 +25,10 @@ public sealed record AgentStep(string Kind, string Message)
     public static AgentStep Finding(string message) => new("finding", message);
     public static AgentStep Repair(string message) => new("repair", message);
     public static AgentStep Clean(string message) => new("clean", message);
+
+    public static AgentStep Master(string message) => new("master", message);
+    public static AgentStep Positive(string message) => new("positive", message);
+    public static AgentStep Negative(string message) => new("negative", message);
+    public static AgentStep SubAgent(string agentName, string message) => new("subagent", $"[{agentName}] {message}");
+    public static AgentStep Tool(string toolName, string message) => new("tool", $"[{toolName}] {message}");
 }

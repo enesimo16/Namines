@@ -76,8 +76,8 @@ public sealed class AiAdvancedSettingsFixupTests : IAsyncLifetime
 
         var settings = AiAdvancedSettings.Parse(await AdvancedJsonOfAsync("pro-user"));
 
-        // Artık Pro tavanına (16.000) sığıyor, 4096'ya kilitli değil.
-        Assert.Equal(16_000, settings.MaxTokensFor(PlanTier.Pro));
+        // Artık yeni 65.536 tavanında, 4096'ya kilitli değil.
+        Assert.Equal(65_536, settings.MaxTokensFor(PlanTier.Pro));
     }
 
     [Fact]

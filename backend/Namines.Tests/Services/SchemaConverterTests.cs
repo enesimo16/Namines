@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Namines.Core.Analysis;
 using Namines.Core.Enums;
+using Namines.Core.Interfaces;
 using Namines.Core.Models;
 using Namines.Infrastructure.Generators.DdlGenerator;
 using Namines.Infrastructure.Services;
